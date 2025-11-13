@@ -1,0 +1,72 @@
+# 🧙‍♂️ Dockerignore - The Invisibility Cloak for Unwanted Files
+# These files will NEVER make it into the build context, reducing build time
+
+# Version Control
+.git
+.gitignore
+.gitattributes
+
+# Documentation (keep out of production!)
+*.md
+!README.md
+docs/
+spellbook/docs/
+
+# Tests (not needed in production!)
+tests/
+spellbook/tests/
+**/test_*.py
+**/*_test.py
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE and Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Python Development Files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Environment and Secrets
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets/
+
+# CI/CD (not needed in container)
+.github/
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Development Tools
+Makefile
+docker-compose.yml
+docker-compose.*.yml
+
+# Temporary Files
+*.log
+*.tmp
+tmp/
+temp/
+
+# ═══════════════════════════════════════════════════════════════════════
+# 🎓 Wizardry Lesson:
+# A good .dockerignore can reduce build context size by 50-90%!
+# Smaller context = faster builds = happier wizards! ✨
+# ═══════════════════════════════════════════════════════════════════════
