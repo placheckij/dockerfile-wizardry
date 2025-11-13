@@ -365,18 +365,6 @@ time docker build -t wizardry:latest .
 # Dependencies aren't reinstalled - that's Spell #5!
 ```
 
-## 🤝 Contributing
-
-Join the wizarding community! We welcome contributions:
-
-- 🐍 **More language examples** (Node.js, Go, Rust, Java, etc.)
-- 🔐 **Security improvements** and new spells
-- ⚡ **Optimization techniques** and potions
-- 📚 **Documentation** enhancements and tutorials
-- 🐛 **Bug fixes** and improvements
-
-Please ensure your contributions maintain the "wizardry" theme and include educational comments!
-
 ## 💬 Support & Contact
 
 If you need assistance, have questions, or want to report issues:
