@@ -9,7 +9,6 @@
 [![Hadolint](https://img.shields.io/badge/dockerfile-linted-success.svg)](https://github.com/hadolint/hadolint)
 [![Trivy](https://img.shields.io/badge/security-scanned-success.svg)](https://github.com/aquasecurity/trivy)
 [![Docker Image Size](https://img.shields.io/badge/image%20size-~150MB-blue.svg)](https://github.com/placheckij/dockerfile-wizardry)
-[![GitHub stars](https://img.shields.io/github/stars/placheckij/dockerfile-wizardry?style=social)](https://github.com/placheckij/dockerfile-wizardry/stargazers)
 
 Welcome to Dockerfile Wizardry - where security meets sorcery! This repository demonstrates production-ready Docker image creation following security best practices, optimization techniques, and industry standards (CIS Docker Benchmark, OWASP) while maintaining compact image sizes.
 
