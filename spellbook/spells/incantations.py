@@ -7,19 +7,18 @@ SPELL_BOOK = {
     "fireball": "🔥 Blazing destruction",
     "heal": "💚 Restoration magic",
     "shield": "🛡️ Protective barrier",
-    "teleport": "🌀 Instant transportation"
+    "teleport": "🌀 Instant transportation",
 }
 
 
 def cast_spell(spell_name: str) -> str:
     """
     Cast a spell from the wizardry spell book.
-    
+
     This represents actual business logic that MUST be in the container.
     """
     return SPELL_BOOK.get(
-        spell_name.lower(),
-        "❌ Unknown spell - check your spellbook!"
+        spell_name.lower(), "❌ Unknown spell - check your spellbook!"
     )
 
 

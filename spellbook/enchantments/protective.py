@@ -7,14 +7,14 @@ Security-related code - essential for production.
 def shield_charm(level: int = 1) -> dict:
     """
     Create a protective shield.
-    
+
     Represents security/middleware code that MUST be in production.
     """
     return {
         "type": "shield",
         "level": level,
         "protection": level * 100,
-        "duration": f"{level * 10} minutes"
+        "duration": f"{level * 10} minutes",
     }
 
 

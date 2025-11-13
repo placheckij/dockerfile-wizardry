@@ -7,7 +7,7 @@ but NOT the tests/ directory. This demonstrates CIS 4.9 best practice.
 """
 
 import pytest
-from spells.incantations import cast_spell, list_available_spells
+from spellbook.spells.incantations import cast_spell, list_available_spells
 
 
 def test_cast_known_spell():

@@ -1,0 +1,20 @@
+# 🧙‍♂️ Dockerfile Wizardry Code Owners
+
+# Default owner for everything in the repository
+* @placheckij
+
+# Documentation
+*.md @placheckij
+LICENSE @placheckij
+
+# Docker and container configuration
+Dockerfile @placheckij
+.dockerignore @placheckij
+docker-compose*.yml @placheckij
+
+# Python configuration
+pyproject.toml @placheckij
+poetry.lock @placheckij
+
+# GitHub workflows and actions
+.github/ @placheckij

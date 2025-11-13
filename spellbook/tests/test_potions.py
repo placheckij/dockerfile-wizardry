@@ -4,7 +4,7 @@
 """
 
 import pytest
-from potions.brewing import brew_potion, get_recipe_count
+from spellbook.potions.brewing import brew_potion, get_recipe_count
 
 
 def test_brew_known_potion():

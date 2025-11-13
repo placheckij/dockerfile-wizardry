@@ -4,14 +4,13 @@ This demonstrates the main application file that gets copied to the container.
 """
 
 from fastapi import FastAPI
-from spells.incantations import cast_spell
 from potions.brewing import brew_potion
-from enchantments.protective import shield_charm
+from spells.incantations import cast_spell
 
 app = FastAPI(
     title="Dockerfile Wizardry API",
     description="A magical example of Docker best practices",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 
@@ -26,7 +25,7 @@ async def root():
     """Welcome to the wizardry!"""
     return {
         "message": "Welcome to Dockerfile Wizardry!",
-        "tip": "Check out the Dockerfile to learn security best practices"
+        "tip": "Check out the README.md & Dockerfile to learn security best practices",
     }
 
 
@@ -46,4 +45,5 @@ async def brew(potion_type: str):
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

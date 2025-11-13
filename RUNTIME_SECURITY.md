@@ -50,7 +50,6 @@ Map container users to different host users:
 ## 🐳 Docker Compose Example
 
 ```yaml
-version: '3.8'
 services:
   wizardry:
     image: wizardry:latest
@@ -79,6 +78,7 @@ services:
       timeout: 3s
       retries: 3
       start_period: 10s
+    restart: unless-stopped
 ```
 
 ## ☸️ Kubernetes Security Context
@@ -88,6 +88,8 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: wizardry
+  labels:
+    app: wizardry
 spec:
   securityContext:
     runAsNonRoot: true
@@ -109,6 +111,10 @@ spec:
           - ALL
         add:
           - NET_BIND_SERVICE
+    ports:
+    - containerPort: 8000
+      name: http
+      protocol: TCP
     resources:
       limits:
         memory: "512Mi"
@@ -116,6 +122,26 @@ spec:
       requests:
         memory: "256Mi"
         cpu: "500m"
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8000
+        scheme: HTTP
+      initialDelaySeconds: 10
+      periodSeconds: 30
+      timeoutSeconds: 3
+      successThreshold: 1
+      failureThreshold: 3
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 8000
+        scheme: HTTP
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 3
+      successThreshold: 1
+      failureThreshold: 3
     volumeMounts:
     - name: tmp
       mountPath: /tmp
@@ -123,6 +149,7 @@ spec:
   - name: tmp
     emptyDir:
       sizeLimit: 100Mi
+  restartPolicy: Always
 ```
 
 ## 🔑 Secrets Management
