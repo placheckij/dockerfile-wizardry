@@ -378,7 +378,18 @@ Join the wizarding community! We welcome contributions:
 
 Please ensure your contributions maintain the "wizardry" theme and include educational comments!
 
-## 📝 License
+## 💬 Support & Contact
+
+If you need assistance, have questions, or want to report issues:
+
+- **GitHub Discussions**: [Join the discussion](https://github.com/placheckij/dockerfile-wizardry/discussions) - Ask questions, share ideas, or discuss implementation
+- **GitHub Issues**: [Report bugs or request features](https://github.com/placheckij/dockerfile-wizardry/issues)
+- **Email**: [jakub@plachecki.dev](mailto:jakub@plachecki.dev)
+- **LinkedIn**: [Connect with me](https://www.linkedin.com/in/jakubplachecki)
+
+Contributions, feedback, and suggestions are welcome!
+
+##  License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
