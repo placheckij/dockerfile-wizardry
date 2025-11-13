@@ -19,7 +19,7 @@ LABEL maintainer="placheckij" \
 USER root
 # 🛡️ Spell #3: Minimal Packages & Non-Root User (CIS 4.2)
 RUN apk -U upgrade && \
-    apk add --no-cache curl tini && \
+    apk add --no-cache curl=8.11.1-r0 tini=0.19.0-r3 && \
     rm -rf /var/cache/apk/* && \
     addgroup -g 1337 wizards && \
     adduser -D -h /spellbook -G wizards -u 1337 wizard

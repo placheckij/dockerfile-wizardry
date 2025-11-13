@@ -27,6 +27,9 @@ jobs:
   security-scan:
     name: 🛡️ Security Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -36,18 +39,14 @@ jobs:
         with:
           scan-type: 'config'
           scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-
-      - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: 'trivy-results.sarif'
+          format: 'table'
 
   build-and-test:
     name: 🏗️ Build & Test Docker Image
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -88,14 +87,8 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.IMAGE_NAME }}:latest
-          format: 'sarif'
-          output: 'trivy-image-results.sarif'
-
-      - name: Upload Trivy image scan results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: 'trivy-image-results.sarif'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
 
   python-tests:
     name: 🧪 Run Python Tests
