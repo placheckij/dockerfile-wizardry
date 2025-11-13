@@ -9,8 +9,11 @@
 [![Hadolint](https://img.shields.io/badge/dockerfile-linted-success.svg)](https://github.com/hadolint/hadolint)
 [![Trivy](https://img.shields.io/badge/security-scanned-success.svg)](https://github.com/aquasecurity/trivy)
 [![Docker Image Size](https://img.shields.io/badge/image%20size-~150MB-blue.svg)](https://github.com/placheckij/dockerfile-wizardry)
+[![GitHub stars](https://img.shields.io/github/stars/placheckij/dockerfile-wizardry?style=social)](https://github.com/placheckij/dockerfile-wizardry/stargazers)
 
 Welcome to Dockerfile Wizardry - where security meets sorcery! This repository demonstrates production-ready Docker image creation following security best practices, optimization techniques, and industry standards (CIS Docker Benchmark, OWASP) while maintaining compact image sizes.
+
+> ⭐ If you find this project useful, please consider giving it a star! It helps others discover it and motivates further development.
 
 ## 🎯 The Spellbook's Purpose
 
@@ -379,9 +382,25 @@ Please ensure your contributions maintain the "wizardry" theme and include educa
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## ⭐ Star This Repo
+### Third-Party Components
 
-If you find this helpful, please consider giving it a star! It helps others discover these best practices.
+This project incorporates the following open-source components:
+
+**Docker Base Images:**
+- [Python Official Docker Images](https://hub.docker.com/_/python) - PSF License
+- [Alpine Linux](https://alpinelinux.org/) - various open source licenses
+
+**Python Dependencies:**
+- [FastAPI](https://fastapi.tiangolo.com/) - MIT License
+- [Uvicorn](https://www.uvicorn.org/) - BSD-3-Clause License
+- [Poetry](https://python-poetry.org/) - MIT License
+
+**Build & Security Tools:**
+- [Tini](https://github.com/krallin/tini) - MIT License
+- [Hadolint](https://github.com/hadolint/hadolint) - GPL-3.0 License
+- [Trivy](https://github.com/aquasecurity/trivy) - Apache License 2.0
+
+All third-party components are used in accordance with their respective licenses.
 
 ---
 
