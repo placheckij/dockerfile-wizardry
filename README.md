@@ -27,7 +27,7 @@ Each "spell" in the Dockerfile is numbered and explained, making it easy to unde
 
 Our Dockerfile demonstrates 13 essential security and optimization "spells":
 
-### � Spell #1: Parameterized Builds
+### ⚙️ Spell #1: Parameterized Builds
 ```dockerfile
 ARG PYTHON_VERSION=3.12.12
 ARG ALPINE_VERSION=3.22
@@ -37,7 +37,7 @@ Use ARG for flexible, maintainable version management.
 
 **Source:** [Docker Best Practices - Using Build Arguments](https://docs.docker.com/build/building/best-practices/#using-build-arguments)
 
-### �🏷️ Spell #2: Metadata Labels (OWASP)
+### 🏷️ Spell #2: Metadata Labels (OWASP)
 ```dockerfile
 LABEL maintainer="placheckij" \
       version="1.0.0" \
@@ -57,7 +57,7 @@ Install only what's necessary, upgrade existing packages, and clean up in the sa
 
 **Source:** [CIS Docker Benchmark 4.2](https://www.cisecurity.org/benchmark/docker) - Ensure that unnecessary packages are not installed in the container
 
-### 🔐 Spell #4: Non-Root User (CIS 4.1)
+### 👥 Spell #4: Non-Root User (CIS 4.1)
 ```dockerfile
 RUN addgroup -g 1337 wizards && \
     adduser -D -h /spellbook -G wizards -u 1337 wizard
@@ -67,7 +67,7 @@ USER wizard
 
 **Source:** [CIS Docker Benchmark 4.1](https://www.cisecurity.org/benchmark/docker) - Ensure that a user for the container has been created | [OWASP - Run as Non-Root](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-2-set-a-user)
 
-### 📦 Spell #5: Poetry Installation (No Cache)
+### 📚 Spell #5: Poetry Installation (No Cache)
 ```dockerfile
 RUN python -m pip install --no-cache-dir poetry==2.2.*
 ```
@@ -75,7 +75,7 @@ Pin versions and use `--no-cache-dir` to keep layers small.
 
 **Source:** [Docker Best Practices - Minimize Layers](https://docs.docker.com/build/building/best-practices/#minimize-the-number-of-layers)
 
-### 🎯 Spell #6: Layer Caching Magic (CIS 4.9)
+### ⚡ Spell #6: Layer Caching Magic (CIS 4.9)
 ```dockerfile
 # Copy dependencies FIRST (changes rarely)
 COPY ./pyproject.toml ./poetry.lock ./
@@ -88,7 +88,7 @@ Leverage Docker's layer caching - dependencies won't rebuild when code changes!
 
 **Source:** [CIS Docker Benchmark 4.9](https://www.cisecurity.org/benchmark/docker) - Ensure that COPY is used instead of ADD | [Docker Docs - Leverage Build Cache](https://docs.docker.com/build/building/best-practices/#leverage-build-cache)
 
-### 🔮 Spell #7: Multi-Stage Builds
+### 🏗️ Spell #7: Multi-Stage Builds
 ```dockerfile
 FROM base AS poetry
 # Install dependencies here
@@ -100,7 +100,7 @@ Discard build tools, keep only runtime artifacts. **50-70% size reduction!**
 
 **Source:** [Docker Best Practices - Multi-stage Builds](https://docs.docker.com/build/building/best-practices/#use-multi-stage-builds)
 
-### ✨ Spell #8: Selective File Copying (CIS 4.9)
+### 🎯 Spell #8: Selective File Copying (CIS 4.9)
 ```dockerfile
 # ✅ Copy ONLY what's needed
 COPY ./src/spells ./spells
@@ -121,7 +121,7 @@ Make files read-only and executable only where needed - prevents tampering.
 
 **Source:** [OWASP - Filesystem Permissions](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-8-set-filesystem-and-volumes-to-read-only)
 
-### 📢 Spell #10: Port Declaration
+### 🔌 Spell #10: Port Declaration
 ```dockerfile
 EXPOSE 8000
 ```
@@ -134,7 +134,7 @@ Note: You still need `-p 8000:8000` when running, but EXPOSE acts as the "contra
 
 **Source:** [Dockerfile Reference - EXPOSE](https://docs.docker.com/reference/dockerfile/#expose)
 
-### 💓 Spell #11: Health Checks (CIS 4.7)
+### 💚 Spell #11: Health Checks (CIS 4.7)
 ```dockerfile
 HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:8000/health || exit 1
 ```
@@ -150,101 +150,7 @@ Ensures proper shutdown signal for cleanup operations.
 
 **Source:** [Docker Best Practices - Signal Handling](https://docs.docker.com/develop/dev-best-practices/#how-to-keep-your-images-small) | [Dockerfile Reference - STOPSIGNAL](https://docs.docker.com/reference/dockerfile/#stopsignal)
 
-### ⚡ Spell #13: Signal Handling with Tini (OWASP)
-```dockerfile
-ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["/spellbook/.venv/bin/uvicorn", "main:app", ...]
-```
-Prevents zombie processes and ensures graceful shutdowns. Essential for PID 1!
-
-**Source:** [OWASP - Use Init Process](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-9-use-static-analysis-tools) | [Tini Documentation](https://github.com/krallin/tini)
-
-### 🎯 Spell #5: Layer Caching Magic (CIS 4.9)
-```dockerfile
-# Copy dependencies FIRST (changes rarely)
-COPY ./pyproject.toml ./poetry.lock ./
-RUN poetry sync --no-root --no-ansi --no-interaction --no-cache
-
-# Copy code LATER (changes frequently)
-COPY ./spellbook/spells ./spells
-```
-Leverage Docker's layer caching - dependencies won't rebuild when code changes!
-
-**Source:** [CIS Docker Benchmark 4.9](https://www.cisecurity.org/benchmark/docker) - Ensure that COPY is used instead of ADD | [Docker Docs - Leverage Build Cache](https://docs.docker.com/build/building/best-practices/#leverage-build-cache)
-
-### 🔮 Spell #6: Multi-Stage Builds
-```dockerfile
-FROM base AS poetry
-# Install dependencies here
-
-FROM base AS runtime
-COPY --from=poetry /spellbook/.venv /spellbook/.venv
-```
-Discard build tools, keep only runtime artifacts. **50-70% size reduction!**
-
-**Source:** [Docker Best Practices - Multi-stage Builds](https://docs.docker.com/build/building/best-practices/#use-multi-stage-builds)
-
-### ✨ Spell #7: Selective File Copying (CIS 4.9)
-```dockerfile
-# ✅ Copy ONLY what's needed
-COPY ./spellbook/spells ./spells
-COPY ./spellbook/potions ./potions
-
-# ❌ DON'T copy tests/, docs/, .git/, etc.
-```
-Prevents accidental secrets and reduces image size. Check `spellbook/tests/` and `spellbook/docs/` - they're excluded!
-
-**Source:** [CIS Docker Benchmark 4.9](https://www.cisecurity.org/benchmark/docker) - Use COPY instead of ADD | [OWASP - Secrets Management](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-6-do-not-store-secrets-in-images)
-
-### 🔒 Spell #8: Restrictive Permissions (OWASP)
-```dockerfile
-RUN chmod -R 550 /spellbook/spells && \
-    chmod 440 /spellbook/main.py
-```
-Make files read-only and executable only where needed - prevents tampering.
-
-**Source:** [OWASP - Filesystem Permissions](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-8-set-filesystem-and-volumes-to-read-only)
-
-### 🎯 Spell #11: Parameterized Builds
-```dockerfile
-ARG PYTHON_VERSION=3.12.12
-ARG ALPINE_VERSION=3.22
-FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION} AS base
-```
-Use ARG for flexible, maintainable version management.
-
-**Source:** [Docker Best Practices - Using Build Arguments](https://docs.docker.com/build/building/best-practices/#using-build-arguments)
-
-### 📢 Spell #12: Port Declaration
-```dockerfile
-EXPOSE 8000
-```
-**Why?** While EXPOSE doesn't actually publish the port, it serves three critical purposes:
-1. **Documentation** - Makes it clear which port the app uses without reading the code
-2. **Security Scanning** - Tools like Trivy and Snyk use this to verify port configuration
-3. **Container Orchestration** - Helps K8s, Docker Compose, and other tools auto-configure networking
-
-Note: You still need `-p 8000:8000` when running, but EXPOSE acts as the "contract" between image and runtime.
-
-**Source:** [Dockerfile Reference - EXPOSE](https://docs.docker.com/reference/dockerfile/#expose)
-
-### 💓 Spell #13: Health Checks (CIS 4.7)
-```dockerfile
-HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:8000/health || exit 1
-```
-Enables automatic healing - Docker/K8s will restart unhealthy containers.
-
-**Source:** [CIS Docker Benchmark 4.7](https://www.cisecurity.org/benchmark/docker) - Ensure that HEALTHCHECK instructions have been added | [Docker Docs - HEALTHCHECK](https://docs.docker.com/reference/dockerfile/#healthcheck)
-
-### 🛑 Spell #14: Graceful Shutdown
-```dockerfile
-STOPSIGNAL SIGTERM
-```
-Ensures proper shutdown signal for cleanup operations.
-
-**Source:** [Docker Best Practices - Signal Handling](https://docs.docker.com/develop/dev-best-practices/#how-to-keep-your-images-small) | [Dockerfile Reference - STOPSIGNAL](https://docs.docker.com/reference/dockerfile/#stopsignal)
-
-### ⚡ Spell #15: Signal Handling with Tini (OWASP)
+### 🔄 Spell #13: Signal Handling with Tini (OWASP)
 ```dockerfile
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/spellbook/.venv/bin/uvicorn", "main:app", ...]
