@@ -234,13 +234,13 @@ trivy image myimage:latest
 
 ## 📊 Benchmark Results
 
-Example size comparison for a Python application:
+Example size and build time comparison for a Python application from this repo, all done on the same hardware/os configuration, no caching (corresponding Dockerfiles can be found in the repo):
 
-| Approach | Image Size | Build Time |
-|----------|-----------|------------|
-| Single-stage (Debian) | 1.2 GB | 3m 45s |
-| Single-stage (Alpine) | 450 MB | 2m 30s |
-| Multi-stage (Alpine) | 180 MB | 2m 15s |
+| Approach | Image Size | Build Time (no-cache) |
+|----------|-----------|----------------------|
+| Single-stage (python:3.12-slim) | 323 MB | 14s |
+| Single-stage (python:3.12.11-alpine3.22) | 221 MB | 13s |
+| Multi-stage (python:3.12.12-alpine3.22) | 131 MB | 16s |
 
 ## � Project Structure
 
