@@ -33,6 +33,10 @@ jobs:
           dockerfile: Dockerfile
           failure-threshold: warning
 
+      # The smoke-test scripts are bash; shellcheck is preinstalled on GitHub's runners
+      - name: Lint shell scripts (shellcheck)
+        run: shellcheck .github/scripts/*.sh
+
   security-scan:
     name: 🛡️ Security Scan
     runs-on: ubuntu-latest

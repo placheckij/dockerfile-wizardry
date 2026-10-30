@@ -1,0 +1,28 @@
+# Hardened Docker Compose example for the Dockerfile Wizardry image.
+# Build the image first:   docker build -t wizardry:1.0.0 .
+# Run it:                  docker compose -f examples/compose.yaml up -d --wait
+# Smoke-tested in CI by .github/scripts/smoke_compose.sh - see RUNTIME_SECURITY.md.
+services:
+  wizardry:
+    image: wizardry:1.0.0
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=100m
+    ports:
+      - "127.0.0.1:8000:8000"
+    # No healthcheck block: the image ships its own HEALTHCHECK (it uses Python,
+    # the image has no curl). Overriding it here would need a command that exists
+    # inside the container.
+    restart: on-failure:5

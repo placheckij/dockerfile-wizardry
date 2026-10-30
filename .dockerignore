@@ -55,6 +55,7 @@ Jenkinsfile
 
 # Development Tools
 Makefile
+examples/
 docker-compose.yml
 docker-compose.*.yml
 

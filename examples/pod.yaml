@@ -1,0 +1,72 @@
+# Hardened Kubernetes Pod for the Dockerfile Wizardry image.
+# Build and tag the image first:  docker build -t wizardry:1.0.0 .   (and load it into your cluster,
+# e.g. `kind load docker-image wizardry:1.0.0`). A tag other than :latest defaults to
+# imagePullPolicy IfNotPresent, so a locally loaded image is used as is.
+# Apply (the namespace enforces the Pod Security "restricted" standard):
+#   kubectl apply -f examples/namespace.yaml -f examples/pod.yaml
+# Smoke-tested in CI on a kind cluster by .github/scripts/smoke_kubernetes.sh - see RUNTIME_SECURITY.md.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: wizardry
+  namespace: wizardry
+  labels:
+    app: wizardry
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1337
+    runAsGroup: 1337
+    fsGroup: 1337
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+  - name: wizardry
+    image: wizardry:1.0.0
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 1337
+      capabilities:
+        drop:
+          - ALL
+    ports:
+    - containerPort: 8000
+      name: http
+      protocol: TCP
+    resources:
+      limits:
+        memory: "512Mi"
+        cpu: "1000m"
+      requests:
+        memory: "256Mi"
+        cpu: "500m"
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8000
+        scheme: HTTP
+      initialDelaySeconds: 10
+      periodSeconds: 30
+      timeoutSeconds: 3
+      successThreshold: 1
+      failureThreshold: 3
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 8000
+        scheme: HTTP
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 3
+      successThreshold: 1
+      failureThreshold: 3
+    volumeMounts:
+    - name: tmp
+      mountPath: /tmp
+  volumes:
+  - name: tmp
+    emptyDir:
+      sizeLimit: 100Mi
+  restartPolicy: Always

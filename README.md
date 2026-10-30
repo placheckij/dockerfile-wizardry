@@ -39,9 +39,9 @@ Use ARG for flexible, maintainable version management. The tag says what you int
 
 **Pinning freezes the base image**, so patches stop arriving on their own. A weekly CI job compares the pinned digest with what the tag points to today and fails - with the new digest in the log - when the tag has moved. Bump the digest, rebuild, run the tests.
 
-**Source:** [CIS Docker Benchmark 4.2](https://www.cisecurity.org/benchmark/docker) - Ensure that containers use only trusted base images | [CIS Docker Benchmark 5.28](https://www.cisecurity.org/benchmark/docker) - Ensure that Docker commands always make use of the latest version of their image (its remediation calls for version pinning of base images) | [Docker Best Practices - Using Build Arguments](https://docs.docker.com/build/building/best-practices/#using-build-arguments) | [Docker Best Practices - Pin base image versions](https://docs.docker.com/build/building/best-practices/#pin-base-image-versions)
+**Source:** [CIS Docker Benchmark 4.2](https://www.cisecurity.org/benchmark/docker) - Ensure that containers use only trusted base images | [CIS Docker Benchmark 5.28](https://www.cisecurity.org/benchmark/docker) - Ensure that Docker commands always make use of the latest version of their image (its remediation calls for version pinning of base images) | [Dockerfile reference - Understand how ARG and FROM interact](https://docs.docker.com/reference/dockerfile/#understand-how-arg-and-from-interact) | [Docker Best Practices - Pin base image versions](https://docs.docker.com/build/building/best-practices/#pin-base-image-versions)
 
-### 🏷️ Spell #2: Metadata Labels (OWASP)
+### 🏷️ Spell #2: Metadata Labels
 ```dockerfile
 LABEL maintainer="placheckij" \
       version="1.0.0" \
@@ -58,6 +58,8 @@ RUN apk -U upgrade && \
     rm -rf /var/cache/apk/*
 ```
 Install only what's necessary, upgrade existing packages, and clean up in the same layer.
+
+Package versions are **not** pinned, on purpose: OWASP Rule 9 lists pinned OS packages as a lint check, but Alpine's repositories carry only the current version of each package per release, so a pin breaks the build as soon as a fix is published. The weekly no-cache rebuild and the base-image digest check (Spell #1) are what keep packages fresh instead.
 
 `apk -U upgrade` and `apk add` share one `RUN`, so the package index can't be cached on its own and then go stale before the install runs (CIS 4.6). That is a narrower guarantee than "always up to date": Docker still reuses the **whole** `RUN` layer from its build cache as long as the instruction and the base image digest are unchanged, so new patches only arrive when the cache is invalidated - `docker build --no-cache --pull`, a new base digest (Spell #1), or an edit to the `RUN`. That is why this repo's weekly CI run builds with `--no-cache`.
 
@@ -86,7 +88,7 @@ Pin versions and use `--no-cache-dir` to keep layers small. The `UV_*` settings 
 
 **Reproducible bytecode.** By default `.pyc` headers embed the install time, so two builds of the same commit produce different bytecode. Setting `SOURCE_DATE_EPOCH` makes Python write hash-based `.pyc` files instead (only its presence matters; the value never ends up in the files). Two independent `--no-cache` builds then give a byte-identical `site-packages`, with no measurable change in import time. Neither kind of `.pyc` authenticates the bytecode itself - what protects it from tampering is the read-only filesystem and the permissions in Spell #9.
 
-**Source:** [Docker Best Practices - Minimize Layers](https://docs.docker.com/build/building/best-practices/#minimize-the-number-of-layers)
+**Source:** [Docker Best Practices - RUN](https://docs.docker.com/build/building/best-practices/#run) (clean up package caches in the same layer)
 
 ### ⚡ Spell #6: Layer Caching Magic (CIS 4.8)
 ```dockerfile
@@ -127,7 +129,7 @@ Prevents accidental secrets and reduces image size. Check `spellbook/tests/` and
 
 **Source:** [CIS Docker Benchmark 4.8](https://www.cisecurity.org/benchmark/docker) - Ensure that COPY is used instead of ADD in Dockerfiles | [CIS Docker Benchmark 4.9](https://www.cisecurity.org/benchmark/docker) - Ensure secrets are not stored in Dockerfiles | [OWASP - Secrets Management](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-12-utilize-docker-secrets-for-sensitive-data-management)
 
-### 🔒 Spell #9: Restrictive Permissions (OWASP)
+### 🔒 Spell #9: Restrictive Permissions
 ```dockerfile
 RUN chown -R root:wizards /spellbook && \
     chmod -R g-w,o-rwx /spellbook && \
@@ -138,7 +140,7 @@ Make files read-only and executable only where needed - prevents tampering.
 
 **The app user must not own what it runs.** An owner can always `chmod` its own files back to writable, and a writable directory lets entries be renamed or replaced. So the code, the dependencies and `/spellbook` itself are owned by `root` and reachable by the `wizard` user only through the read-only `wizards` group. This holds even without `--read-only`; CI checks that the app user can't write, `chmod` or replace anything under `/spellbook`. The runtime read-only filesystem in [RUNTIME_SECURITY.md](RUNTIME_SECURITY.md) remains the primary control.
 
-**Source:** [OWASP - Filesystem Permissions](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-8-set-filesystem-and-volumes-to-read-only)
+**Source:** [OWASP Rule #8 - Set filesystem and volumes to read-only](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-8-set-filesystem-and-volumes-to-read-only) (this spell is its build-time side; the `--read-only` runtime flag is the other)
 
 ### ✂️ Spell #10: Prune and Flatten (CIS 4.3)
 ```dockerfile
@@ -170,7 +172,7 @@ EXPOSE 8000
 2. **Security Scanning** - Tools like Trivy and Snyk use this to verify port configuration
 3. **Container Orchestration** - Helps K8s, Docker Compose, and other tools auto-configure networking
 
-Note: You still need `-p 8000:8000` when running, but EXPOSE acts as the "contract" between image and runtime.
+Note: You still need `-p` when running - publish it on loopback, `-p 127.0.0.1:8000:8000`, because a bare `-p 8000:8000` opens the port on all interfaces and Docker bypasses host firewalls such as UFW (OWASP Rule 5a). EXPOSE acts as the "contract" between image and runtime.
 
 **Source:** [Dockerfile Reference - EXPOSE](https://docs.docker.com/reference/dockerfile/#expose)
 
@@ -191,7 +193,7 @@ Ensures proper shutdown signal for cleanup operations.
 
 **Source:** [Dockerfile Reference - STOPSIGNAL](https://docs.docker.com/reference/dockerfile/#stopsignal)
 
-### 🔄 Spell #14: Signal Handling with Tini (OWASP)
+### 🔄 Spell #14: Signal Handling with Tini
 ```dockerfile
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/spellbook/.venv/bin/uvicorn", "main:app", ...]
@@ -293,6 +295,10 @@ dockerfile-wizardry/
 ├── Dockerfile.single-stage-slim    # 📉 Benchmark baseline (Debian slim)
 ├── Dockerfile.single-stage-alpine  # 📉 Benchmark baseline (Alpine)
 ├── .dockerignore          # 🫥 Invisibility cloak for unwanted files
+├── examples/              # 🧪 Hardened Compose + Kubernetes examples, smoke-tested in CI
+│   ├── compose.yaml
+│   ├── namespace.yaml     #    enforces the Pod Security "restricted" standard
+│   └── pod.yaml
 ├── pyproject.toml         # 📦 Python dependencies
 ├── uv.lock                # 🔒 Locked versions
 └── spellbook/
@@ -337,7 +343,7 @@ docker images wizardry:latest
 ### 3️⃣ Run the Container
 ```bash
 # Run the magical application
-docker run -p 8000:8000 wizardry:latest
+docker run -p 127.0.0.1:8000:8000 wizardry:latest
 
 # Visit the endpoints
 curl http://localhost:8000/
@@ -377,7 +383,7 @@ docker run -d \
   wizardry:latest
 ```
 
-See **[RUNTIME_SECURITY.md](RUNTIME_SECURITY.md)** for comprehensive production security guidelines!
+See **[RUNTIME_SECURITY.md](RUNTIME_SECURITY.md)** for comprehensive production security guidelines, and [`examples/`](examples/) for a ready-to-run Docker Compose file and Kubernetes Pod that apply them (both are run for real in CI)!
 
 ## 🛡️ What CI Checks
 
@@ -388,6 +394,8 @@ Beyond building and testing, the workflow guards the properties this repo claims
 - **Secret scan** of the repository (CIS 4.9).
 - **No setuid/setgid files** in the image (CIS 4.7).
 - **Read-only application files**: the app user can't write to, `chmod` or replace its code and dependencies (Spell #9).
+- **Example smoke tests**: `examples/compose.yaml` is started and its settings verified with `docker inspect`; `examples/namespace.yaml` + `pod.yaml` are applied to a throwaway `kind` cluster, where the script checks what Kubernetes actually enforced (user, capabilities, seccomp, read-only filesystem) and the documented random-UID outcomes. Both run on changes to the examples or the image, and weekly.
+- **shellcheck** on the smoke-test scripts.
 - **Monthly standards watch** for new CIS Benchmark versions and OWASP cheat sheet changes.
 
 ## 🧭 Deliberately Not Included

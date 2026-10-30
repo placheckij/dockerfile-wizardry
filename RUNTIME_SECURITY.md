@@ -52,117 +52,45 @@ docker run --restart=on-failure:5 wizardry:latest
 ```
 **Why**: A crash-looping container is restarted at most 5 times instead of forever, so a persistent failure surfaces instead of being hidden.
 
-### 7. User Namespace Remapping
-Map container users to different host users:
+### 7. Rootless Docker or User Namespace Remapping (OWASP Rule 11)
+Keep a container escape from turning into host root.
+
+**Rootless mode** runs the Docker daemon *and* the containers without host-root privileges, which reduces the impact of a daemon or runtime compromise. Install it as described in the [Docker documentation](https://docs.docker.com/engine/security/rootless/) and check its prerequisites, [tips](https://docs.docker.com/engine/security/rootless/tips/) and [troubleshooting](https://docs.docker.com/engine/security/rootless/troubleshoot/) pages to see whether it fits your workloads before relying on it.
+
+**User namespace remapping** is the lighter alternative: container root is mapped to an unprivileged range of host users.
 ```bash
 # In /etc/docker/daemon.json
 {
   "userns-remap": "default"
 }
 ```
-**Why**: Even if someone breaks out, they're not root on the host.
+**Why**: a process that escapes the container lands in an unprivileged host account instead of root. Know the limits: `userns-remap` still leaves the Docker *daemon* running as root (rootless mode does not), and neither protects against kernel vulnerabilities - containers share the host kernel, so keep it patched (OWASP Rule 0). [Podman](https://podman.io/) is daemonless and rootless by design if you prefer an alternative.
 
 ## 🐳 Docker Compose Example
 
-```yaml
-services:
-  wizardry:
-    image: wizardry:latest
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-        reservations:
-          cpus: '0.5'
-          memory: 256M
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,size=100m
-    ports:
-      - "127.0.0.1:8000:8000"
-    # No healthcheck block: the image ships its own HEALTHCHECK (it uses Python,
-    # the image has no curl). Overriding it here would need a command that exists
-    # inside the container.
-    restart: on-failure:5
+[`examples/compose.yaml`](examples/compose.yaml) applies the flags above declaratively: a read-only root filesystem with a `/tmp` tmpfs, all capabilities dropped, `no-new-privileges`, memory and CPU limits, the port published on `127.0.0.1` only, and a bounded restart policy. It deliberately has no `healthcheck:` block: the image ships its own `HEALTHCHECK` (it uses Python, because the image has no `curl`), and an override would need a command that exists inside the container.
+
+```bash
+docker build -t wizardry:1.0.0 .
+docker compose -f examples/compose.yaml up -d --wait
 ```
+
+CI runs this exact file (`.github/scripts/smoke_compose.sh`): it waits for the container to become `healthy`, calls the endpoints, and checks with `docker inspect` that every setting above was actually applied.
 
 ## ☸️ Kubernetes Security Context
 
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: wizardry
-  labels:
-    app: wizardry
-spec:
-  securityContext:
-    runAsNonRoot: true
-    runAsUser: 1337
-    runAsGroup: 1337
-    fsGroup: 1337
-    seccompProfile:
-      type: RuntimeDefault
-  containers:
-  - name: wizardry
-    image: wizardry:latest
-    securityContext:
-      allowPrivilegeEscalation: false
-      readOnlyRootFilesystem: true
-      runAsNonRoot: true
-      runAsUser: 1337
-      capabilities:
-        drop:
-          - ALL
-    ports:
-    - containerPort: 8000
-      name: http
-      protocol: TCP
-    resources:
-      limits:
-        memory: "512Mi"
-        cpu: "1000m"
-      requests:
-        memory: "256Mi"
-        cpu: "500m"
-    livenessProbe:
-      httpGet:
-        path: /health
-        port: 8000
-        scheme: HTTP
-      initialDelaySeconds: 10
-      periodSeconds: 30
-      timeoutSeconds: 3
-      successThreshold: 1
-      failureThreshold: 3
-    readinessProbe:
-      httpGet:
-        path: /health
-        port: 8000
-        scheme: HTTP
-      initialDelaySeconds: 5
-      periodSeconds: 10
-      timeoutSeconds: 3
-      successThreshold: 1
-      failureThreshold: 3
-    volumeMounts:
-    - name: tmp
-      mountPath: /tmp
-  volumes:
-  - name: tmp
-    emptyDir:
-      sizeLimit: 100Mi
-  restartPolicy: Always
+[`examples/namespace.yaml`](examples/namespace.yaml) and [`examples/pod.yaml`](examples/pod.yaml) show the same hardening in Kubernetes. The namespace **enforces the Pod Security `restricted` standard**. The Pod runs as a non-root user (`runAsNonRoot`, uid/gid 1337) with all capabilities dropped, `allowPrivilegeEscalation: false`, a read-only root filesystem with an `emptyDir` for `/tmp`, the `RuntimeDefault` seccomp profile, resource requests and limits, and liveness and readiness probes on `/health`.
+
+```bash
+docker build -t wizardry:1.0.0 .
+kubectl apply -f examples/namespace.yaml -f examples/pod.yaml
 ```
+
+CI applies these files to a throwaway `kind` cluster (`.github/scripts/smoke_kubernetes.sh`) and checks what Kubernetes actually enforced inside the container, not only what the manifest says.
 
 ### Which user and group the container needs
 
-The application files are owned by `root:wizards` (gid 1337) and are not readable by anyone else (see Spell #9), so the process must run **as gid 1337 or with 1337 as a supplementary group**. The manifest above does both (`runAsGroup: 1337` and `fsGroup: 1337`).
+The application files are owned by `root:wizards` (gid 1337) and are not readable by anyone else (see Spell #9), so the process must run **as gid 1337 or with 1337 as a supplementary group**. [`examples/pod.yaml`](examples/pod.yaml) does both (`runAsGroup: 1337` and `fsGroup: 1337`).
 
 Platforms that assign a random UID (for example OpenShift's restricted SCC) work only if gid 1337 is still granted:
 
@@ -174,11 +102,11 @@ Platforms that assign a random UID (for example OpenShift's restricted SCC) work
 
 With plain Docker the equivalent is `--user 10001:10001 --group-add 1337`. A random UID with only gid 0 does not work either, because gid 0 has no access.
 
-These rows were tested on a throwaway `kind` cluster (Kubernetes v1.37) in a namespace enforcing the Pod Security `restricted` standard, which admitted the manifest unchanged.
+CI checks these rows on a throwaway `kind` cluster, in a namespace enforcing the Pod Security `restricted` standard, which admits the manifest unchanged.
 
-### Trying the manifest on a local cluster
+### Trying the manifests on a local cluster
 
-`image: wizardry:latest` is not published to any registry, and Kubernetes defaults `imagePullPolicy` to `Always` for the `:latest` tag, so a local cluster ends in `ErrImagePull`. Load the image into the cluster (for example `kind load docker-image wizardry:latest`) and add `imagePullPolicy: IfNotPresent` (or `Never`) to the container.
+The image is not published to any registry, so load it into the cluster first (for example `kind load docker-image wizardry:1.0.0`). The examples use the `1.0.0` tag on purpose: Kubernetes defaults `imagePullPolicy` to `Always` for the `:latest` tag, which would try to pull `wizardry` from a registry and end in `ErrImagePull`, whereas any other tag defaults to `IfNotPresent` and uses the loaded image. `.github/scripts/smoke_kubernetes.sh` does all of this; it creates its own cluster with its own kubeconfig and refuses to run against any other context, so your current `kubectl` context is never touched.
 
 ## 🔑 Secrets Management
 
@@ -188,7 +116,7 @@ These rows were tested on a throwaway `kind` cluster (Kubernetes v1.37) in a nam
 docker run -e DATABASE_PASSWORD=secret123 wizardry:latest
 ```
 
-✅ **Good - Docker Secrets**:
+✅ **Good - Docker Secrets (Swarm)** - distributed over mutual TLS and stored in an encrypted Raft log:
 ```bash
 echo "secret123" | docker secret create db_password -
 docker service create --secret db_password wizardry:latest
@@ -204,28 +132,44 @@ RUN --mount=type=secret,id=npmrc,dst=/root/.npmrc npm install
 docker build --secret id=npmrc,src=$HOME/.npmrc .
 ```
 
-✅ **Good - Kubernetes Secrets**:
+✅ **Good - Docker Compose secrets (local development)**:
+```yaml
+secrets:
+  db_password:
+    file: ./db_password.txt
+services:
+  wizardry:
+    image: wizardry:1.0.0
+    secrets:
+      - db_password   # appears inside the container as /run/secrets/db_password
+```
+File-backed Compose secrets are **bind mounts**, not encrypted storage, unlike Swarm secrets. Protect the source file with host file permissions and disk encryption, and keep it out of version control. See [Compose secrets](https://docs.docker.com/compose/how-tos/use-secrets/).
+
+⚠️ **Kubernetes Secrets - use with care.** A Kubernetes Secret is only base64-*encoded*, and by default it is stored unencrypted in etcd. The Docker Secrets mechanism above does not apply to Kubernetes. Enable [encryption at rest](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/), restrict access with RBAC, or use an external secret store, and mount the secret as a file instead of an environment variable:
 ```yaml
 apiVersion: v1
 kind: Secret
 metadata:
   name: db-secret
 type: Opaque
-data:
-  password: c2VjcmV0MTIz  # base64 encoded
+stringData:
+  password: change-me   # placeholder; never commit real values
 ---
-apiVersion: v1
-kind: Pod
+# Only the relevant fields of the Pod from examples/pod.yaml:
 spec:
   containers:
   - name: wizardry
-    env:
-    - name: DB_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: db-secret
-          key: password
+    volumeMounts:
+    - name: db-secret
+      mountPath: /run/secrets/db
+      readOnly: true
+  volumes:
+  - name: db-secret
+    secret:
+      secretName: db-secret
+      defaultMode: 0440
 ```
+More in OWASP's [Secrets Management](https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html) and [Kubernetes Security](https://cheatsheetseries.owasp.org/cheatsheets/Kubernetes_Security_Cheat_Sheet.html) cheat sheets.
 
 ## 🔍 Image Scanning
 
