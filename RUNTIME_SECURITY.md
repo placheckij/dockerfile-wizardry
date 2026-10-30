@@ -160,6 +160,26 @@ spec:
   restartPolicy: Always
 ```
 
+### Which user and group the container needs
+
+The application files are owned by `root:wizards` (gid 1337) and are not readable by anyone else (see Spell #9), so the process must run **as gid 1337 or with 1337 as a supplementary group**. The manifest above does both (`runAsGroup: 1337` and `fsGroup: 1337`).
+
+Platforms that assign a random UID (for example OpenShift's restricted SCC) work only if gid 1337 is still granted:
+
+| Pod `securityContext` | Result |
+|---|---|
+| `runAsUser: 1337`, `runAsGroup: 1337` | runs |
+| `runAsUser: 10001`, `runAsGroup: 10001`, **`fsGroup: 1337`** | runs (`fsGroup` becomes a supplementary group) |
+| `runAsUser: 10001`, `runAsGroup: 10001`, no `fsGroup` | crash-loops: `exec /spellbook/.venv/bin/uvicorn failed: Permission denied` |
+
+With plain Docker the equivalent is `--user 10001:10001 --group-add 1337`. A random UID with only gid 0 does not work either, because gid 0 has no access.
+
+These rows were tested on a throwaway `kind` cluster (Kubernetes v1.37) in a namespace enforcing the Pod Security `restricted` standard, which admitted the manifest unchanged.
+
+### Trying the manifest on a local cluster
+
+`image: wizardry:latest` is not published to any registry, and Kubernetes defaults `imagePullPolicy` to `Always` for the `:latest` tag, so a local cluster ends in `ErrImagePull`. Load the image into the cluster (for example `kind load docker-image wizardry:latest`) and add `imagePullPolicy: IfNotPresent` (or `Never`) to the container.
+
 ## 🔑 Secrets Management
 
 ### Never Use Environment Variables for Secrets
