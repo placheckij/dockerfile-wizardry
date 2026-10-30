@@ -1,0 +1,12 @@
+{
+  "_comment": "What this repo's security references were last checked against. The monthly 'Standards watch' workflow fails (and GitHub emails the failure) when upstream has moved past this. After re-checking the README/Dockerfile citations, update the values below in a PR.",
+  "cis_docker_benchmark": {
+    "verified_version": "1.6.0",
+    "verified_on": "2026-10-30",
+    "note": "Section 4 control numbers (4.1, 4.3, 4.5, 4.6, 4.9) were checked against a third-party reproduction of v1.6.0, not the CIS PDF."
+  },
+  "owasp_docker_cheat_sheet": {
+    "reviewed_commit": "66226906bbe7f4086ad8450435c2a72b5b8fbb8d",
+    "reviewed_on": "2026-10-30"
+  }
+}

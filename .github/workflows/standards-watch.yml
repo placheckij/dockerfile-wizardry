@@ -1,0 +1,42 @@
+name: 📚 Standards Watch
+
+# Fails when the CIS Docker Benchmark or the OWASP Docker Security Cheat Sheet
+# has moved past what this repo was last checked against (see
+# .github/standards-baseline.json). GitHub emails failed scheduled runs, so a
+# red run is the notification. After re-checking the citations, update the
+# baseline file in a PR to turn it green again.
+
+on:
+  schedule:
+    - cron: '0 7 1 * *'   # 07:00 UTC on the 1st of every month
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/standards-baseline.json'
+      - '.github/scripts/check_standards.py'
+      - '.github/workflows/standards-watch.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: 🔎 Check CIS and OWASP versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # On pull requests only verify the check itself works (reachability and
+      # parsing); drift must not block unrelated changes to these files.
+      - name: Check upstream standards against the baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            python3 -I .github/scripts/check_standards.py --report-only
+          else
+            python3 -I .github/scripts/check_standards.py
+          fi
