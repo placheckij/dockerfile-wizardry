@@ -121,7 +121,7 @@ Prevents accidental secrets and reduces image size. Check `spellbook/tests/` and
 RUN chmod -R 550 /spellbook/spells && \
     chmod 440 /spellbook/main.py
 ```
-Make files read-only and executable only where needed - prevents tampering. The same step uninstalls `pip` from the runtime image: with no package manager, an attacker can't install tools after a compromise, and pip's vendored libraries stop showing up in vulnerability scans.
+Make files read-only and executable only where needed - prevents tampering. The same step uninstalls `pip` from the runtime image, which trims installed tooling and stops pip's vendored libraries from showing up in vulnerability scans. It is not a barrier against an attacker: Python, `curl`, `wget` and `apk` are still in the image, so rely on the runtime flags in [RUNTIME_SECURITY.md](RUNTIME_SECURITY.md) (read-only filesystem, dropped capabilities) for that.
 
 **Source:** [OWASP - Filesystem Permissions](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-8-set-filesystem-and-volumes-to-read-only)
 

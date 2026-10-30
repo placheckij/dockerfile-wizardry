@@ -62,8 +62,9 @@ COPY --chown=wizard:wizards ./spellbook/main.py ./
 COPY --chown=wizard:wizards ./pyproject.toml ./
 
 # 🔒 Spell #9: Restrictive File Permissions (OWASP)
-# Also drop pip from the runtime image: no package manager means nothing to
-# install with after a compromise (and no CVEs from pip's vendored libraries).
+# Also drop pip from the runtime image: less installed tooling, and no CVEs from
+# pip's vendored libraries. This is NOT a barrier against an attacker - python,
+# curl, wget and apk are all still present (see RUNTIME_SECURITY.md).
 USER root
 RUN chmod -R 550 /spellbook/spells /spellbook/potions /spellbook/enchantments && \
     chmod 440 /spellbook/main.py /spellbook/pyproject.toml && \
