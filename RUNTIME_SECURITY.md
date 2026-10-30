@@ -120,7 +120,7 @@ docker build -t wizardry:1.0.0 .
 kubectl apply -f examples/namespace.yaml -f examples/networkpolicy.yaml -f examples/pod.yaml
 ```
 
-The order matters: the NetworkPolicy goes in **before** the Pod, so it already selects the Pod when it starts and the Pod is never reachable by everyone in the meantime.
+The order matters: the NetworkPolicy goes in **before** the Pod, so it already exists when the Pod starts. That narrows the window but does not close it: the network plugin programs the rules asynchronously, so a Pod can briefly run before they are enforced. If that gap is unacceptable, use a plugin or cluster setting that holds a Pod until its policy is in place (for example Cilium's default-deny or endpoint-readiness options, or an admission-time default-deny policy).
 
 CI applies these files to a throwaway `kind` cluster (`.github/scripts/smoke_kubernetes.sh`) and checks what Kubernetes actually enforced inside the container, not only what the manifests say, and that the NetworkPolicy blocks what it should: unlisted ingress *and* all egress, each proved against a positive control so that a timeout can only be the policy (see section 8).
 

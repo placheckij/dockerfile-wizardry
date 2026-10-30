@@ -7,7 +7,8 @@
 #
 # Needs a network plugin that ENFORCES NetworkPolicy; the object is silently ignored otherwise.
 # kind's default plugin (kindnet) does, and .github/scripts/smoke_kubernetes.sh verifies it.
-# Apply it BEFORE the Pod, so the Pod is never reachable by everyone while it starts:
+# Apply it BEFORE the Pod, so it already exists when the Pod starts (this narrows, but does not
+# guarantee closing, the window before the plugin enforces it; see RUNTIME_SECURITY.md):
 #   kubectl apply -f examples/namespace.yaml -f examples/networkpolicy.yaml -f examples/pod.yaml
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

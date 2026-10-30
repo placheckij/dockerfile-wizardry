@@ -178,7 +178,7 @@ kubectl apply -f examples/namespace.yaml
 enforce=$(kubectl get ns "$NS" -o jsonpath='{.metadata.labels.pod-security\.kubernetes\.io/enforce}')
 [ "$enforce" = restricted ] || fail "namespace does not enforce Pod Security 'restricted' (label is '${enforce:-<missing>}')"
 ok "namespace enforces the Pod Security 'restricted' standard"
-# Policy first, so it already selects the Pod when it starts (no window where it is reachable by everyone)
+# Policy first, so it exists when the Pod starts (narrows the unenforced window; it cannot prove it is zero)
 kubectl apply -f examples/networkpolicy.yaml
 ok "NetworkPolicy applied BEFORE the pod exists"
 kubectl apply -f examples/pod.yaml

@@ -17,8 +17,7 @@ services:
           memory: 512M
           pids: 100   # max processes (CIS 5.29): memory and CPU limits do not stop a fork bomb
         reservations:
-          cpus: '0.5'
-          memory: 256M
+          memory: 256M   # soft limit; a cpus reservation would be ignored outside Swarm
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=100m
     # Cap open file descriptors (OWASP Rule 7). Size this for your real number of connections.
