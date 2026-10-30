@@ -8,7 +8,7 @@
 [![Docker](https://img.shields.io/badge/docker-24.0+-blue.svg)](https://www.docker.com/)
 [![Hadolint](https://img.shields.io/badge/dockerfile-linted-success.svg)](https://github.com/hadolint/hadolint)
 [![Trivy](https://img.shields.io/badge/security-scanned-success.svg)](https://github.com/aquasecurity/trivy)
-[![Docker Image Size](https://img.shields.io/badge/image%20size-~150MB-blue.svg)](https://github.com/placheckij/dockerfile-wizardry)
+[![Docker Image Size](https://img.shields.io/badge/image%20size-~131MB-blue.svg)](https://github.com/placheckij/dockerfile-wizardry)
 
 Welcome to Dockerfile Wizardry - where security meets sorcery! This repository demonstrates production-ready Docker image creation following security best practices, optimization techniques, and industry standards (CIS Docker Benchmark, OWASP) while maintaining compact image sizes.
 
@@ -84,7 +84,7 @@ COPY ./pyproject.toml ./poetry.lock ./
 RUN poetry sync --no-root --no-ansi --no-interaction --no-cache
 
 # Copy code LATER (changes frequently)
-COPY ./src/spells ./spells
+COPY ./spellbook/spells ./spells
 ```
 Leverage Docker's layer caching - dependencies won't rebuild when code changes!
 
@@ -105,12 +105,12 @@ Discard build tools, keep only runtime artifacts. **50-70% size reduction!**
 ### 🎯 Spell #8: Selective File Copying (CIS 4.9)
 ```dockerfile
 # ✅ Copy ONLY what's needed
-COPY ./src/spells ./spells
-COPY ./src/potions ./potions
+COPY ./spellbook/spells ./spells
+COPY ./spellbook/potions ./potions
 
 # ❌ DON'T copy tests/, docs/, .git/, etc.
 ```
-Prevents accidental secrets and reduces image size. Check `src/tests/` and `src/docs/` - they're excluded!
+Prevents accidental secrets and reduces image size. Check `spellbook/tests/` and `spellbook/docs/` - they're excluded!
 
 **Source:** [CIS Docker Benchmark 4.9](https://www.cisecurity.org/benchmark/docker) - Use COPY instead of ADD | [OWASP - Secrets Management](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-6-do-not-store-secrets-in-images)
 
@@ -138,7 +138,7 @@ Note: You still need `-p 8000:8000` when running, but EXPOSE acts as the "contra
 
 ### 💚 Spell #11: Health Checks (CIS 4.7)
 ```dockerfile
-HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:8000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=3s CMD ["curl", "-f", "http://localhost:8000/health"]
 ```
 Enables automatic healing - Docker/K8s will restart unhealthy containers.
 
@@ -150,7 +150,7 @@ STOPSIGNAL SIGTERM
 ```
 Ensures proper shutdown signal for cleanup operations.
 
-**Source:** [Docker Best Practices - Signal Handling](https://docs.docker.com/develop/dev-best-practices/#how-to-keep-your-images-small) | [Dockerfile Reference - STOPSIGNAL](https://docs.docker.com/reference/dockerfile/#stopsignal)
+**Source:** [Dockerfile Reference - STOPSIGNAL](https://docs.docker.com/reference/dockerfile/#stopsignal)
 
 ### 🔄 Spell #13: Signal Handling with Tini (OWASP)
 ```dockerfile
@@ -159,7 +159,7 @@ CMD ["/spellbook/.venv/bin/uvicorn", "main:app", ...]
 ```
 Prevents zombie processes and ensures graceful shutdowns. Essential for PID 1!
 
-**Source:** [OWASP - Use Init Process](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-9-use-static-analysis-tools) | [Tini Documentation](https://github.com/krallin/tini)
+**Source:** [Docker Docs - `docker run --init`](https://docs.docker.com/reference/cli/docker/container/run/#init) | [Tini Documentation](https://github.com/krallin/tini)
 
 ## 📦 Image Optimization Techniques
 
@@ -227,7 +227,7 @@ DOCKER_BUILDKIT=1 docker build -t myapp .
 
 ### 5. Scan for Vulnerabilities
 ```bash
-docker scan myimage:latest
+docker scout cves myimage:latest
 # or
 trivy image myimage:latest
 ```
@@ -242,11 +242,13 @@ Example size and build time comparison for a Python application from this repo, 
 | Single-stage (python:3.12.11-alpine3.22) | 221 MB | 13s |
 | Multi-stage (python:3.12.12-alpine3.22) | 131 MB | 16s |
 
-## � Project Structure
+## 📁 Project Structure
 
 ```
 dockerfile-wizardry/
 ├── Dockerfile              # 🧙‍♂️ The main spellbook - study this!
+├── Dockerfile.single-stage-slim    # 📉 Benchmark baseline (Debian slim)
+├── Dockerfile.single-stage-alpine  # 📉 Benchmark baseline (Alpine)
 ├── .dockerignore          # 🫥 Invisibility cloak for unwanted files
 ├── pyproject.toml         # 📦 Python dependencies
 ├── poetry.lock            # 🔒 Locked versions
@@ -265,7 +267,7 @@ dockerfile-wizardry/
         └── ARCHITECTURE.md
 ```
 
-**Notice**: Tests and docs are excluded from the container - this is **Spell #7** in action!
+**Notice**: Tests and docs are excluded from the container - this is **Spell #8** in action!
 
 ## 🛠️ Usage & Learning Path
 
@@ -275,7 +277,7 @@ git clone https://github.com/placheckij/dockerfile-wizardry.git
 cd dockerfile-wizardry
 ```
 
-Open `Dockerfile` and read through each numbered spell (1-10). Each has detailed comments explaining the "why" and "how".
+Open `Dockerfile` and read through each numbered spell (1-13). Each has detailed comments explaining the "why" and "how".
 
 ### 2️⃣ Build the Image
 ```bash
@@ -350,7 +352,7 @@ See **[RUNTIME_SECURITY.md](RUNTIME_SECURITY.md)** for comprehensive production 
 docker history wizardry:latest
 
 # Compare with a single-stage build
-docker build -f Dockerfile.single-stage -t wizardry:bloated .
+docker build -f Dockerfile.single-stage-alpine -t wizardry:bloated .
 docker images | grep wizardry
 ```
 
@@ -362,7 +364,7 @@ time docker build -t wizardry:latest .
 # Change only spellbook/main.py and rebuild - notice it's fast!
 echo "# comment" >> spellbook/main.py
 time docker build -t wizardry:latest .
-# Dependencies aren't reinstalled - that's Spell #5!
+# Dependencies aren't reinstalled - that's Spell #6!
 ```
 
 ## 💬 Support & Contact
@@ -376,7 +378,7 @@ If you need assistance, have questions, or want to report issues:
 
 Contributions, feedback, and suggestions are welcome!
 
-##  License
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
