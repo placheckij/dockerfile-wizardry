@@ -1,29 +1,34 @@
-[tool.poetry]
+[project]
 name = "dockerfile-wizardry"
 version = "1.0.0"
 description = "Demonstrating Docker best practices with magical flair"
-authors = ["Jakub Płachecki <jakub@plachecki.dev>"]
 readme = "README.md"
-packages = [{include = "spellbook"}]
+authors = [{ name = "Jakub Płachecki", email = "jakub@plachecki.dev" }]
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.162.0",
+    "uvicorn[standard]>=0.54.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.14"
-fastapi = "^0.162.0"
-uvicorn = {extras = ["standard"], version = "^0.54.0"}
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.3",
+    "isort>=9.0.2",
+]
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^9.2.0"
-pytest-cov = "^7.1.0"
-ruff = "^0.17.3"
-isort = "^9.0.2"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.uv]
+# An application, not a library: there is nothing to build or install, only
+# dependencies.
+package = false
 
 [tool.pytest.ini_options]
 testpaths = ["spellbook/tests"]
 python_files = ["test_*.py"]
+# The project itself is no longer installed into the environment, so make the
+# repository root importable for `from spellbook... import ...`.
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 88

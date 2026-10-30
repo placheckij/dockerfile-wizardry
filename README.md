@@ -8,7 +8,7 @@
 [![Docker](https://img.shields.io/badge/docker-24.0+-blue.svg)](https://www.docker.com/)
 [![Hadolint](https://img.shields.io/badge/dockerfile-linted-success.svg)](https://github.com/hadolint/hadolint)
 [![Trivy](https://img.shields.io/badge/security-scanned-success.svg)](https://github.com/aquasecurity/trivy)
-[![Docker Image Size](https://img.shields.io/badge/image%20size-~73MB-blue.svg)](https://github.com/placheckij/dockerfile-wizardry)
+[![Docker Image Size](https://img.shields.io/badge/image%20size-~81MB-blue.svg)](https://github.com/placheckij/dockerfile-wizardry)
 
 Welcome to Dockerfile Wizardry - where security meets sorcery! This repository demonstrates production-ready Docker image creation following security best practices, optimization techniques, and industry standards (CIS Docker Benchmark, OWASP) while maintaining compact image sizes.
 
@@ -73,36 +73,41 @@ USER wizard
 
 **Source:** [CIS Docker Benchmark 4.1](https://www.cisecurity.org/benchmark/docker) - Ensure that a user for the container has been created | [OWASP - Run as Non-Root](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-2-set-a-user)
 
-### 📚 Spell #5: Poetry Installation (No Cache)
+### 📚 Spell #5: uv Installation (No Cache)
 ```dockerfile
-RUN python -m pip install --no-cache-dir poetry==2.5.*
+RUN python -m pip install --no-cache-dir uv==0.13.6
+ENV UV_PYTHON_DOWNLOADS=never \
+    UV_COMPILE_BYTECODE=1 \
+    UV_NO_CACHE=1
 ```
-Pin versions and use `--no-cache-dir` to keep layers small.
+Pin versions and use `--no-cache-dir` to keep layers small. The `UV_*` settings make uv use the Python already in the base image (never download one), compile `.pyc` files at install time, and keep no download cache.
+
+**Why compile bytecode?** uv doesn't by default, and the runtime filesystem can be read-only (see [RUNTIME_SECURITY.md](RUNTIME_SECURITY.md)), so Python could never write the `.pyc` files itself and would recompile every module on every start. Measured here: dependency import time 644 ms → 358 ms and cold start to `/health` about 1.3 s → 0.8 s, for about 8 MB more image (81 MB vs 73 MB). If size matters more than start-up time, set `UV_COMPILE_BYTECODE=0`.
 
 **Source:** [Docker Best Practices - Minimize Layers](https://docs.docker.com/build/building/best-practices/#minimize-the-number-of-layers)
 
 ### ⚡ Spell #6: Layer Caching Magic (CIS 4.8)
 ```dockerfile
 # Copy dependencies FIRST (changes rarely)
-COPY ./pyproject.toml ./poetry.lock ./
-RUN poetry sync --only main --no-root --no-ansi --no-interaction --no-cache
+COPY ./pyproject.toml ./uv.lock ./
+RUN uv sync --locked --no-dev
 
 # Copy code LATER (changes frequently)
 COPY ./spellbook/spells ./spells
 ```
 Leverage Docker's layer caching - dependencies won't rebuild when code changes!
 
-`--only main` installs runtime dependencies only. Without it, `poetry sync` also installs the dev group (pytest, ruff, ...) into the image - in this repo that's 30 MB of tooling you never run in production.
+`--no-dev` installs runtime dependencies only. Without it, `uv sync` also installs the dev group (pytest, ruff, ...) into the image - in this repo that's about 39 MB of tooling you never run in production (120 MB → 81 MB). `--locked` makes the build fail if `uv.lock` is out of date, and uv verifies every download against the hashes in the lockfile.
 
 **Source:** [CIS Docker Benchmark 4.8](https://www.cisecurity.org/benchmark/docker) - Ensure that COPY is used instead of ADD in Dockerfiles | [Docker Docs - Leverage Build Cache](https://docs.docker.com/build/building/best-practices/#leverage-build-cache)
 
 ### 🏗️ Spell #7: Multi-Stage Builds
 ```dockerfile
-FROM base AS poetry
+FROM base AS uv
 # Install dependencies here
 
 FROM base AS runtime
-COPY --from=poetry /spellbook/.venv /spellbook/.venv
+COPY --from=uv /spellbook/.venv /spellbook/.venv
 ```
 Discard build tools, keep only runtime artifacts. **50-70% size reduction!**
 
@@ -144,7 +149,7 @@ COPY --from=pruned / /
 ```
 Removes the package managers (`pip`, `apk`), C headers, `ensurepip`, IDLE/Tk, and network tools (`wget`, `nc`, `telnet`, ...), and drops `curl` entirely by using Python for the health check.
 
-**Why flatten?** Deleting files in a later layer saves nothing: they stay in the layers below and anyone who pulls the image can still extract them. Copying the pruned filesystem into a fresh `scratch` image removes them for real - here that's 91 MB → 73 MB (with `curl` also dropped), and `apk`, `curl` and `Python.h` no longer appear in any layer.
+**Why flatten?** Deleting files in a later layer saves nothing: they stay in the layers below and anyone who pulls the image can still extract them. Copying the pruned filesystem into a fresh `scratch` image removes them for real - here that's 94 MB → 81 MB, and `apk`, `curl` and `Python.h` no longer appear in any layer.
 
 **This is defense in depth, not a barrier.** Python and the busybox shell are still in the image, so an attacker with code execution can still download things. Rely on the runtime flags in [RUNTIME_SECURITY.md](RUNTIME_SECURITY.md) (read-only filesystem, dropped capabilities) for that. Removing the shell as well is possible, but it breaks `docker exec ... sh` debugging and any CI check that runs `ls` or `id` inside the container.
 
@@ -194,7 +199,7 @@ Prevents zombie processes and ensures graceful shutdowns. Essential for PID 1!
 ### Multi-Stage Builds
 The example uses three stages:
 1. **base**: Common dependencies and user setup
-2. **poetry**: Dependency installation (discarded in final image)
+2. **uv**: Dependency installation (discarded in final image)
 3. **runtime**: Minimal production image with only necessary artifacts
 
 This approach can reduce final image size by 50-70% compared to single-stage builds.
@@ -213,8 +218,8 @@ Alpine images are typically 5-10x smaller than Debian-based alternatives.
 ### Dependency Caching
 ```dockerfile
 # Copy dependency files first for better caching
-COPY ./pyproject.toml ./poetry.lock ./
-RUN poetry sync --only main --no-root --no-ansi --no-interaction --no-cache
+COPY ./pyproject.toml ./uv.lock ./
+RUN uv sync --locked --no-dev
 ```
 Leverages Docker's layer caching to avoid reinstalling dependencies on code changes.
 
@@ -266,13 +271,13 @@ Example size and build time comparison for a Python application from this repo, 
 
 | Approach | Image Size | Build Time (no-cache) |
 |----------|-----------|----------------------|
-| Single-stage (python:3.14-slim) | 306 MB | 15s |
-| Single-stage (python:3.14.10-alpine3.24) | 209 MB | 14s |
-| Multi-stage, pruned and flattened (python:3.14.10-alpine3.24) | 73 MB | 18s |
+| Single-stage (python:3.14-slim) | 253 MB | 5s |
+| Single-stage (python:3.14.10-alpine3.24) | 157 MB | 5s |
+| Multi-stage, pruned and flattened (python:3.14.10-alpine3.24) | 81 MB | 10s |
 
-Build times vary a lot from run to run (the same builds took 30-33s on another run), so compare the sizes, not the seconds.
+Build times vary from run to run and with the machine, so compare the sizes, not the seconds.
 
-The single-stage files install every dependency group, as a naive Dockerfile would. The multi-stage image installs runtime dependencies only (`poetry sync --only main`), which alone accounts for 30 MB of the difference (122 MB → 92 MB). Dropping `curl` and flattening the pruned filesystem (Spell #10) brings it down to 73 MB.
+The single-stage files install every dependency group, as a naive Dockerfile would. The multi-stage image installs runtime dependencies only (`uv sync --no-dev`), which alone accounts for about 39 MB of the multi-stage image (120 MB → 81 MB).
 
 ## 📁 Project Structure
 
@@ -283,7 +288,7 @@ dockerfile-wizardry/
 ├── Dockerfile.single-stage-alpine  # 📉 Benchmark baseline (Alpine)
 ├── .dockerignore          # 🫥 Invisibility cloak for unwanted files
 ├── pyproject.toml         # 📦 Python dependencies
-├── poetry.lock            # 🔒 Locked versions
+├── uv.lock                # 🔒 Locked versions
 └── spellbook/
     ├── main.py            # ✅ Copied to container
     ├── spells/            # ✅ Copied to container
@@ -440,7 +445,7 @@ This project incorporates the following open-source components:
 **Python Dependencies:**
 - [FastAPI](https://fastapi.tiangolo.com/) - MIT License
 - [Uvicorn](https://uvicorn.dev/) - BSD-3-Clause License
-- [Poetry](https://python-poetry.org/) - MIT License
+- [uv](https://docs.astral.sh/uv/) - MIT or Apache-2.0 License
 
 **Build & Security Tools:**
 - [Tini](https://github.com/krallin/tini) - MIT License

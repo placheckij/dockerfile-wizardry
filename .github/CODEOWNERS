@@ -14,7 +14,7 @@ docker-compose*.yml @placheckij
 
 # Python configuration
 pyproject.toml @placheckij
-poetry.lock @placheckij
+uv.lock @placheckij
 
 # GitHub workflows and actions
 .github/ @placheckij
