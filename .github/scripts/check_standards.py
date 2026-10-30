@@ -66,16 +66,20 @@ def latest_cis_version():
 
 
 def latest_owasp_commit():
-    result = subprocess.run(
-        ["gh", "api", f"repos/{OWASP_REPO}/commits?path={OWASP_FILE}&per_page=1",
-         "--jq", ".[0] | [.sha, .commit.committer.date, (.commit.message | split(\"\\n\")[0])] | @tsv"],
-        capture_output=True, text=True, timeout=60,
-    )
+    try:
+        result = subprocess.run(
+            ["gh", "api", f"repos/{OWASP_REPO}/commits?path={OWASP_FILE}&per_page=1",
+             "--jq", ".[0] | [.sha, .commit.committer.date, (.commit.message | split(\"\\n\")[0])] | @tsv"],
+            capture_output=True, text=True, timeout=60,
+        )
+    except (subprocess.TimeoutExpired, OSError) as error:
+        raise CheckError(f"could not run 'gh api' for the OWASP commit history: {error}") from error
     if result.returncode != 0 or not result.stdout.strip():
         raise CheckError(f"could not read OWASP commit history: {result.stderr.strip()[:200]}")
-    sha, date, message = result.stdout.rstrip("\n").split("\t", 2)
-    if not SHA_RE.match(sha):
-        raise CheckError("unexpected commit sha from the GitHub API")
+    parts = result.stdout.rstrip("\n").split("\t", 2)
+    if len(parts) != 3 or not SHA_RE.match(parts[0]):
+        raise CheckError("unexpected output from the GitHub commits API")
+    sha, date, message = parts
     message = "".join(ch for ch in message if ch.isprintable())[:120].replace("`", "'")
     return sha, date[:10], message
 
@@ -91,14 +95,24 @@ def broken_owasp_anchors():
     return sorted(cited - page_ids), sorted(cited)
 
 
+def load_baseline():
+    try:
+        baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
+        cis = baseline["cis_docker_benchmark"]["verified_version"]
+        owasp = baseline["owasp_docker_cheat_sheet"]["reviewed_commit"]
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise CheckError(f"baseline file {BASELINE.relative_to(ROOT)} is missing or malformed: {error!r}") from error
+    if not re.fullmatch(r"\d+\.\d+\.\d+", str(cis)) or not SHA_RE.match(str(owasp)):
+        raise CheckError(f"baseline file {BASELINE.relative_to(ROOT)} has an invalid version or commit")
+    return cis, owasp
+
+
 def main():
     report_only = "--report-only" in sys.argv[1:]
-    baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
+    cis_verified, owasp_reviewed = load_baseline()
 
     cis_latest = latest_cis_version()
-    cis_verified = baseline["cis_docker_benchmark"]["verified_version"]
     sha, date, message = latest_owasp_commit()
-    owasp_reviewed = baseline["owasp_docker_cheat_sheet"]["reviewed_commit"]
     broken, cited = broken_owasp_anchors()
 
     problems = []
@@ -146,4 +160,7 @@ if __name__ == "__main__":
         sys.exit(main())
     except CheckError as error:
         print(f"CHECK FAILED: {error}", file=sys.stderr)
+        sys.exit(2)
+    except Exception as error:  # safety net: a crash must never look like "outdated" (exit 1)
+        print(f"CHECK FAILED: unexpected {type(error).__name__}: {error}", file=sys.stderr)
         sys.exit(2)
