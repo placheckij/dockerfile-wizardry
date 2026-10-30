@@ -6,7 +6,6 @@ Notice in the Dockerfile that we copy specific directories (spells/, potions/, e
 but NOT the tests/ directory. This demonstrates CIS 4.9 best practice.
 """
 
-import pytest
 from spellbook.spells.incantations import cast_spell, list_available_spells
 
 
