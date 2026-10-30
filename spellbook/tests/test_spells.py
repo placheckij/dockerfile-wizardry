@@ -3,7 +3,7 @@
 ❌ This file should NOT be copied to the production container!
 
 Notice in the Dockerfile that we copy specific directories (spells/, potions/, enchantments/)
-but NOT the tests/ directory. This demonstrates CIS 4.9 best practice.
+but NOT the tests/ directory. This demonstrates CIS 4.8 best practice.
 """
 
 from spellbook.spells.incantations import cast_spell, list_available_spells

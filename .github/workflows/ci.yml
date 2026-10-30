@@ -5,6 +5,12 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  # Weekly rebuild without cache: picks up OS patches and re-scans against new
+  # CVEs even when nobody pushed (CIS 4.4). A red run emails the last editor of
+  # this cron line.
+  schedule:
+    - cron: '0 6 * * 1'   # Mondays 06:00 UTC
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -45,6 +51,15 @@ jobs:
           # The single-stage files are deliberately naive benchmark baselines (they run as root)
           skip-files: 'Dockerfile.single-stage-alpine,Dockerfile.single-stage-slim'
 
+      - name: Scan the repository for secrets (CIS 4.9)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'secret'
+          format: 'table'
+          exit-code: '1'
+
   build-and-test:
     name: 🏗️ Build & Test Docker Image
     runs-on: ubuntu-latest
@@ -62,6 +77,9 @@ jobs:
           push: false
           load: true
           tags: ${{ env.IMAGE_NAME }}:latest
+          # The weekly run must not reuse cached layers, or `apk upgrade` would never refresh
+          no-cache: ${{ github.event_name == 'schedule' }}
+          pull: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -74,6 +92,20 @@ jobs:
         run: |
           docker run --rm ${{ env.IMAGE_NAME }}:latest ls -la /spellbook/ | head -10
           echo "✅ File permissions verified"
+
+      # setuid/setgid binaries are a privilege-escalation route (CIS 4.7, Level 2).
+      # The image has none today; this keeps it that way. Runs as root so find can read
+      # every directory (as the unprivileged user it exits 1 and would skip unreadable
+      # ones); the trailing `true` keeps bash -e from aborting on find's exit code.
+      - name: Test image - No setuid or setgid files
+        run: |
+          found=$(docker run --rm --user root --entrypoint sh ${{ env.IMAGE_NAME }}:latest -c 'find / -xdev -perm /6000 -type f 2>/dev/null; true')
+          if [ -n "$found" ]; then
+            echo "setuid/setgid files found:"
+            echo "$found"
+            exit 1
+          fi
+          echo "✅ No setuid or setgid files"
 
       - name: Test image - Health check
         run: |
@@ -160,10 +192,24 @@ jobs:
           name: codecov-umbrella
           fail_ci_if_error: false
 
+  # The base image is pinned by digest, which freezes it. This weekly check fails
+  # (and prints the new digest) when the tag has been republished, e.g. with
+  # security patches. Not run on pushes/PRs: upstream moving must not block them.
+  base-image-freshness:
+    name: 📌 Base Image Digest Is Current
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Compare the pinned digest with the tag
+        run: python3 -I .github/scripts/check_base_image.py
+
   summary:
     name: 📊 CI Summary
     runs-on: ubuntu-latest
-    needs: [lint-dockerfile, security-scan, build-and-test, python-tests]
+    needs: [lint-dockerfile, security-scan, build-and-test, python-tests, base-image-freshness]
     if: always()
     steps:
       - name: Check job status
@@ -176,3 +222,4 @@ jobs:
           echo "| Security Scan | ${{ needs.security-scan.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Build & Test | ${{ needs.build-and-test.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Python Tests | ${{ needs.python-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Base Image Digest | ${{ needs.base-image-freshness.result }} |" >> $GITHUB_STEP_SUMMARY

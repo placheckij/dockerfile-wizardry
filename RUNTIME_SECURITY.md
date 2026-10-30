@@ -4,28 +4,30 @@ While the Dockerfile implements build-time security, these are **runtime securit
 
 ## 🔐 Essential Runtime Security Flags
 
-### 1. Read-Only Root Filesystem (CIS 5.12)
+### 1. Read-Only Root Filesystem (CIS 5.13)
 Prevent any modifications to the container filesystem:
 ```bash
 docker run --read-only --tmpfs /tmp:rw,noexec,nosuid,size=100m wizardry:latest
 ```
 **Why**: Prevents attackers from modifying files or installing malware.
 
-### 2. Drop All Capabilities (CIS 5.3)
+### 2. Drop All Capabilities (CIS 5.4)
 Remove all Linux capabilities, add back only what's needed:
 ```bash
-docker run --cap-drop=ALL --cap-add=NET_BIND_SERVICE wizardry:latest
+docker run --cap-drop=ALL wizardry:latest
 ```
 **Why**: Limits what the container can do at the kernel level.
 
-### 3. No New Privileges (CIS 5.25)
+This app listens on port 8000 as a non-root user, so it needs **no** capabilities back. Only add one (e.g. `--cap-add=NET_BIND_SERVICE`) if you change it to bind a port below 1024 - and CIS 5.8 advises against mapping privileged ports in the first place.
+
+### 3. No New Privileges (CIS 5.26)
 Prevent privilege escalation:
 ```bash
 docker run --security-opt=no-new-privileges:true wizardry:latest
 ```
 **Why**: Blocks setuid/setgid bits from working inside the container.
 
-### 4. Resource Limits (CIS 5.10, 5.11)
+### 4. Resource Limits (CIS 5.11, 5.29)
 Prevent resource exhaustion attacks:
 ```bash
 docker run \
@@ -35,9 +37,22 @@ docker run \
   --pids-limit=100 \
   wizardry:latest
 ```
-**Why**: Prevents DoS attacks and resource starvation.
+**Why**: Prevents DoS attacks and resource starvation. `--memory` is CIS 5.11 and `--pids-limit` is CIS 5.29; to give containers a relative CPU *priority* (CIS 5.12) use `--cpu-shares` instead of, or alongside, the hard `--cpus` cap.
 
-### 5. User Namespace Remapping
+### 5. Bind Published Ports to a Specific Interface (CIS 5.14)
+Don't expose the service on every host interface unless you mean to:
+```bash
+docker run -p 127.0.0.1:8000:8000 wizardry:latest
+```
+**Why**: `-p 8000:8000` listens on all interfaces (`0.0.0.0`). Bind to loopback, or to the one interface that should receive traffic, and put a reverse proxy in front.
+
+### 6. Limit Restart Attempts (CIS 5.15)
+```bash
+docker run --restart=on-failure:5 wizardry:latest
+```
+**Why**: A crash-looping container is restarted at most 5 times instead of forever, so a persistent failure surfaces instead of being hidden.
+
+### 7. User Namespace Remapping
 Map container users to different host users:
 ```bash
 # In /etc/docker/daemon.json
@@ -58,8 +73,6 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    cap_add:
-      - NET_BIND_SERVICE
     deploy:
       resources:
         limits:
@@ -71,14 +84,11 @@ services:
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=100m
     ports:
-      - "8000:8000"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-    restart: unless-stopped
+      - "127.0.0.1:8000:8000"
+    # No healthcheck block: the image ships its own HEALTHCHECK (it uses Python,
+    # the image has no curl). Overriding it here would need a command that exists
+    # inside the container.
+    restart: on-failure:5
 ```
 
 ## ☸️ Kubernetes Security Context
@@ -109,8 +119,6 @@ spec:
       capabilities:
         drop:
           - ALL
-        add:
-          - NET_BIND_SERVICE
     ports:
     - containerPort: 8000
       name: http
@@ -216,7 +224,7 @@ snyk container test wizardry:latest
 grype wizardry:latest
 ```
 
-### Enable Content Trust (CIS 4.5)
+### Enable Content Trust (CIS 4.2)
 ```bash
 export DOCKER_CONTENT_TRUST=1
 docker pull wizardry:latest  # Will verify signature
@@ -235,7 +243,11 @@ Before deploying to production, verify:
 - [ ] Secrets mounted securely (not in ENV)
 - [ ] Image scanned for vulnerabilities
 - [ ] Base image regularly updated
-- [ ] No privileged mode (--privileged)
+- [ ] No privileged mode (--privileged) (CIS 5.5)
+- [ ] Published ports bound to a specific interface (CIS 5.14)
+- [ ] Restart policy limited (`--restart=on-failure:5`) (CIS 5.15)
+- [ ] Default seccomp profile left enabled (CIS 5.22)
+- [ ] Docker socket not mounted into the container (CIS 5.32)
 - [ ] Network policies defined (K8s)
 - [ ] Pod security standards enforced (K8s)
 - [ ] Logging configured
@@ -250,19 +262,18 @@ docker run -d \
   --read-only \
   --tmpfs /tmp:rw,noexec,nosuid,size=100m \
   --cap-drop=ALL \
-  --cap-add=NET_BIND_SERVICE \
   --security-opt=no-new-privileges:true \
   --memory=512m \
   --cpus=1.0 \
   --pids-limit=100 \
-  -p 8000:8000 \
-  --restart=unless-stopped \
+  -p 127.0.0.1:8000:8000 \
+  --restart=on-failure:5 \
   wizardry:latest
 ```
 
 ## 📚 References
 
-- [CIS Docker Benchmark](https://www.cisecurity.org/benchmark/docker)
+- [CIS Docker Benchmark](https://www.cisecurity.org/benchmark/docker) (control numbers in this repo follow v1.9.0)
 - [OWASP Docker Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html)
 - [Kubernetes Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/)
 - [Docker Security Best Practices](https://docs.docker.com/engine/security/)
