@@ -84,6 +84,8 @@ Pin versions and use `--no-cache-dir` to keep layers small. The `UV_*` settings 
 
 **Why compile bytecode?** uv doesn't by default, and the runtime filesystem can be read-only (see [RUNTIME_SECURITY.md](RUNTIME_SECURITY.md)), so Python could never write the `.pyc` files itself and would recompile every module on every start. Measured here: dependency import time 644 ms → 358 ms and cold start to `/health` about 1.3 s → 0.8 s, for about 8 MB more image (81 MB vs 73 MB). If size matters more than start-up time, set `UV_COMPILE_BYTECODE=0`.
 
+**Reproducible bytecode.** By default `.pyc` headers embed the install time, so two builds of the same commit produce different bytecode. Setting `SOURCE_DATE_EPOCH` makes Python write hash-based `.pyc` files instead (only its presence matters; the value never ends up in the files). Two independent `--no-cache` builds then give a byte-identical `site-packages`, with no measurable change in import time. Neither kind of `.pyc` authenticates the bytecode itself - what protects it from tampering is the read-only filesystem and the permissions in Spell #9.
+
 **Source:** [Docker Best Practices - Minimize Layers](https://docs.docker.com/build/building/best-practices/#minimize-the-number-of-layers)
 
 ### ⚡ Spell #6: Layer Caching Magic (CIS 4.8)
@@ -127,10 +129,14 @@ Prevents accidental secrets and reduces image size. Check `spellbook/tests/` and
 
 ### 🔒 Spell #9: Restrictive Permissions (OWASP)
 ```dockerfile
-RUN chmod -R 550 /spellbook/spells && \
+RUN chown -R root:wizards /spellbook && \
+    chmod -R g-w,o-rwx /spellbook && \
+    chmod -R 550 /spellbook/spells && \
     chmod 440 /spellbook/main.py
 ```
 Make files read-only and executable only where needed - prevents tampering.
+
+**The app user must not own what it runs.** An owner can always `chmod` its own files back to writable, and a writable directory lets entries be renamed or replaced. So the code, the dependencies and `/spellbook` itself are owned by `root` and reachable by the `wizard` user only through the read-only `wizards` group. This holds even without `--read-only`; CI checks that the app user can't write, `chmod` or replace anything under `/spellbook`. The runtime read-only filesystem in [RUNTIME_SECURITY.md](RUNTIME_SECURITY.md) remains the primary control.
 
 **Source:** [OWASP - Filesystem Permissions](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-8-set-filesystem-and-volumes-to-read-only)
 
@@ -381,6 +387,7 @@ Beyond building and testing, the workflow guards the properties this repo claims
 - **Trivy** fails on HIGH/CRITICAL findings, and an assertion makes sure it can actually *see* the image's OS and Python packages (a scanner that sees nothing passes vacuously).
 - **Secret scan** of the repository (CIS 4.9).
 - **No setuid/setgid files** in the image (CIS 4.7).
+- **Read-only application files**: the app user can't write to, `chmod` or replace its code and dependencies (Spell #9).
 - **Monthly standards watch** for new CIS Benchmark versions and OWASP cheat sheet changes.
 
 ## 🧭 Deliberately Not Included

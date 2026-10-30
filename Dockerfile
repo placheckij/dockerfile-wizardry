@@ -45,7 +45,12 @@ RUN python -m pip install --no-cache-dir uv==0.13.6
 # - compile .pyc files now (uv does not by default): the runtime filesystem can
 #   be read-only, so they could not be written later
 # - no download cache, and copy instead of hardlinking (the cache is not kept)
-ENV PATH=/spellbook/.local/bin:$PATH \
+# - SOURCE_DATE_EPOCH: when it is set, Python writes hash-based .pyc files
+#   instead of timestamp-based ones, so two builds produce identical bytecode
+#   (only its presence matters; the value does not end up in the files)
+ARG SOURCE_DATE_EPOCH=0
+ENV SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH} \
+    PATH=/spellbook/.local/bin:$PATH \
     UV_PYTHON_DOWNLOADS=never \
     UV_COMPILE_BYTECODE=1 \
     UV_NO_CACHE=1 \
@@ -72,8 +77,14 @@ COPY --chown=wizard:wizards ./spellbook/main.py ./
 COPY --chown=wizard:wizards ./pyproject.toml ./
 
 # 🔒 Spell #9: Restrictive File Permissions (OWASP)
+# The app user must not OWN what it runs: an owner can always chmod its own files
+# back to writable, and a writable directory lets entries be renamed or replaced.
+# So everything under /spellbook - code, dependencies and the directory itself - is
+# root-owned and reachable by the app user only through the read-only `wizards` group.
 USER root
-RUN chmod -R 550 /spellbook/spells /spellbook/potions /spellbook/enchantments && \
+RUN chown -R root:wizards /spellbook && \
+    chmod -R g-w,o-rwx /spellbook && \
+    chmod -R 550 /spellbook/spells /spellbook/potions /spellbook/enchantments && \
     chmod 440 /spellbook/main.py /spellbook/pyproject.toml
 
 # ✂️ Spell #10: Prune What You Don't Run (CIS 4.3)

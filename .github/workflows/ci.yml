@@ -93,6 +93,20 @@ jobs:
           docker run --rm ${{ env.IMAGE_NAME }}:latest ls -la /spellbook/ | head -10
           echo "✅ File permissions verified"
 
+      # The app user must not own or be able to modify its code and dependencies,
+      # even on a writable filesystem (Spell #9): an owner can chmod its own files
+      # back to writable, and a writable /spellbook allows entries to be replaced.
+      - name: Test image - App user cannot modify its code or dependencies
+        run: |
+          docker run --rm --entrypoint sh ${{ env.IMAGE_NAME }}:latest -c '
+            fail=0
+            for p in /spellbook /spellbook/.venv /spellbook/main.py /spellbook/spells; do
+              if [ -w "$p" ]; then echo "writable: $p"; fail=1; fi
+            done
+            if chmod u+w /spellbook/main.py 2>/dev/null; then echo "chmod u+w main.py succeeded"; fail=1; fi
+            exit $fail'
+          echo "✅ Application files are read-only for the app user"
+
       # setuid/setgid binaries are a privilege-escalation route (CIS 4.7, Level 2).
       # The image has none today; this keeps it that way. Runs as root so find can read
       # every directory (as the unprivileged user it exits 1 and would skip unreadable
