@@ -1,0 +1,75 @@
+name: 🧪 Examples Smoke Tests
+
+# Runs the hardened examples in examples/ for real, instead of only linting them:
+#   - Docker Compose: examples/compose.yaml           (.github/scripts/smoke_compose.sh)
+#   - Kubernetes:     examples/namespace.yaml + pod.yaml on a throwaway kind cluster
+#                     (.github/scripts/smoke_kubernetes.sh)
+# Each script checks what Docker / Kubernetes actually enforced, not just what the files say.
+#
+# Runs on changes to the examples, the image or the scripts, and weekly (so a new kind /
+# Kubernetes / Compose release that breaks an example is noticed). A red scheduled run
+# emails the last editor of the cron line.
+
+on:
+  pull_request:
+    paths: &paths
+      - 'examples/**'
+      - '.github/scripts/smoke_*.sh'
+      - '.github/workflows/examples.yml'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'spellbook/**'
+  push:
+    branches: [ main ]
+    paths: *paths
+  schedule:
+    - cron: '30 6 * * 1'   # Mondays 06:30 UTC (CI itself runs at 06:00)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compose-smoke:
+    name: 🐳 Compose Example
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build the image
+        run: docker build -t wizardry:1.0.0 .
+
+      - name: Smoke-test examples/compose.yaml
+        run: .github/scripts/smoke_compose.sh
+
+  kubernetes-smoke:
+    name: ☸️ Kubernetes Example (kind)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Pinned: kind release, its checksum (from the GitHub release metadata) and the node image
+      KIND_VERSION: v0.33.0
+      KIND_SHA256: aee6151561422756b764a4ae28e7f44cda5af5a9eead3cc9985112b1de8d8e0d
+      KIND_NODE_IMAGE: kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install kind (checksum-verified)
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -fsSL -o "$RUNNER_TEMP/bin/kind" \
+            "https://github.com/kubernetes-sigs/kind/releases/download/${KIND_VERSION}/kind-linux-amd64"
+          echo "${KIND_SHA256}  $RUNNER_TEMP/bin/kind" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/bin/kind"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Build the image
+        run: docker build -t wizardry:1.0.0 .
+
+      - name: Smoke-test examples/namespace.yaml and examples/pod.yaml on kind
+        run: .github/scripts/smoke_kubernetes.sh

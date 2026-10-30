@@ -1,0 +1,30 @@
+# Network isolation for examples/pod.yaml (OWASP Rule 5, CIS 5.30).
+#
+# - Ingress: only pods labelled `role: frontend` IN THE SAME NAMESPACE may reach the app, and
+#   only on port 8000. Other pods in the namespace and pods in other namespaces are blocked.
+# - Egress: no rules, so all outbound traffic is denied. The app makes no outbound calls.
+#   (Kubelet health probes and `kubectl port-forward` are not affected.)
+#
+# Needs a network plugin that ENFORCES NetworkPolicy; the object is silently ignored otherwise.
+# kind's default plugin (kindnet) does, and .github/scripts/smoke_kubernetes.sh verifies it.
+# Apply it BEFORE the Pod, so it already exists when the Pod starts (this narrows, but does not
+# guarantee closing, the window before the plugin enforces it; see RUNTIME_SECURITY.md):
+#   kubectl apply -f examples/namespace.yaml -f examples/networkpolicy.yaml -f examples/pod.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: wizardry
+  namespace: wizardry
+spec:
+  podSelector:
+    matchLabels:
+      app: wizardry
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              role: frontend
+      ports:
+        - protocol: TCP
+          port: 8000

@@ -13,7 +13,7 @@ ARG PYTHON_VERSION=3.14.10
 ARG ALPINE_VERSION=3.24
 FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION}@sha256:eb2c62658b8d51bff0acc408504b76521d02030de56a8a3c1e830083e89b89d2 AS base
 
-# 🏷️ Spell #2: Metadata Labels (OWASP)
+# 🏷️ Spell #2: Metadata Labels
 LABEL maintainer="placheckij" \
       version="1.0.0" \
       description="Dockerfile Wizardry - Best Practices Example" \
@@ -22,6 +22,10 @@ LABEL maintainer="placheckij" \
 USER root
 # 🛡️ Spell #3: Minimal Packages & Non-Root User (CIS 4.3, 4.6)
 # (only tini - no curl, the health check below uses Python)
+# Packages are deliberately NOT version-pinned (hadolint DL3018, OWASP Rule 9 lists pinning):
+# Alpine's repositories carry only the current version of each package per release, so a
+# pin breaks the build as soon as a fix is published. Freshness comes from the weekly
+# no-cache rebuild and the base image digest check in CI instead.
 # hadolint ignore=DL3018
 RUN apk -U upgrade && \
     apk add --no-cache tini && \
@@ -76,7 +80,7 @@ COPY --chown=wizard:wizards ./spellbook/enchantments ./enchantments
 COPY --chown=wizard:wizards ./spellbook/main.py ./
 COPY --chown=wizard:wizards ./pyproject.toml ./
 
-# 🔒 Spell #9: Restrictive File Permissions (OWASP)
+# 🔒 Spell #9: Restrictive File Permissions (the build-time side of OWASP Rule 8, read-only filesystem)
 # The app user must not OWN what it runs: an owner can always chmod its own files
 # back to writable, and a writable directory lets entries be renamed or replaced.
 # So everything under /spellbook - code, dependencies and the directory itself - is
@@ -137,7 +141,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 # 🛑 Spell #13: Graceful Shutdown Signal
 STOPSIGNAL SIGTERM
 
-# ⚡ Spell #14: Signal Handling with Tini (OWASP)
+# ⚡ Spell #14: Signal Handling with Tini
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/spellbook/.venv/bin/uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 

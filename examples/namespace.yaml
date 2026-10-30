@@ -1,0 +1,9 @@
+# Namespace for examples/pod.yaml that ENFORCES the Pod Security "restricted" standard
+# (the strictest built-in level): pods that do not meet it are rejected at admission.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: wizardry
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest

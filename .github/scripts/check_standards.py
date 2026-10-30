@@ -17,9 +17,11 @@ Everything fetched from the web is untrusted: values are matched against
 strict patterns before they are printed or compared.
 """
 
+import contextlib
 import json
 import os
 import re
+import secrets
 import subprocess
 import sys
 import urllib.request
@@ -40,6 +42,36 @@ SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 ANCHOR_RE = re.compile(r"^[a-z0-9-]+$")
 CITED_ANCHOR_RE = re.compile(r"Docker_Security_Cheat_Sheet\.html#([A-Za-z0-9-]+)")
 PAGE_ID_RE = re.compile(r"""\bid=["']?([a-z0-9-]+)""")
+
+
+def defang(text):
+    """Make untrusted text inert in a GitHub Actions job log.
+
+    The runner tries two command syntaxes on every output line. The `::` form only counts at
+    the START of a line (after leading whitespace), but the legacy `##[` form is found
+    ANYWHERE in a line (it uses IndexOf), so a line prefix is not enough: break the marker
+    itself. (Source: actions/runner, src/Runner.Common/ActionCommand.cs.)
+    """
+    return text.replace("##[", "# #[")
+
+
+@contextlib.contextmanager
+def commands_disabled():
+    """Within GitHub Actions, stop the runner interpreting workflow commands in what follows.
+
+    `::stop-commands::TOKEN` makes the runner ignore every command until a line that is a
+    command named TOKEN; the token is random and single-use, so untrusted text cannot end
+    the pause. Outside Actions this does nothing (the markers would only be noise).
+    """
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        yield
+        return
+    token = secrets.token_hex(16)
+    print(f"::stop-commands::{token}", file=sys.stderr, flush=True)
+    try:
+        yield
+    finally:
+        print(f"::{token}::", file=sys.stderr, flush=True)
 
 
 class CheckError(Exception):
@@ -97,8 +129,59 @@ def latest_owasp_commit():
     if len(parts) != 3 or not SHA_RE.match(parts[0]):
         raise CheckError("unexpected output from the GitHub commits API")
     sha, date, message = parts
-    message = "".join(ch for ch in message if ch.isprintable())[:120].replace("`", "'")
+    message = defang(
+        "".join(ch for ch in message if ch.isprintable())[:120].replace("`", "'")
+    )
     return sha, date[:10], message
+
+
+MAX_DIFF_LINES = 120
+
+
+def owasp_diff(reviewed, latest):
+    """Best effort: this cheat sheet's patch between two OWASP commits, or None.
+
+    The repo-wide compare view lists every file in the range (dozens, mostly other cheat
+    sheets), so the useful part - just our file - is taken from the compare API instead.
+    Failure here must never change the exit code, so every problem returns None.
+    """
+    if not (SHA_RE.match(reviewed) and SHA_RE.match(latest)):
+        return None
+    jq = f'[.files[] | select(.filename == "{OWASP_FILE}") | .patch][0] // empty'
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "api",
+                f"repos/{OWASP_REPO}/compare/{reviewed}...{latest}",
+                "--jq",
+                jq,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return None
+    except (
+        OSError
+    ):  # separate clauses: ruff (target py314) would drop the parentheses of a
+        return None  # tuple here, and that form is a SyntaxError on the runner's Python 3.12
+    if result.returncode != 0 or not result.stdout.strip():
+        return None
+    # Untrusted text written by OWASP contributors: keep printable characters only, cap the
+    # size, and make sure it cannot close the Markdown code fence it is shown in.
+    lines = []
+    for line in result.stdout.splitlines():
+        line = "".join(ch for ch in line if ch.isprintable() or ch == "\t")[:300]
+        lines.append(line.replace("```", "'''"))
+    shown = lines[:MAX_DIFF_LINES]
+    if len(lines) > MAX_DIFF_LINES:
+        shown.append(
+            f"... ({len(lines) - MAX_DIFF_LINES} more lines; see the compare link)"
+        )
+    return "\n".join(shown)
 
 
 def broken_owasp_anchors():
@@ -145,11 +228,14 @@ def main():
             f"  Re-check the control numbers cited in README.md and the Dockerfile, then set "
             f"cis_docker_benchmark.verified_version in {BASELINE.relative_to(ROOT)}."
         )
+    diff_text = None
     if sha != owasp_reviewed:
+        diff_text = owasp_diff(owasp_reviewed, sha)
         problems.append(
             f"OWASP Docker Security Cheat Sheet changed: latest commit {sha[:9]} ({date}): {message}\n"
-            f"  Review https://github.com/{OWASP_REPO}/commits/master/{OWASP_FILE}, then set "
-            f"owasp_docker_cheat_sheet.reviewed_commit in {BASELINE.relative_to(ROOT)}."
+            f"  Compare: https://github.com/{OWASP_REPO}/compare/{owasp_reviewed}...{sha}\n"
+            f"  (that view lists every file changed in the range; this cheat sheet's own diff is shown below)\n"
+            f"  Review it, then set owasp_docker_cheat_sheet.reviewed_commit in {BASELINE.relative_to(ROOT)}."
         )
     if broken:
         problems.append(
@@ -172,9 +258,32 @@ def main():
                 handle.write(
                     "\n**Outdated:**\n\n" + "\n".join(f"- {p}" for p in problems) + "\n"
                 )
+            if diff_text:
+                handle.write(
+                    "\n**What changed in the OWASP cheat sheet since the reviewed commit:**\n\n"
+                    "```diff\n" + diff_text + "\n```\n"
+                )
 
     if problems:
         print("\nOUTDATED:\n" + "\n".join(f"- {p}" for p in problems), file=sys.stderr)
+        if diff_text:
+            # The diff is untrusted text. Three layers keep it from acting as workflow commands
+            # in the job log: (1) every line is prefixed, so none starts with "::"; (2) the
+            # legacy "##[" marker, which the runner finds anywhere in a line, is broken; (3) in
+            # Actions the whole block sits inside a random-token stop-commands pause. (The
+            # Markdown step summary is not parsed for commands, so it keeps the raw diff.)
+            quoted = "\n".join("| " + defang(line) for line in diff_text.splitlines())
+            with commands_disabled():
+                print(
+                    "\nWhat changed in the cheat sheet since the reviewed commit:\n"
+                    + quoted,
+                    file=sys.stderr,
+                )
+        elif sha != owasp_reviewed:
+            print(
+                "\n(The cheat sheet's diff could not be fetched; use the compare link above.)",
+                file=sys.stderr,
+            )
         return 0 if report_only else 1
     print("\nUp to date.")
     return 0
@@ -184,10 +293,11 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except CheckError as error:
-        print(f"CHECK FAILED: {error}", file=sys.stderr)
+        print(f"CHECK FAILED: {defang(str(error))}", file=sys.stderr)
         sys.exit(2)
     except Exception as error:  # noqa: BLE001 - safety net: a crash must never look like "outdated" (exit 1)
         print(
-            f"CHECK FAILED: unexpected {type(error).__name__}: {error}", file=sys.stderr
+            f"CHECK FAILED: unexpected {type(error).__name__}: {defang(str(error))}",
+            file=sys.stderr,
         )
         sys.exit(2)
