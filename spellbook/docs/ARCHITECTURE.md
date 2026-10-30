@@ -22,4 +22,4 @@ Notice we're **NOT** copying:
 - `./spellbook/.env.example` ← Example configs
 - Any other non-essential files
 
-This is **CIS 4.9**: Only copy what you need!
+This is **CIS 4.8 / 4.9**: use COPY (never ADD) and only copy what you need - no secrets, no tests, no docs!

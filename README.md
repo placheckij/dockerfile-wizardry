@@ -27,7 +27,7 @@ Each "spell" in the Dockerfile is numbered and explained, making it easy to unde
 
 ## 🔐 The Fourteen Security Spells
 
-Our Dockerfile demonstrates 14 essential security and optimization "spells":
+Our Dockerfile demonstrates 14 essential security and optimization "spells". CIS control numbers refer to the **CIS Docker Benchmark v1.9.0** (the numbering changed between versions, so older articles may differ); a monthly CI job warns when a newer version or an updated OWASP cheat sheet appears.
 
 ### ⚙️ Spell #1: Parameterized Builds
 ```dockerfile
@@ -49,7 +49,7 @@ Provides image traceability, documentation, and supply chain transparency.
 
 **Source:** [OCI Image Spec - Pre-Defined Annotation Keys](https://github.com/opencontainers/image-spec/blob/main/annotations.md#pre-defined-annotation-keys) | [Docker Docs - Labels](https://docs.docker.com/reference/dockerfile/#label)
 
-### 🛡️ Spell #3: Minimal Packages (CIS 4.3)
+### 🛡️ Spell #3: Minimal Packages (CIS 4.3, 4.6)
 ```dockerfile
 RUN apk -U upgrade && \
     apk add --no-cache tini && \
@@ -57,7 +57,9 @@ RUN apk -U upgrade && \
 ```
 Install only what's necessary, upgrade existing packages, and clean up in the same layer.
 
-**Source:** [CIS Docker Benchmark 4.3](https://www.cisecurity.org/benchmark/docker) - Ensure that unnecessary packages are not installed in the container
+`apk -U upgrade` and `apk add` share one `RUN`, so a cached update layer can never hide fresh patches (CIS 4.6).
+
+**Source:** [CIS Docker Benchmark 4.3](https://www.cisecurity.org/benchmark/docker) - Ensure that unnecessary packages are not installed in the container | [CIS Docker Benchmark 4.6](https://www.cisecurity.org/benchmark/docker) - Ensure update instructions are not used alone in Dockerfiles
 
 ### 👥 Spell #4: Non-Root User (CIS 4.1)
 ```dockerfile
@@ -77,7 +79,7 @@ Pin versions and use `--no-cache-dir` to keep layers small.
 
 **Source:** [Docker Best Practices - Minimize Layers](https://docs.docker.com/build/building/best-practices/#minimize-the-number-of-layers)
 
-### ⚡ Spell #6: Layer Caching Magic (CIS 4.9)
+### ⚡ Spell #6: Layer Caching Magic (CIS 4.8)
 ```dockerfile
 # Copy dependencies FIRST (changes rarely)
 COPY ./pyproject.toml ./poetry.lock ./
@@ -90,7 +92,7 @@ Leverage Docker's layer caching - dependencies won't rebuild when code changes!
 
 `--only main` installs runtime dependencies only. Without it, `poetry sync` also installs the dev group (pytest, ruff, ...) into the image - in this repo that's 30 MB of tooling you never run in production.
 
-**Source:** [CIS Docker Benchmark 4.9](https://www.cisecurity.org/benchmark/docker) - Ensure that COPY is used instead of ADD | [Docker Docs - Leverage Build Cache](https://docs.docker.com/build/building/best-practices/#leverage-build-cache)
+**Source:** [CIS Docker Benchmark 4.8](https://www.cisecurity.org/benchmark/docker) - Ensure that COPY is used instead of ADD in Dockerfiles | [Docker Docs - Leverage Build Cache](https://docs.docker.com/build/building/best-practices/#leverage-build-cache)
 
 ### 🏗️ Spell #7: Multi-Stage Builds
 ```dockerfile
@@ -104,7 +106,7 @@ Discard build tools, keep only runtime artifacts. **50-70% size reduction!**
 
 **Source:** [Docker Best Practices - Multi-stage Builds](https://docs.docker.com/build/building/best-practices/#use-multi-stage-builds)
 
-### 🎯 Spell #8: Selective File Copying (CIS 4.9)
+### 🎯 Spell #8: Selective File Copying (CIS 4.8, 4.9)
 ```dockerfile
 # ✅ Copy ONLY what's needed
 COPY ./spellbook/spells ./spells
@@ -114,7 +116,7 @@ COPY ./spellbook/potions ./potions
 ```
 Prevents accidental secrets and reduces image size. Check `spellbook/tests/` and `spellbook/docs/` - they're excluded!
 
-**Source:** [CIS Docker Benchmark 4.9](https://www.cisecurity.org/benchmark/docker) - Use COPY instead of ADD | [OWASP - Secrets Management](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-12-utilize-docker-secrets-for-sensitive-data-management)
+**Source:** [CIS Docker Benchmark 4.8](https://www.cisecurity.org/benchmark/docker) - Ensure that COPY is used instead of ADD in Dockerfiles | [CIS Docker Benchmark 4.9](https://www.cisecurity.org/benchmark/docker) - Ensure secrets are not stored in Dockerfiles | [OWASP - Secrets Management](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-12-utilize-docker-secrets-for-sensitive-data-management)
 
 ### 🔒 Spell #9: Restrictive Permissions (OWASP)
 ```dockerfile
@@ -159,14 +161,14 @@ Note: You still need `-p 8000:8000` when running, but EXPOSE acts as the "contra
 
 **Source:** [Dockerfile Reference - EXPOSE](https://docs.docker.com/reference/dockerfile/#expose)
 
-### 💚 Spell #12: Health Checks (CIS 4.6)
+### 💚 Spell #12: Health Checks (CIS 4.5)
 ```dockerfile
 HEALTHCHECK --interval=30s --timeout=3s \
     CMD ["/spellbook/.venv/bin/python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/health', timeout=2)"]
 ```
 Enables automatic healing - Docker/K8s will restart unhealthy containers. The check uses Python (already in the image) instead of `curl`, so `curl` and its libraries can be left out. A failed request raises, Python exits non-zero, and Docker marks the container unhealthy.
 
-**Source:** [CIS Docker Benchmark 4.6](https://www.cisecurity.org/benchmark/docker) - Ensure that HEALTHCHECK instructions have been added | [Docker Docs - HEALTHCHECK](https://docs.docker.com/reference/dockerfile/#healthcheck)
+**Source:** [CIS Docker Benchmark 4.5](https://www.cisecurity.org/benchmark/docker) - Ensure that HEALTHCHECK instructions have been added | [Docker Docs - HEALTHCHECK](https://docs.docker.com/reference/dockerfile/#healthcheck)
 
 ### 🛑 Spell #13: Graceful Shutdown
 ```dockerfile
@@ -353,11 +355,12 @@ docker run -d \
   --read-only \
   --tmpfs /tmp:rw,noexec,nosuid,size=100m \
   --cap-drop=ALL \
-  --cap-add=NET_BIND_SERVICE \
   --security-opt=no-new-privileges:true \
   --memory=512m \
   --cpus=1.0 \
-  -p 8000:8000 \
+  --pids-limit=100 \
+  -p 127.0.0.1:8000:8000 \
+  --restart=on-failure:5 \
   wizardry:latest
 ```
 

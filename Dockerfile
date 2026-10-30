@@ -17,7 +17,7 @@ LABEL maintainer="placheckij" \
       org.opencontainers.image.source="https://github.com/placheckij/dockerfile-wizardry"
 
 USER root
-# 🛡️ Spell #3: Minimal Packages & Non-Root User (CIS 4.3)
+# 🛡️ Spell #3: Minimal Packages & Non-Root User (CIS 4.3, 4.6)
 # (only tini - no curl, the health check below uses Python)
 # hadolint ignore=DL3018
 RUN apk -U upgrade && \
@@ -42,7 +42,7 @@ ENV PATH=/spellbook/.local/bin:$PATH \
     POETRY_VIRTUALENVS_IN_PROJECT=true \
     POETRY_VIRTUALENVS_OPTIONS_NO_PIP=true
 
-# 🎯 Spell #6: Layer Caching - Dependencies First (CIS 4.9)
+# 🎯 Spell #6: Layer Caching - Dependencies First (CIS 4.8)
 COPY --chown=wizard:wizards ./pyproject.toml ./poetry.lock ./
 RUN /spellbook/.local/bin/poetry sync --only main --no-root --no-ansi --no-interaction --no-cache
 
@@ -54,7 +54,7 @@ FROM base AS pruned
 # 🔮 Spell #7: Multi-Stage Build - Copy Only Runtime Dependencies
 COPY --chown=wizard:wizards --from=poetry /spellbook/.venv /spellbook/.venv
 
-# ✨ Spell #8: Selective File Copying (CIS 4.9)
+# ✨ Spell #8: Selective File Copying (CIS 4.8, 4.9)
 COPY --chown=wizard:wizards ./spellbook/spells ./spells
 COPY --chown=wizard:wizards ./spellbook/potions ./potions
 COPY --chown=wizard:wizards ./spellbook/enchantments ./enchantments
@@ -108,7 +108,7 @@ WORKDIR /spellbook
 # 📢 Spell #11: Explicit Port Declaration
 EXPOSE 8000
 
-# 💓 Spell #12: Health Check (CIS 4.6)
+# 💓 Spell #12: Health Check (CIS 4.5)
 # Python instead of curl: one less binary (and its libraries) in the image.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD ["/spellbook/.venv/bin/python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/health', timeout=2)"]
