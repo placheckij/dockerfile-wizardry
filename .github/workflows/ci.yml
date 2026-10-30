@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 env:
   DOCKER_BUILDKIT: 1
   IMAGE_NAME: dockerfile-wizardry
@@ -16,10 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Run Hadolint
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
         with:
           dockerfile: Dockerfile
           failure-threshold: warning
@@ -27,15 +30,12 @@ jobs:
   security-scan:
     name: 🛡️ Security Scan
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: 'config'
           scan-ref: '.'
@@ -44,18 +44,15 @@ jobs:
   build-and-test:
     name: 🏗️ Build & Test Docker Image
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Build Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           push: false
@@ -77,14 +74,12 @@ jobs:
       - name: Test image - Health check
         run: |
           docker run -d --name test-container -p 8000:8000 ${{ env.IMAGE_NAME }}:latest
-          sleep 5
-          curl -f http://localhost:8000/health || exit 1
-          docker stop test-container
-          docker rm test-container
+          trap 'docker logs test-container; docker rm -f test-container' EXIT
+          curl -f --retry 10 --retry-delay 1 --retry-all-errors http://localhost:8000/health
           echo "✅ Health check passed"
 
       - name: Scan image for vulnerabilities with Trivy
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ env.IMAGE_NAME }}:latest
           format: 'table'
@@ -98,15 +93,15 @@ jobs:
         python-version: ['3.12']
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Poetry
-        uses: snok/install-poetry@v1
+        uses: snok/install-poetry@a783c322200f0519c7926aa6faa857c4e23e9263 # v1.4.2
         with:
           version: 2.2.0
           virtualenvs-create: true
@@ -114,7 +109,7 @@ jobs:
 
       - name: Load cached venv
         id: cached-poetry-dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .venv
           key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
@@ -128,10 +123,10 @@ jobs:
           poetry run pytest spellbook/tests/ -v --cov=spellbook --cov-report=xml
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         if: matrix.python-version == '3.12'
         with:
-          file: ./coverage.xml
+          files: ./coverage.xml
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false

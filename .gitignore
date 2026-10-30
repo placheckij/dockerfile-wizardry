@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+build/
+dist/
+.venv/
+
+# Test & coverage artifacts
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets/
+
+# IDE and OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs and temp files
+*.log
+*.tmp
+tmp/
+temp/
