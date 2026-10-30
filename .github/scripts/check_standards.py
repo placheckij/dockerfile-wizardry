@@ -17,9 +17,11 @@ Everything fetched from the web is untrusted: values are matched against
 strict patterns before they are printed or compared.
 """
 
+import contextlib
 import json
 import os
 import re
+import secrets
 import subprocess
 import sys
 import urllib.request
@@ -40,6 +42,36 @@ SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 ANCHOR_RE = re.compile(r"^[a-z0-9-]+$")
 CITED_ANCHOR_RE = re.compile(r"Docker_Security_Cheat_Sheet\.html#([A-Za-z0-9-]+)")
 PAGE_ID_RE = re.compile(r"""\bid=["']?([a-z0-9-]+)""")
+
+
+def defang(text):
+    """Make untrusted text inert in a GitHub Actions job log.
+
+    The runner tries two command syntaxes on every output line. The `::` form only counts at
+    the START of a line (after leading whitespace), but the legacy `##[` form is found
+    ANYWHERE in a line (it uses IndexOf), so a line prefix is not enough: break the marker
+    itself. (Source: actions/runner, src/Runner.Common/ActionCommand.cs.)
+    """
+    return text.replace("##[", "# #[")
+
+
+@contextlib.contextmanager
+def commands_disabled():
+    """Within GitHub Actions, stop the runner interpreting workflow commands in what follows.
+
+    `::stop-commands::TOKEN` makes the runner ignore every command until a line that is a
+    command named TOKEN; the token is random and single-use, so untrusted text cannot end
+    the pause. Outside Actions this does nothing (the markers would only be noise).
+    """
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        yield
+        return
+    token = secrets.token_hex(16)
+    print(f"::stop-commands::{token}", file=sys.stderr, flush=True)
+    try:
+        yield
+    finally:
+        print(f"::{token}::", file=sys.stderr, flush=True)
 
 
 class CheckError(Exception):
@@ -97,7 +129,9 @@ def latest_owasp_commit():
     if len(parts) != 3 or not SHA_RE.match(parts[0]):
         raise CheckError("unexpected output from the GitHub commits API")
     sha, date, message = parts
-    message = "".join(ch for ch in message if ch.isprintable())[:120].replace("`", "'")
+    message = defang(
+        "".join(ch for ch in message if ch.isprintable())[:120].replace("`", "'")
+    )
     return sha, date[:10], message
 
 
@@ -233,16 +267,18 @@ def main():
     if problems:
         print("\nOUTDATED:\n" + "\n".join(f"- {p}" for p in problems), file=sys.stderr)
         if diff_text:
-            # The diff is untrusted. In the job log the runner treats a line that STARTS with
-            # "::" or "##[" as a workflow command (::add-mask::, ::error::, ::stop-commands::,
-            # ...), so every line is prefixed and none can. (The Markdown step summary is not
-            # parsed for commands, so it keeps the raw diff.)
-            quoted = "\n".join("| " + line for line in diff_text.splitlines())
-            print(
-                "\nWhat changed in the cheat sheet since the reviewed commit:\n"
-                + quoted,
-                file=sys.stderr,
-            )
+            # The diff is untrusted text. Three layers keep it from acting as workflow commands
+            # in the job log: (1) every line is prefixed, so none starts with "::"; (2) the
+            # legacy "##[" marker, which the runner finds anywhere in a line, is broken; (3) in
+            # Actions the whole block sits inside a random-token stop-commands pause. (The
+            # Markdown step summary is not parsed for commands, so it keeps the raw diff.)
+            quoted = "\n".join("| " + defang(line) for line in diff_text.splitlines())
+            with commands_disabled():
+                print(
+                    "\nWhat changed in the cheat sheet since the reviewed commit:\n"
+                    + quoted,
+                    file=sys.stderr,
+                )
         elif sha != owasp_reviewed:
             print(
                 "\n(The cheat sheet's diff could not be fetched; use the compare link above.)",
@@ -257,10 +293,11 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except CheckError as error:
-        print(f"CHECK FAILED: {error}", file=sys.stderr)
+        print(f"CHECK FAILED: {defang(str(error))}", file=sys.stderr)
         sys.exit(2)
     except Exception as error:  # noqa: BLE001 - safety net: a crash must never look like "outdated" (exit 1)
         print(
-            f"CHECK FAILED: unexpected {type(error).__name__}: {error}", file=sys.stderr
+            f"CHECK FAILED: unexpected {type(error).__name__}: {defang(str(error))}",
+            file=sys.stderr,
         )
         sys.exit(2)
