@@ -37,6 +37,14 @@ jobs:
       - name: Lint shell scripts (shellcheck)
         run: shellcheck .github/scripts/*.sh
 
+      # The Python scripts in .github/scripts run with the runner's system python3, not the
+      # project's Python 3.14. `ruff format` targets 3.14 and can emit syntax older Pythons
+      # reject (e.g. `except A, B:`), so compile them with the interpreter that will run them.
+      - name: Check the workflow scripts compile with the runner's Python
+        run: |
+          python3 --version
+          python3 -m py_compile .github/scripts/*.py
+
   security-scan:
     name: 🛡️ Security Scan
     runs-on: ubuntu-latest

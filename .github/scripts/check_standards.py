@@ -101,6 +101,55 @@ def latest_owasp_commit():
     return sha, date[:10], message
 
 
+MAX_DIFF_LINES = 120
+
+
+def owasp_diff(reviewed, latest):
+    """Best effort: this cheat sheet's patch between two OWASP commits, or None.
+
+    The repo-wide compare view lists every file in the range (dozens, mostly other cheat
+    sheets), so the useful part - just our file - is taken from the compare API instead.
+    Failure here must never change the exit code, so every problem returns None.
+    """
+    if not (SHA_RE.match(reviewed) and SHA_RE.match(latest)):
+        return None
+    jq = f'[.files[] | select(.filename == "{OWASP_FILE}") | .patch][0] // empty'
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "api",
+                f"repos/{OWASP_REPO}/compare/{reviewed}...{latest}",
+                "--jq",
+                jq,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return None
+    except (
+        OSError
+    ):  # separate clauses: ruff (target py314) would drop the parentheses of a
+        return None  # tuple here, and that form is a SyntaxError on the runner's Python 3.12
+    if result.returncode != 0 or not result.stdout.strip():
+        return None
+    # Untrusted text written by OWASP contributors: keep printable characters only, cap the
+    # size, and make sure it cannot close the Markdown code fence it is shown in.
+    lines = []
+    for line in result.stdout.splitlines():
+        line = "".join(ch for ch in line if ch.isprintable() or ch == "\t")[:300]
+        lines.append(line.replace("```", "'''"))
+    shown = lines[:MAX_DIFF_LINES]
+    if len(lines) > MAX_DIFF_LINES:
+        shown.append(
+            f"... ({len(lines) - MAX_DIFF_LINES} more lines; see the compare link)"
+        )
+    return "\n".join(shown)
+
+
 def broken_owasp_anchors():
     cited = set()
     for path in ROOT.glob("*.md"):
@@ -145,11 +194,14 @@ def main():
             f"  Re-check the control numbers cited in README.md and the Dockerfile, then set "
             f"cis_docker_benchmark.verified_version in {BASELINE.relative_to(ROOT)}."
         )
+    diff_text = None
     if sha != owasp_reviewed:
+        diff_text = owasp_diff(owasp_reviewed, sha)
         problems.append(
             f"OWASP Docker Security Cheat Sheet changed: latest commit {sha[:9]} ({date}): {message}\n"
-            f"  Review https://github.com/{OWASP_REPO}/commits/master/{OWASP_FILE}, then set "
-            f"owasp_docker_cheat_sheet.reviewed_commit in {BASELINE.relative_to(ROOT)}."
+            f"  Compare: https://github.com/{OWASP_REPO}/compare/{owasp_reviewed}...{sha}\n"
+            f"  (that view lists every file changed in the range; this cheat sheet's own diff is shown below)\n"
+            f"  Review it, then set owasp_docker_cheat_sheet.reviewed_commit in {BASELINE.relative_to(ROOT)}."
         )
     if broken:
         problems.append(
@@ -172,9 +224,25 @@ def main():
                 handle.write(
                     "\n**Outdated:**\n\n" + "\n".join(f"- {p}" for p in problems) + "\n"
                 )
+            if diff_text:
+                handle.write(
+                    "\n**What changed in the OWASP cheat sheet since the reviewed commit:**\n\n"
+                    "```diff\n" + diff_text + "\n```\n"
+                )
 
     if problems:
         print("\nOUTDATED:\n" + "\n".join(f"- {p}" for p in problems), file=sys.stderr)
+        if diff_text:
+            print(
+                "\nWhat changed in the cheat sheet since the reviewed commit:\n"
+                + diff_text,
+                file=sys.stderr,
+            )
+        elif sha != owasp_reviewed:
+            print(
+                "\n(The cheat sheet's diff could not be fetched; use the compare link above.)",
+                file=sys.stderr,
+            )
         return 0 if report_only else 1
     print("\nUp to date.")
     return 0

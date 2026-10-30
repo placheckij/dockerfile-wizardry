@@ -1,5 +1,5 @@
 {
-  "_comment": "What this repo's security references were last checked against. The monthly 'Standards watch' workflow fails (and GitHub emails the failure) when upstream has moved past this. After re-checking the README/Dockerfile citations, update the values below in a PR.",
+  "_comment": "What this repo's security references were last checked against. The monthly 'Standards watch' workflow fails (and GitHub emails the failure) when upstream has moved past this. After re-checking the README/Dockerfile citations, update the values below in a PR. For OWASP the failure message includes a compare link and this cheat sheet's own diff since the reviewed commit.",
   "cis_docker_benchmark": {
     "verified_version": "1.9.0",
     "verified_on": "2026-10-30",

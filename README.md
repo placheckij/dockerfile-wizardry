@@ -397,7 +397,7 @@ Beyond building and testing, the workflow guards the properties this repo claims
 - **Read-only application files**: the app user can't write to, `chmod` or replace its code and dependencies (Spell #9).
 - **Example smoke tests**: `examples/compose.yaml` is started and its settings verified with `docker inspect`; `examples/namespace.yaml` + `pod.yaml` + `networkpolicy.yaml` are applied to a throwaway `kind` cluster, where the script checks what Kubernetes actually enforced (user, capabilities, seccomp, read-only filesystem), that the NetworkPolicy blocks what it should, and the documented random-UID outcomes. Both run on changes to the examples or the image, and weekly.
 - **shellcheck** on the smoke-test scripts.
-- **Monthly standards watch** for new CIS Benchmark versions and OWASP cheat sheet changes.
+- **Monthly standards watch** for new CIS Benchmark versions and OWASP cheat sheet changes; when the cheat sheet changed, the failure shows what changed (a compare link plus that sheet's own diff).
 
 ## 🧭 Deliberately Not Included
 
