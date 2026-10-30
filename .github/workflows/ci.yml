@@ -45,6 +45,11 @@ jobs:
           python3 --version
           python3 -m py_compile .github/scripts/*.py
 
+      # The README's table of contents is generated; fail if a heading changed and it was not
+      # regenerated (fix: python3 .github/scripts/readme_toc.py)
+      - name: Check the README table of contents is up to date
+        run: python3 .github/scripts/readme_toc.py --check
+
   security-scan:
     name: 🛡️ Security Scan
     runs-on: ubuntu-latest
