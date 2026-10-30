@@ -38,16 +38,23 @@ WORKDIR /spellbook
 # ═══════════════════════════════════════════════════════════════════════
 # 📚 Stage 2: Dependency Installation
 # ═══════════════════════════════════════════════════════════════════════
-FROM base AS poetry
-# 📦 Spell #5: Install Poetry Without Cache
-RUN python -m pip install --no-cache-dir poetry==2.5.*
+FROM base AS uv
+# 📦 Spell #5: Install uv Without Cache
+RUN python -m pip install --no-cache-dir uv==0.13.6
+# - never download a Python: use the one in the base image
+# - compile .pyc files now (uv does not by default): the runtime filesystem can
+#   be read-only, so they could not be written later
+# - no download cache, and copy instead of hardlinking (the cache is not kept)
 ENV PATH=/spellbook/.local/bin:$PATH \
-    POETRY_VIRTUALENVS_IN_PROJECT=true \
-    POETRY_VIRTUALENVS_OPTIONS_NO_PIP=true
+    UV_PYTHON_DOWNLOADS=never \
+    UV_COMPILE_BYTECODE=1 \
+    UV_NO_CACHE=1 \
+    UV_LINK_MODE=copy
 
 # 🎯 Spell #6: Layer Caching - Dependencies First (CIS 4.8)
-COPY --chown=wizard:wizards ./pyproject.toml ./poetry.lock ./
-RUN /spellbook/.local/bin/poetry sync --only main --no-root --no-ansi --no-interaction --no-cache
+# --locked: fail if uv.lock is out of date; --no-dev: runtime dependencies only
+COPY --chown=wizard:wizards ./pyproject.toml ./uv.lock ./
+RUN uv sync --locked --no-dev
 
 # ═══════════════════════════════════════════════════════════════════════
 # 🚀 Stage 3: Assemble the Runtime Image
@@ -55,7 +62,7 @@ RUN /spellbook/.local/bin/poetry sync --only main --no-root --no-ansi --no-inter
 FROM base AS pruned
 
 # 🔮 Spell #7: Multi-Stage Build - Copy Only Runtime Dependencies
-COPY --chown=wizard:wizards --from=poetry /spellbook/.venv /spellbook/.venv
+COPY --chown=wizard:wizards --from=uv /spellbook/.venv /spellbook/.venv
 
 # ✨ Spell #8: Selective File Copying (CIS 4.8, 4.9)
 COPY --chown=wizard:wizards ./spellbook/spells ./spells

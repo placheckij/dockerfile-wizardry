@@ -1,6 +1,7 @@
 FROM python:3.14.10-alpine3.24
 WORKDIR /spellbook
-COPY pyproject.toml poetry.lock ./
-RUN python -m pip install --no-cache-dir poetry==2.5.* && poetry config virtualenvs.create false && poetry install --no-root --no-ansi --no-interaction --no-cache
+ENV PATH=/spellbook/.venv/bin:$PATH
+COPY pyproject.toml uv.lock ./
+RUN python -m pip install --no-cache-dir uv==0.13.6 && uv sync --locked --no-cache
 COPY spellbook/ ./spellbook/
-CMD ["uvicorn", "spellbook.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "--app-dir", "spellbook", "main:app", "--host", "0.0.0.0", "--port", "8000"]
