@@ -8,7 +8,7 @@
 [![Docker](https://img.shields.io/badge/docker-24.0+-blue.svg)](https://www.docker.com/)
 [![Hadolint](https://img.shields.io/badge/dockerfile-linted-success.svg)](https://github.com/hadolint/hadolint)
 [![Trivy](https://img.shields.io/badge/security-scanned-success.svg)](https://github.com/aquasecurity/trivy)
-[![Docker Image Size](https://img.shields.io/badge/image%20size-~91MB-blue.svg)](https://github.com/placheckij/dockerfile-wizardry)
+[![Docker Image Size](https://img.shields.io/badge/image%20size-~73MB-blue.svg)](https://github.com/placheckij/dockerfile-wizardry)
 
 Welcome to Dockerfile Wizardry - where security meets sorcery! This repository demonstrates production-ready Docker image creation following security best practices, optimization techniques, and industry standards (CIS Docker Benchmark, OWASP) while maintaining compact image sizes.
 
@@ -25,9 +25,9 @@ Master the ancient arts of Docker image crafting by learning:
 
 Each "spell" in the Dockerfile is numbered and explained, making it easy to understand and apply these techniques to your own projects!
 
-## 🔐 The Thirteen Security Spells
+## 🔐 The Fourteen Security Spells
 
-Our Dockerfile demonstrates 13 essential security and optimization "spells":
+Our Dockerfile demonstrates 14 essential security and optimization "spells":
 
 ### ⚙️ Spell #1: Parameterized Builds
 ```dockerfile
@@ -49,15 +49,15 @@ Provides image traceability, documentation, and supply chain transparency.
 
 **Source:** [OCI Image Spec - Pre-Defined Annotation Keys](https://github.com/opencontainers/image-spec/blob/main/annotations.md#pre-defined-annotation-keys) | [Docker Docs - Labels](https://docs.docker.com/reference/dockerfile/#label)
 
-### 🛡️ Spell #3: Minimal Packages (CIS 4.2)
+### 🛡️ Spell #3: Minimal Packages (CIS 4.3)
 ```dockerfile
 RUN apk -U upgrade && \
-    apk add --no-cache curl tini && \
+    apk add --no-cache tini && \
     rm -rf /var/cache/apk/*
 ```
 Install only what's necessary, upgrade existing packages, and clean up in the same layer.
 
-**Source:** [CIS Docker Benchmark 4.2](https://www.cisecurity.org/benchmark/docker) - Ensure that unnecessary packages are not installed in the container
+**Source:** [CIS Docker Benchmark 4.3](https://www.cisecurity.org/benchmark/docker) - Ensure that unnecessary packages are not installed in the container
 
 ### 👥 Spell #4: Non-Root User (CIS 4.1)
 ```dockerfile
@@ -121,11 +121,32 @@ Prevents accidental secrets and reduces image size. Check `spellbook/tests/` and
 RUN chmod -R 550 /spellbook/spells && \
     chmod 440 /spellbook/main.py
 ```
-Make files read-only and executable only where needed - prevents tampering. The same step uninstalls `pip` from the runtime image, which trims installed tooling and stops pip's vendored libraries from showing up in vulnerability scans. It is not a barrier against an attacker: Python, `curl`, `wget` and `apk` are still in the image, so rely on the runtime flags in [RUNTIME_SECURITY.md](RUNTIME_SECURITY.md) (read-only filesystem, dropped capabilities) for that.
+Make files read-only and executable only where needed - prevents tampering.
 
 **Source:** [OWASP - Filesystem Permissions](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-8-set-filesystem-and-volumes-to-read-only)
 
-### 🔌 Spell #10: Port Declaration
+### ✂️ Spell #10: Prune and Flatten (CIS 4.3)
+```dockerfile
+FROM base AS pruned
+# ... build the image, then remove what the app never runs:
+RUN /usr/local/bin/python -m pip uninstall -y pip && \
+    rm -rf /usr/local/include /usr/local/lib/python3.14/ensurepip ... && \
+    rm -f /usr/bin/wget /usr/bin/nc /usr/bin/telnet ... && \
+    rm -rf /sbin/apk /lib/libapk* /lib/apk /etc/apk
+
+FROM scratch AS runtime
+COPY --from=pruned / /
+# scratch has no metadata: declare ENV, LABEL, USER, WORKDIR, ... again
+```
+Removes the package managers (`pip`, `apk`), C headers, `ensurepip`, IDLE/Tk, and network tools (`wget`, `nc`, `telnet`, ...), and drops `curl` entirely by using Python for the health check.
+
+**Why flatten?** Deleting files in a later layer saves nothing: they stay in the layers below and anyone who pulls the image can still extract them. Copying the pruned filesystem into a fresh `scratch` image removes them for real - here that's 91 MB → 73 MB (with `curl` also dropped), and `apk`, `curl` and `Python.h` no longer appear in any layer.
+
+**This is defense in depth, not a barrier.** Python and the busybox shell are still in the image, so an attacker with code execution can still download things. Rely on the runtime flags in [RUNTIME_SECURITY.md](RUNTIME_SECURITY.md) (read-only filesystem, dropped capabilities) for that. Removing the shell as well is possible, but it breaks `docker exec ... sh` debugging and any CI check that runs `ls` or `id` inside the container.
+
+**Source:** [CIS Docker Benchmark 4.3](https://www.cisecurity.org/benchmark/docker) - Ensure that unnecessary packages are not installed in the container | [Docker Docs - Multi-stage builds](https://docs.docker.com/build/building/multi-stage/) | [Docker Docs - Create a minimal base image using scratch](https://docs.docker.com/build/building/base-images/#create-a-minimal-base-image-using-scratch)
+
+### 🔌 Spell #11: Port Declaration
 ```dockerfile
 EXPOSE 8000
 ```
@@ -138,15 +159,16 @@ Note: You still need `-p 8000:8000` when running, but EXPOSE acts as the "contra
 
 **Source:** [Dockerfile Reference - EXPOSE](https://docs.docker.com/reference/dockerfile/#expose)
 
-### 💚 Spell #11: Health Checks (CIS 4.7)
+### 💚 Spell #12: Health Checks (CIS 4.6)
 ```dockerfile
-HEALTHCHECK --interval=30s --timeout=3s CMD ["curl", "-f", "http://localhost:8000/health"]
+HEALTHCHECK --interval=30s --timeout=3s \
+    CMD ["/spellbook/.venv/bin/python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/health', timeout=2)"]
 ```
-Enables automatic healing - Docker/K8s will restart unhealthy containers.
+Enables automatic healing - Docker/K8s will restart unhealthy containers. The check uses Python (already in the image) instead of `curl`, so `curl` and its libraries can be left out. A failed request raises, Python exits non-zero, and Docker marks the container unhealthy.
 
-**Source:** [CIS Docker Benchmark 4.7](https://www.cisecurity.org/benchmark/docker) - Ensure that HEALTHCHECK instructions have been added | [Docker Docs - HEALTHCHECK](https://docs.docker.com/reference/dockerfile/#healthcheck)
+**Source:** [CIS Docker Benchmark 4.6](https://www.cisecurity.org/benchmark/docker) - Ensure that HEALTHCHECK instructions have been added | [Docker Docs - HEALTHCHECK](https://docs.docker.com/reference/dockerfile/#healthcheck)
 
-### 🛑 Spell #12: Graceful Shutdown
+### 🛑 Spell #13: Graceful Shutdown
 ```dockerfile
 STOPSIGNAL SIGTERM
 ```
@@ -154,7 +176,7 @@ Ensures proper shutdown signal for cleanup operations.
 
 **Source:** [Dockerfile Reference - STOPSIGNAL](https://docs.docker.com/reference/dockerfile/#stopsignal)
 
-### 🔄 Spell #13: Signal Handling with Tini (OWASP)
+### 🔄 Spell #14: Signal Handling with Tini (OWASP)
 ```dockerfile
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/spellbook/.venv/bin/uvicorn", "main:app", ...]
@@ -240,11 +262,13 @@ Example size and build time comparison for a Python application from this repo, 
 
 | Approach | Image Size | Build Time (no-cache) |
 |----------|-----------|----------------------|
-| Single-stage (python:3.14-slim) | 306 MB | 33s |
-| Single-stage (python:3.14.10-alpine3.24) | 209 MB | 30s |
-| Multi-stage (python:3.14.10-alpine3.24) | 91 MB | 31s |
+| Single-stage (python:3.14-slim) | 306 MB | 15s |
+| Single-stage (python:3.14.10-alpine3.24) | 209 MB | 14s |
+| Multi-stage, pruned and flattened (python:3.14.10-alpine3.24) | 73 MB | 18s |
 
-The single-stage files install every dependency group, as a naive Dockerfile would. The multi-stage image installs runtime dependencies only (`poetry sync --only main`), which alone accounts for 30 MB of the difference (122 MB → 92 MB); removing pip from the runtime image trims a little more.
+Build times vary a lot from run to run (the same builds took 30-33s on another run), so compare the sizes, not the seconds.
+
+The single-stage files install every dependency group, as a naive Dockerfile would. The multi-stage image installs runtime dependencies only (`poetry sync --only main`), which alone accounts for 30 MB of the difference (122 MB → 92 MB). Dropping `curl` and flattening the pruned filesystem (Spell #10) brings it down to 73 MB.
 
 ## 📁 Project Structure
 
@@ -281,7 +305,7 @@ git clone https://github.com/placheckij/dockerfile-wizardry.git
 cd dockerfile-wizardry
 ```
 
-Open `Dockerfile` and read through each numbered spell (1-13). Each has detailed comments explaining the "why" and "how".
+Open `Dockerfile` and read through each numbered spell (1-14). Each has detailed comments explaining the "why" and "how".
 
 ### 2️⃣ Build the Image
 ```bash
