@@ -138,7 +138,7 @@ Note: You still need `-p 8000:8000` when running, but EXPOSE acts as the "contra
 
 ### 💚 Spell #11: Health Checks (CIS 4.7)
 ```dockerfile
-HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:8000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=3s CMD ["curl", "-f", "http://localhost:8000/health"]
 ```
 Enables automatic healing - Docker/K8s will restart unhealthy containers.
 

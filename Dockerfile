@@ -71,7 +71,7 @@ EXPOSE 8000
 
 # 💓 Spell #11: Health Check (CIS 4.7)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD ["curl", "-f", "http://localhost:8000/health"]
 
 # 🛑 Spell #12: Graceful Shutdown Signal
 STOPSIGNAL SIGTERM
