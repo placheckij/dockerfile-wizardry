@@ -132,7 +132,7 @@ FROM base AS pruned
 RUN /usr/local/bin/python -m pip uninstall -y pip && \
     rm -rf /usr/local/include /usr/local/lib/python3.14/ensurepip ... && \
     rm -f /usr/bin/wget /usr/bin/nc /usr/bin/telnet ... && \
-    rm -rf /sbin/apk /lib/libapk* /lib/apk /etc/apk
+    rm -rf /sbin/apk /lib/libapk* /etc/apk   # keep /lib/apk/db for scanners
 
 FROM scratch AS runtime
 COPY --from=pruned / /

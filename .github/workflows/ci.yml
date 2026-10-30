@@ -82,6 +82,24 @@ jobs:
           curl -f --retry 10 --retry-delay 1 --retry-all-errors http://localhost:8000/health
           echo "✅ Health check passed"
 
+      # Guard against a blind scanner: if the apk database is removed from the image,
+      # Trivy sees zero OS packages and the vulnerability scan below passes vacuously.
+      - name: List packages Trivy can see
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:latest
+          format: 'json'
+          output: 'trivy-packages.json'
+          list-all-pkgs: true
+          exit-code: '0'
+
+      - name: Assert Trivy sees OS and Python packages
+        run: |
+          os=$(jq '[.Results[]? | select(.Class=="os-pkgs") | (.Packages // []) | length] | add // 0' trivy-packages.json)
+          py=$(jq '[.Results[]? | select(.Class=="lang-pkgs") | (.Packages // []) | length] | add // 0' trivy-packages.json)
+          echo "Trivy sees $os OS packages and $py Python packages"
+          test "$os" -gt 0 && test "$py" -gt 0
+
       - name: Scan image for vulnerabilities with Trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:

@@ -70,6 +70,9 @@ RUN chmod -R 550 /spellbook/spells /spellbook/potions /spellbook/enchantments &&
 # Remove the package manager (pip, apk), build leftovers (C headers, ensurepip,
 # IDLE, Tk, pydoc) and network tools (wget, nc, telnet, ...). This is defense in
 # depth, not a barrier: Python and the busybox shell are still present.
+# The apk *database* (/lib/apk/db) stays on purpose: vulnerability scanners read
+# it to see the OS packages. Delete it and Trivy reports zero OS packages, so
+# the CI scan passes while checking nothing (CI asserts the count is non-zero).
 RUN /usr/local/bin/python -m pip uninstall -y pip && \
     PYLIB=/usr/local/lib/python3.14 && \
     rm -rf /usr/local/include "$PYLIB"/ensurepip "$PYLIB"/idlelib "$PYLIB"/tkinter \
@@ -77,7 +80,7 @@ RUN /usr/local/bin/python -m pip uninstall -y pip && \
            /usr/local/bin/idle* /usr/local/bin/pydoc* /usr/local/bin/python*-config && \
     rm -f /usr/bin/wget /usr/bin/nc /usr/bin/telnet /usr/bin/ftpget /usr/bin/ftpput \
           /usr/bin/tftp /usr/bin/ssl_client /bin/wget /bin/nc /bin/telnet /bin/ssl_client && \
-    rm -rf /sbin/apk /lib/libapk* /lib/apk /var/cache/apk /etc/apk
+    rm -rf /sbin/apk /lib/libapk* /var/cache/apk /etc/apk
 USER wizard
 
 # ═══════════════════════════════════════════════════════════════════════
