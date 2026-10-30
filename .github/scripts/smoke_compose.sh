@@ -21,7 +21,8 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 IMAGE=wizardry:1.0.0
-PROJECT="wizardry-smoke-$$"
+# A random name, not a PID: PIDs repeat over time and across PID namespaces that share one Docker daemon
+PROJECT="wizardry-smoke-$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
 COMPOSE=(docker compose -p "$PROJECT" -f examples/compose.yaml)
 URL=http://127.0.0.1:8000
 
@@ -34,15 +35,29 @@ if (exec 3<>/dev/tcp/127.0.0.1/8000) 2>/dev/null; then
   fail "something is already listening on 127.0.0.1:8000 (the example's fixed host port); stop it and retry"
 fi
 
+# Anything at all - containers (running or stopped), networks, volumes - already carrying this name?
+project_resources() {
+  local label="label=com.docker.compose.project=$PROJECT"
+  docker ps -aq --filter "$label" 2>/dev/null
+  docker network ls -q --filter "$label" 2>/dev/null
+  docker volume ls -q --filter "$label" 2>/dev/null
+}
+OWNED=0   # only tear the project down once we have verified that it is ours
 cleanup() {
   local rc=$?
-  if [ "$rc" -ne 0 ]; then
+  if [ "$rc" -ne 0 ] && [ "$OWNED" = 1 ]; then
     echo "--- container logs (last 30 lines) ---" >&2
     "${COMPOSE[@]}" logs --no-color --tail 30 >&2 2>/dev/null || true
   fi
-  "${COMPOSE[@]}" down --volumes >/dev/null 2>&1 || true
+  if [ "$OWNED" = 1 ]; then
+    "${COMPOSE[@]}" down --volumes >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup EXIT
+
+[ -z "$(project_resources)" ] \
+  || fail "a Compose project named '$PROJECT' already exists; refusing to touch it"
+OWNED=1
 
 "${COMPOSE[@]}" up -d --wait --wait-timeout 90
 CID=$("${COMPOSE[@]}" ps -q wizardry)
@@ -63,7 +78,8 @@ expect "no-new-privileges"              "$(inspect '{{.HostConfig.SecurityOpt}}'
 expect "memory limit (bytes)"           "$(inspect '{{.HostConfig.Memory}}')"                      536870912
 expect "cpu limit (nano cpus)"          "$(inspect '{{.HostConfig.NanoCpus}}')"                    1000000000
 expect "restart policy"                 "$(inspect '{{.HostConfig.RestartPolicy.Name}}:{{.HostConfig.RestartPolicy.MaximumRetryCount}}')" on-failure:5
-expect "open-files ulimit"              "$(inspect '{{range .HostConfig.Ulimits}}{{.Name}}={{.Soft}}:{{.Hard}};{{end}}')" "nofile=1024:1024;"
+expect "process limit (pids)"           "$(inspect '{{.HostConfig.PidsLimit}}')"                   100
+expect "open-files ulimit"             "$(inspect '{{range .HostConfig.Ulimits}}{{.Name}}={{.Soft}}:{{.Hard}};{{end}}')" "nofile=1024:1024;"
 expect "tmpfs"                          "$(inspect '{{.HostConfig.Tmpfs}}')"                       "map[/tmp:rw,noexec,nosuid,size=100m]"
 expect "runs as the unprivileged user"  "$(inspect '{{.Config.User}}')"                            wizard
 # Every published binding must be loopback-only - checking just the first would miss an extra 0.0.0.0 one

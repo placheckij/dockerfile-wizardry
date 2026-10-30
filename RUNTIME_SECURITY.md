@@ -82,7 +82,7 @@ docker run --network backend wizardry:latest
 ```
 Docker Compose does this for you: each project gets its own network, and [`examples/compose.yaml`](examples/compose.yaml) is checked to be on it and not on the default bridge. See [Docker networking](https://docs.docker.com/engine/network/).
 
-In Kubernetes use a [NetworkPolicy](https://kubernetes.io/docs/concepts/services-networking/network-policies/): [`examples/networkpolicy.yaml`](examples/networkpolicy.yaml) lets only pods labelled `role: frontend` in the same namespace reach the app (port 8000) and denies all egress. It needs a network plugin that *enforces* policies - otherwise the object is silently ignored - and CI proves it on kind: the labelled pod gets through, an unlabelled pod and a pod in another namespace are blocked, and the app's probes keep working.
+In Kubernetes use a [NetworkPolicy](https://kubernetes.io/docs/concepts/services-networking/network-policies/): [`examples/networkpolicy.yaml`](examples/networkpolicy.yaml) lets only pods labelled `role: frontend` in the same namespace reach the app (port 8000) and denies all egress. It needs a network plugin that *enforces* policies - otherwise the object is silently ignored - and CI proves it on kind, in the order the docs use (policy first, then the Pod). Ingress: the labelled pod gets through; an unlabelled pod and a pod in another namespace are blocked by a *timeout* (not merely a failed pod). Egress: the app pod cannot reach a target that an unselected pod can reach. The app's probes keep working.
 
 ### 9. Mandatory Access Control and Runtime Monitoring (OWASP Rule 6)
 Never disable the default profiles; they are the baseline:
@@ -102,7 +102,7 @@ Container hardening is only as strong as the host underneath, because containers
 
 ## 🐳 Docker Compose Example
 
-[`examples/compose.yaml`](examples/compose.yaml) applies the flags above declaratively: a read-only root filesystem with a `/tmp` tmpfs, all capabilities dropped, `no-new-privileges`, memory and CPU limits, the port published on `127.0.0.1` only, an open-files `ulimit`, its own user-defined network, and a bounded restart policy. It deliberately has no `healthcheck:` block: the image ships its own `HEALTHCHECK` (it uses Python, because the image has no `curl`), and an override would need a command that exists inside the container.
+[`examples/compose.yaml`](examples/compose.yaml) applies the flags above declaratively: a read-only root filesystem with a `/tmp` tmpfs, all capabilities dropped, `no-new-privileges`, memory and CPU limits, the port published on `127.0.0.1` only, an open-files `ulimit`, its own user-defined network, a process limit (`pids: 100`), and a bounded restart policy. It deliberately has no `healthcheck:` block: the image ships its own `HEALTHCHECK` (it uses Python, because the image has no `curl`), and an override would need a command that exists inside the container.
 
 ```bash
 docker build -t wizardry:1.0.0 .
@@ -117,10 +117,12 @@ CI runs this exact file (`.github/scripts/smoke_compose.sh`): it waits for the c
 
 ```bash
 docker build -t wizardry:1.0.0 .
-kubectl apply -f examples/namespace.yaml -f examples/pod.yaml -f examples/networkpolicy.yaml
+kubectl apply -f examples/namespace.yaml -f examples/networkpolicy.yaml -f examples/pod.yaml
 ```
 
-CI applies these files to a throwaway `kind` cluster (`.github/scripts/smoke_kubernetes.sh`) and checks what Kubernetes actually enforced inside the container, not only what the manifests say, and that the NetworkPolicy blocks what it should.
+The order matters: the NetworkPolicy goes in **before** the Pod, so it already selects the Pod when it starts and the Pod is never reachable by everyone in the meantime.
+
+CI applies these files to a throwaway `kind` cluster (`.github/scripts/smoke_kubernetes.sh`) and checks what Kubernetes actually enforced inside the container, not only what the manifests say, and that the NetworkPolicy blocks what it should: unlisted ingress *and* all egress, each proved against a positive control so that a timeout can only be the policy (see section 8).
 
 ### Which user and group the container needs
 

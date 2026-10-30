@@ -96,20 +96,30 @@ if drop:
 print(s)' "$1" "$2"
 }
 
-# A run-to-completion client pod (Pod Security "restricted"-compliant) that tries to reach the app
+# What every connectivity probe runs. It prints ONE explicit result and uses distinct exit codes, so a
+# test can tell "the network dropped the packets" from anything else that makes a probe fail:
+#   REACHED          the HTTP request succeeded                          (exit 0)
+#   BLOCKED timeout  the connection timed out - what a NetworkPolicy drop looks like   (exit 1)
+#   ERROR ...        anything else: refused, HTTP 500, DNS, a bug         (exit 2)
+PROBE_PY='
+import socket, sys, urllib.error, urllib.request
+try:
+    urllib.request.urlopen("http://%s:8000/health" % sys.argv[1], timeout=4)
+    print("REACHED")
+except Exception as e:
+    reason = e.reason if isinstance(e, urllib.error.URLError) else e
+    if isinstance(reason, (TimeoutError, socket.timeout)):
+        print("BLOCKED timeout")
+        sys.exit(1)
+    print("ERROR", type(e).__name__, e)
+    sys.exit(2)
+'
+
+# A run-to-completion client pod (Pod Security "restricted"-compliant) that runs PROBE_PY against an IP
 make_client() { # make_client <name> <namespace> <role label or ''> <target ip>
-  python3 -c '
-import json, sys
+  PROBE_PY="$PROBE_PY" python3 -c '
+import json, os, sys
 name, ns, role, ip = sys.argv[1:5]
-code = (
-    "import sys, urllib.request\n"
-    "try:\n"
-    "    urllib.request.urlopen(\"http://%s:8000/health\", timeout=4)\n"
-    "    print(\"REACHED\")\n"
-    "except Exception as e:\n"
-    "    print(\"BLOCKED\", type(e).__name__)\n"
-    "    sys.exit(1)\n" % ip
-)
 labels = "  labels:\n    role: %s\n" % role if role else ""
 print("""apiVersion: v1
 kind: Pod
@@ -127,12 +137,31 @@ metadata:
   containers:
   - name: client
     image: wizardry:1.0.0
-    command: ["/usr/local/bin/python", "-c", %s]
+    command: ["/usr/local/bin/python", "-c", %s, %s]
     securityContext:
       allowPrivilegeEscalation: false
       readOnlyRootFilesystem: true
       capabilities:
-        drop: [ALL]""" % (name, ns, labels, json.dumps(code)))' "$1" "$2" "$3" "$4"
+        drop: [ALL]""" % (name, ns, labels, json.dumps(os.environ["PROBE_PY"]), json.dumps(ip)))' "$1" "$2" "$3" "$4"
+}
+
+# The final line a finished client pod logged (its explicit result), and its phase
+client_result() { # client_result <namespace> <pod> -> "<phase>|<last log line>"
+  local phase
+  phase=$(wait_phase "$1" "$2")
+  echo "$phase|$(kubectl logs "$2" -n "$1" 2>/dev/null | tail -n 1)"
+}
+
+# examples/pod.yaml as a second app instance that the NetworkPolicy does NOT select (a controlled
+# endpoint for the egress test): same spec, different name and `app` label
+make_target() { # make_target <name>
+  python3 -c '
+import sys
+s = open("examples/pod.yaml").read()
+head = "metadata:\n  name: wizardry\n"
+assert s.count(head) == 1 and s.count("app: wizardry") == 1
+s = s.replace(head, "metadata:\n  name: " + sys.argv[1] + "\n", 1).replace("app: wizardry", "app: " + sys.argv[1])
+print(s)' "$1"
 }
 
 step "Creating a throwaway kind cluster ($CLUSTER) with its own kubeconfig"
@@ -149,6 +178,9 @@ kubectl apply -f examples/namespace.yaml
 enforce=$(kubectl get ns "$NS" -o jsonpath='{.metadata.labels.pod-security\.kubernetes\.io/enforce}')
 [ "$enforce" = restricted ] || fail "namespace does not enforce Pod Security 'restricted' (label is '${enforce:-<missing>}')"
 ok "namespace enforces the Pod Security 'restricted' standard"
+# Policy first, so it already selects the Pod when it starts (no window where it is reachable by everyone)
+kubectl apply -f examples/networkpolicy.yaml
+ok "NetworkPolicy applied BEFORE the pod exists"
 kubectl apply -f examples/pod.yaml
 ok "examples/pod.yaml was ADMITTED by that namespace"
 wait_ready wizardry 120
@@ -216,28 +248,45 @@ kubectl logs -n "$NS" arb-nogroup --previous 2>/dev/null | grep -q "Permission d
   || fail "arb-nogroup did not fail with 'Permission denied'"
 ok "uid/gid 10001 WITHOUT fsGroup: crash-loops with 'Permission denied', as documented"
 
-step "Network policy (examples/networkpolicy.yaml)"
+step "Network policy (examples/networkpolicy.yaml): ingress and egress"
 POD_IP=$(pod_field wizardry '{.status.podIP}')
 [ -n "$POD_IP" ] || fail "could not read the app pod IP"
-kubectl apply -f examples/networkpolicy.yaml
-ok "NetworkPolicy applied"
-# Three clients run the same code; only their namespace and labels differ
-make_client np-allowed         "$NS"   frontend "$POD_IP" | kubectl apply -f - >/dev/null
-make_client np-unlabelled      "$NS"   ""       "$POD_IP" | kubectl apply -f - >/dev/null
-make_client np-other-namespace default frontend "$POD_IP" | kubectl apply -f - >/dev/null
-[ "$(wait_phase "$NS" np-allowed)" = Succeeded ] \
-  || fail "a pod labelled role=frontend in the same namespace could NOT reach the app"
-ok "pod labelled role=frontend (same namespace): REACHED the app"
-[ "$(wait_phase "$NS" np-unlabelled)" = Failed ] \
-  || fail "a pod WITHOUT the role=frontend label reached the app - the policy is not enforced"
-ok "pod without the label (same namespace): BLOCKED"
-[ "$(wait_phase default np-other-namespace)" = Failed ] \
-  || fail "a pod in another namespace reached the app - the policy is not enforced"
-ok "pod in another namespace (even with the label): BLOCKED"
+# A second app instance the policy does not select: the endpoint for the egress test
+make_target egress-target | kubectl apply -f - >/dev/null
+wait_ready egress-target 120
+TARGET_IP=$(pod_field egress-target '{.status.podIP}')
+[ -n "$TARGET_IP" ] || fail "could not read the egress target pod IP"
+
+# Ingress: four clients run the same code; only namespace and labels differ. Each must finish with
+# the explicit result - a pod that merely failed (OOM kill, HTTP 500, ...) proves nothing.
+make_client np-allowed          "$NS"   frontend "$POD_IP"    | kubectl apply -f - >/dev/null
+make_client np-unlabelled       "$NS"   ""       "$POD_IP"    | kubectl apply -f - >/dev/null
+make_client np-other-namespace  default frontend "$POD_IP"    | kubectl apply -f - >/dev/null
+make_client np-egress-control   "$NS"   ""       "$TARGET_IP" | kubectl apply -f - >/dev/null
+
+expect_result() { # expect_result <namespace> <pod> <phase> <log line> <what>
+  local got
+  got=$(client_result "$1" "$2")
+  [ "$got" = "$3|$4" ] || fail "$5: expected '$3|$4', got '$got'"
+  ok "$5"
+}
+expect_result "$NS" np-allowed         Succeeded "REACHED"          "ingress: pod labelled role=frontend (same namespace) REACHED the app"
+expect_result "$NS" np-unlabelled      Failed    "BLOCKED timeout"  "ingress: pod without the label (same namespace) was BLOCKED (timeout)"
+expect_result default np-other-namespace Failed  "BLOCKED timeout"  "ingress: pod in another namespace (even with the label) was BLOCKED (timeout)"
+
+# Egress: the app pod itself must not be able to open outbound connections. The positive control
+# proves the target is reachable from a pod the policy does not select, so a timeout here is the policy.
+expect_result "$NS" np-egress-control  Succeeded "REACHED"          "egress control: an unselected pod REACHED the target (so the target is reachable)"
+# stdout only: kubectl prints "command terminated with exit code N" on stderr when the probe exits non-zero
+egress_out=$(kubectl exec -n "$NS" wizardry -- /spellbook/.venv/bin/python -c "$PROBE_PY" "$TARGET_IP" 2>/dev/null | tail -n 1 || true)
+[ "$egress_out" = "BLOCKED timeout" ] \
+  || fail "egress: the app pod's outbound connection was not blocked by timeout (got: '$egress_out')"
+ok "egress: the app pod's own outbound connection to the same target was BLOCKED (timeout)"
+
 [ "$(pod_field wizardry '{.status.containerStatuses[0].ready}')" = true ] \
-  || fail "app pod is no longer Ready after the policy (kubelet probes should be unaffected)"
+  || fail "app pod is no longer Ready (kubelet probes should be unaffected by the policy)"
 curl -fs --retry 3 --retry-delay 1 --retry-all-errors "http://127.0.0.1:$LOCAL_PORT/health" >/dev/null \
-  || fail "port-forward no longer works after the policy"
+  || fail "port-forward no longer works with the policy in place"
 ok "app still Ready and reachable through the port-forward"
 
 echo

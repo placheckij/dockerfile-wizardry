@@ -15,6 +15,7 @@ services:
         limits:
           cpus: '1.0'
           memory: 512M
+          pids: 100   # max processes (CIS 5.29): memory and CPU limits do not stop a fork bomb
         reservations:
           cpus: '0.5'
           memory: 256M

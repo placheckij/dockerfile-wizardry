@@ -3,7 +3,8 @@
 # e.g. `kind load docker-image wizardry:1.0.0`). A tag other than :latest defaults to
 # imagePullPolicy IfNotPresent, so a locally loaded image is used as is.
 # Apply (the namespace enforces the Pod Security "restricted" standard):
-#   kubectl apply -f examples/namespace.yaml -f examples/pod.yaml
+#   kubectl apply -f examples/namespace.yaml -f examples/networkpolicy.yaml -f examples/pod.yaml
+# (the NetworkPolicy goes in before the Pod, so it already selects the Pod when it starts)
 # Smoke-tested in CI on a kind cluster by .github/scripts/smoke_kubernetes.sh - see RUNTIME_SECURITY.md.
 apiVersion: v1
 kind: Pod
