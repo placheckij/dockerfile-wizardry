@@ -3,7 +3,6 @@
 ❌ Another test file that stays OUT of the production container!
 """
 
-import pytest
 from spellbook.potions.brewing import brew_potion, get_recipe_count
 
 

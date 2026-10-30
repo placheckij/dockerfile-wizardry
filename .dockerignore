@@ -8,7 +8,6 @@
 
 # Documentation (keep out of production!)
 *.md
-!README.md
 docs/
 spellbook/docs/
 

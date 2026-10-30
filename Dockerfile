@@ -6,8 +6,8 @@
 # ╚═══════════════════════════════════════════════════════════════════════╝
 
 # 🎯 Spell #1: Parameterized Base Image
-ARG PYTHON_VERSION=3.12.12
-ARG ALPINE_VERSION=3.22
+ARG PYTHON_VERSION=3.14.10
+ARG ALPINE_VERSION=3.24
 FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION} AS base
 
 # 🏷️ Spell #2: Metadata Labels (OWASP)
@@ -36,13 +36,14 @@ WORKDIR /spellbook
 # ═══════════════════════════════════════════════════════════════════════
 FROM base AS poetry
 # 📦 Spell #5: Install Poetry Without Cache
-RUN python -m pip install --no-cache-dir poetry==2.2.*
+RUN python -m pip install --no-cache-dir poetry==2.5.*
 ENV PATH=/spellbook/.local/bin:$PATH \
-    POETRY_VIRTUALENVS_IN_PROJECT=true
+    POETRY_VIRTUALENVS_IN_PROJECT=true \
+    POETRY_VIRTUALENVS_OPTIONS_NO_PIP=true
 
 # 🎯 Spell #6: Layer Caching - Dependencies First (CIS 4.9)
 COPY --chown=wizard:wizards ./pyproject.toml ./poetry.lock ./
-RUN /spellbook/.local/bin/poetry sync --no-root --no-ansi --no-interaction --no-cache
+RUN /spellbook/.local/bin/poetry sync --only main --no-root --no-ansi --no-interaction --no-cache
 
 # ═══════════════════════════════════════════════════════════════════════
 # 🚀 Stage 3: Runtime Image
@@ -61,9 +62,12 @@ COPY --chown=wizard:wizards ./spellbook/main.py ./
 COPY --chown=wizard:wizards ./pyproject.toml ./
 
 # 🔒 Spell #9: Restrictive File Permissions (OWASP)
+# Also drop pip from the runtime image: no package manager means nothing to
+# install with after a compromise (and no CVEs from pip's vendored libraries).
 USER root
 RUN chmod -R 550 /spellbook/spells /spellbook/potions /spellbook/enchantments && \
-    chmod 440 /spellbook/main.py /spellbook/pyproject.toml
+    chmod 440 /spellbook/main.py /spellbook/pyproject.toml && \
+    /usr/local/bin/python -m pip uninstall -y pip
 USER wizard
 
 # 📢 Spell #10: Explicit Port Declaration

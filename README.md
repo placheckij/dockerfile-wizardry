@@ -4,11 +4,11 @@
 
 [![GitHub](https://img.shields.io/badge/license-MIT-brightgreen.svg)](https://raw.githubusercontent.com/placheckij/dockerfile-wizardry/main/LICENSE)
 [![CI](https://github.com/placheckij/dockerfile-wizardry/actions/workflows/ci.yml/badge.svg)](https://github.com/placheckij/dockerfile-wizardry/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.14-blue.svg)](https://www.python.org/downloads/)
 [![Docker](https://img.shields.io/badge/docker-24.0+-blue.svg)](https://www.docker.com/)
 [![Hadolint](https://img.shields.io/badge/dockerfile-linted-success.svg)](https://github.com/hadolint/hadolint)
 [![Trivy](https://img.shields.io/badge/security-scanned-success.svg)](https://github.com/aquasecurity/trivy)
-[![Docker Image Size](https://img.shields.io/badge/image%20size-~131MB-blue.svg)](https://github.com/placheckij/dockerfile-wizardry)
+[![Docker Image Size](https://img.shields.io/badge/image%20size-~91MB-blue.svg)](https://github.com/placheckij/dockerfile-wizardry)
 
 Welcome to Dockerfile Wizardry - where security meets sorcery! This repository demonstrates production-ready Docker image creation following security best practices, optimization techniques, and industry standards (CIS Docker Benchmark, OWASP) while maintaining compact image sizes.
 
@@ -31,8 +31,8 @@ Our Dockerfile demonstrates 13 essential security and optimization "spells":
 
 ### ⚙️ Spell #1: Parameterized Builds
 ```dockerfile
-ARG PYTHON_VERSION=3.12.12
-ARG ALPINE_VERSION=3.22
+ARG PYTHON_VERSION=3.14.10
+ARG ALPINE_VERSION=3.24
 FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION} AS base
 ```
 Use ARG for flexible, maintainable version management.
@@ -47,7 +47,7 @@ LABEL maintainer="placheckij" \
 ```
 Provides image traceability, documentation, and supply chain transparency.
 
-**Source:** [OWASP Docker Security - Image Labeling](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-8-set-a-user)
+**Source:** [OCI Image Spec - Pre-Defined Annotation Keys](https://github.com/opencontainers/image-spec/blob/main/annotations.md#pre-defined-annotation-keys) | [Docker Docs - Labels](https://docs.docker.com/reference/dockerfile/#label)
 
 ### 🛡️ Spell #3: Minimal Packages (CIS 4.2)
 ```dockerfile
@@ -71,7 +71,7 @@ USER wizard
 
 ### 📚 Spell #5: Poetry Installation (No Cache)
 ```dockerfile
-RUN python -m pip install --no-cache-dir poetry==2.2.*
+RUN python -m pip install --no-cache-dir poetry==2.5.*
 ```
 Pin versions and use `--no-cache-dir` to keep layers small.
 
@@ -81,12 +81,14 @@ Pin versions and use `--no-cache-dir` to keep layers small.
 ```dockerfile
 # Copy dependencies FIRST (changes rarely)
 COPY ./pyproject.toml ./poetry.lock ./
-RUN poetry sync --no-root --no-ansi --no-interaction --no-cache
+RUN poetry sync --only main --no-root --no-ansi --no-interaction --no-cache
 
 # Copy code LATER (changes frequently)
 COPY ./spellbook/spells ./spells
 ```
 Leverage Docker's layer caching - dependencies won't rebuild when code changes!
+
+`--only main` installs runtime dependencies only. Without it, `poetry sync` also installs the dev group (pytest, ruff, ...) into the image - in this repo that's 30 MB of tooling you never run in production.
 
 **Source:** [CIS Docker Benchmark 4.9](https://www.cisecurity.org/benchmark/docker) - Ensure that COPY is used instead of ADD | [Docker Docs - Leverage Build Cache](https://docs.docker.com/build/building/best-practices/#leverage-build-cache)
 
@@ -112,14 +114,14 @@ COPY ./spellbook/potions ./potions
 ```
 Prevents accidental secrets and reduces image size. Check `spellbook/tests/` and `spellbook/docs/` - they're excluded!
 
-**Source:** [CIS Docker Benchmark 4.9](https://www.cisecurity.org/benchmark/docker) - Use COPY instead of ADD | [OWASP - Secrets Management](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-6-do-not-store-secrets-in-images)
+**Source:** [CIS Docker Benchmark 4.9](https://www.cisecurity.org/benchmark/docker) - Use COPY instead of ADD | [OWASP - Secrets Management](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-12-utilize-docker-secrets-for-sensitive-data-management)
 
 ### 🔒 Spell #9: Restrictive Permissions (OWASP)
 ```dockerfile
 RUN chmod -R 550 /spellbook/spells && \
     chmod 440 /spellbook/main.py
 ```
-Make files read-only and executable only where needed - prevents tampering.
+Make files read-only and executable only where needed - prevents tampering. The same step uninstalls `pip` from the runtime image: with no package manager, an attacker can't install tools after a compromise, and pip's vendored libraries stop showing up in vulnerability scans.
 
 **Source:** [OWASP - Filesystem Permissions](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-8-set-filesystem-and-volumes-to-read-only)
 
@@ -173,7 +175,7 @@ This approach can reduce final image size by 50-70% compared to single-stage bui
 
 ### Alpine Linux Base
 ```dockerfile
-FROM python:3.12.12-alpine3.22 AS base
+FROM python:3.14.10-alpine3.24 AS base
 ```
 Alpine images are typically 5-10x smaller than Debian-based alternatives.
 
@@ -186,15 +188,15 @@ Alpine images are typically 5-10x smaller than Debian-based alternatives.
 ```dockerfile
 # Copy dependency files first for better caching
 COPY ./pyproject.toml ./poetry.lock ./
-RUN poetry sync --no-root --no-ansi --no-interaction --no-cache
+RUN poetry sync --only main --no-root --no-ansi --no-interaction --no-cache
 ```
 Leverages Docker's layer caching to avoid reinstalling dependencies on code changes.
 
 ## 🚀 Tips and Tricks
 
 ### 1. Use Specific Tags
-❌ **Don't**: `FROM python:3.12`  
-✅ **Do**: `FROM python:3.12.12-alpine3.22`
+❌ **Don't**: `FROM python:3.14`  
+✅ **Do**: `FROM python:3.14.10-alpine3.24`
 
 Ensures reproducible builds and prevents unexpected changes.
 
@@ -238,9 +240,11 @@ Example size and build time comparison for a Python application from this repo, 
 
 | Approach | Image Size | Build Time (no-cache) |
 |----------|-----------|----------------------|
-| Single-stage (python:3.12-slim) | 323 MB | 14s |
-| Single-stage (python:3.12.11-alpine3.22) | 221 MB | 13s |
-| Multi-stage (python:3.12.12-alpine3.22) | 131 MB | 16s |
+| Single-stage (python:3.14-slim) | 306 MB | 33s |
+| Single-stage (python:3.14.10-alpine3.24) | 209 MB | 30s |
+| Multi-stage (python:3.14.10-alpine3.24) | 91 MB | 31s |
+
+The single-stage files install every dependency group, as a naive Dockerfile would. The multi-stage image installs runtime dependencies only (`poetry sync --only main`), which alone accounts for 30 MB of the difference (122 MB → 92 MB); removing pip from the runtime image trims a little more.
 
 ## 📁 Project Structure
 
@@ -392,7 +396,7 @@ This project incorporates the following open-source components:
 
 **Python Dependencies:**
 - [FastAPI](https://fastapi.tiangolo.com/) - MIT License
-- [Uvicorn](https://www.uvicorn.org/) - BSD-3-Clause License
+- [Uvicorn](https://uvicorn.dev/) - BSD-3-Clause License
 - [Poetry](https://python-poetry.org/) - MIT License
 
 **Build & Security Tools:**

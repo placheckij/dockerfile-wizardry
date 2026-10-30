@@ -40,6 +40,10 @@ jobs:
           scan-type: 'config'
           scan-ref: '.'
           format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          # The single-stage files are deliberately naive benchmark baselines (they run as root)
+          skip-files: 'Dockerfile.single-stage-alpine,Dockerfile.single-stage-slim'
 
   build-and-test:
     name: 🏗️ Build & Test Docker Image
@@ -84,13 +88,15 @@ jobs:
           image-ref: ${{ env.IMAGE_NAME }}:latest
           format: 'table'
           severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          exit-code: '1'
 
   python-tests:
     name: 🧪 Run Python Tests
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.12']
+        python-version: ['3.14']
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -103,7 +109,7 @@ jobs:
       - name: Install Poetry
         uses: snok/install-poetry@a783c322200f0519c7926aa6faa857c4e23e9263 # v1.4.2
         with:
-          version: 2.2.0
+          version: 2.5.1
           virtualenvs-create: true
           virtualenvs-in-project: true
 
@@ -118,13 +124,18 @@ jobs:
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction
 
+      - name: Lint and check formatting
+        run: |
+          poetry run ruff check .
+          poetry run ruff format --check .
+
       - name: Run tests
         run: |
           poetry run pytest spellbook/tests/ -v --cov=spellbook --cov-report=xml
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
-        if: matrix.python-version == '3.12'
+        if: matrix.python-version == '3.14'
         with:
           files: ./coverage.xml
           flags: unittests
