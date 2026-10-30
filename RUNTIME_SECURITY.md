@@ -11,6 +11,11 @@ docker run --read-only --tmpfs /tmp:rw,noexec,nosuid,size=100m wizardry:latest
 ```
 **Why**: Prevents attackers from modifying files or installing malware.
 
+If the container mounts a volume it only needs to *read*, mount that read-only too (OWASP Rule 8):
+```bash
+docker run --read-only -v app-data:/data:ro wizardry:latest
+```
+
 ### 2. Drop All Capabilities (CIS 5.4)
 Remove all Linux capabilities, add back only what's needed:
 ```bash
@@ -35,9 +40,12 @@ docker run \
   --memory-swap=512m \
   --cpus=1.0 \
   --pids-limit=100 \
+  --ulimit nofile=1024:1024 \
   wizardry:latest
 ```
 **Why**: Prevents DoS attacks and resource starvation. `--memory` is CIS 5.11 and `--pids-limit` is CIS 5.29; to give containers a relative CPU *priority* (CIS 5.12) use `--cpu-shares` instead of, or alongside, the hard `--cpus` cap.
+
+`--ulimit nofile` caps open file descriptors, and with them concurrent connections - size it for your real load (1024 is a deliberately small demo value). OWASP Rule 7 also lists `--ulimit nproc`, but Linux counts that limit per *real user ID*, not per container ([`getrlimit(2)`](https://man7.org/linux/man-pages/man2/getrlimit.2.html)), so several containers sharing one UID are limited together and UID 0 is exempt. `--pids-limit` is the per-container control.
 
 ### 5. Bind Published Ports to a Specific Interface (CIS 5.14)
 Don't expose the service on every host interface unless you mean to:
@@ -66,27 +74,53 @@ Keep a container escape from turning into host root.
 ```
 **Why**: a process that escapes the container lands in an unprivileged host account instead of root. Know the limits: `userns-remap` still leaves the Docker *daemon* running as root (rootless mode does not), and neither protects against kernel vulnerabilities - containers share the host kernel, so keep it patched (OWASP Rule 0). [Podman](https://podman.io/) is daemonless and rootless by design if you prefer an alternative.
 
+### 8. Network Isolation (OWASP Rule 5, CIS 5.30)
+By default every container on Docker's `docker0` bridge can talk to every other one (inter-container connectivity is on). Rather than switching it off daemon-wide with `--icc=false`, OWASP recommends **user-defined networks**, so you decide which containers share a network:
+```bash
+docker network create backend
+docker run --network backend wizardry:latest
+```
+Docker Compose does this for you: each project gets its own network, and [`examples/compose.yaml`](examples/compose.yaml) is checked to be on it and not on the default bridge. See [Docker networking](https://docs.docker.com/engine/network/).
+
+In Kubernetes use a [NetworkPolicy](https://kubernetes.io/docs/concepts/services-networking/network-policies/): [`examples/networkpolicy.yaml`](examples/networkpolicy.yaml) lets only pods labelled `role: frontend` in the same namespace reach the app (port 8000) and denies all egress. It needs a network plugin that *enforces* policies - otherwise the object is silently ignored - and CI proves it on kind: the labelled pod gets through, an unlabelled pod and a pod in another namespace are blocked, and the app's probes keep working.
+
+### 9. Mandatory Access Control and Runtime Monitoring (OWASP Rule 6)
+Never disable the default profiles; they are the baseline:
+- **seccomp** - leave Docker's default profile on (CIS 5.22). `--security-opt seccomp=unconfined` removes it. [Docker seccomp](https://docs.docker.com/engine/security/seccomp/)
+- **AppArmor** - on AppArmor hosts Docker generates and applies the `docker-default` profile to every container unless you override it, so do not pass `apparmor=unconfined`; add a stricter per-container profile if you can. [Docker AppArmor](https://docs.docker.com/engine/security/apparmor/)
+- **SELinux** - on SELinux hosts keep it enforcing and let the runtime label containers; do not turn labelling off.
+
+In Kubernetes the container-level `securityContext.appArmorProfile.type: RuntimeDefault` asks for the same thing ([tutorial](https://kubernetes.io/docs/tutorials/security/apparmor/)). It is deliberately **not** in `examples/pod.yaml`: it only works on nodes with AppArmor enabled, and a Pod that requests it elsewhere is rejected - on the kind node used here the result was `Cannot enforce AppArmor: AppArmor is not enabled on the host`. Add it where your nodes support it.
+
+**Runtime monitoring** (behavioural detection of unexpected `exec` calls, privilege-escalation attempts or unusual connections) is a separate layer that needs host or cluster-level installation, so it is not part of this repo. OWASP names [Falco](https://falco.org/), [Tetragon](https://tetragon.io/) and Cilium's eBPF tooling.
+
+### 10. The Host and the Docker Daemon (OWASP Rules 0, 1, 10)
+Container hardening is only as strong as the host underneath, because containers share the host kernel:
+- **Keep the host kernel and Docker Engine patched** (Rule 0). Container-escape bugs such as Leaky Vessels ([CVE-2024-21626](https://nvd.nist.gov/vuln/detail/CVE-2024-21626)) and kernel exploits such as Dirty COW work from inside a well-configured container.
+- **Never expose the daemon over unauthenticated TCP** (`-H tcp://0.0.0.0:...`), and **do not mount `/var/run/docker.sock` into containers** (Rule 1; CIS 5.32). Mounting it read-only does not help: a process that can reach the socket can still send API requests that modify containers or the host.
+- **Leave the daemon log level at `info`** (Rule 10); do not run `debug` unless you need it.
+
 ## 🐳 Docker Compose Example
 
-[`examples/compose.yaml`](examples/compose.yaml) applies the flags above declaratively: a read-only root filesystem with a `/tmp` tmpfs, all capabilities dropped, `no-new-privileges`, memory and CPU limits, the port published on `127.0.0.1` only, and a bounded restart policy. It deliberately has no `healthcheck:` block: the image ships its own `HEALTHCHECK` (it uses Python, because the image has no `curl`), and an override would need a command that exists inside the container.
+[`examples/compose.yaml`](examples/compose.yaml) applies the flags above declaratively: a read-only root filesystem with a `/tmp` tmpfs, all capabilities dropped, `no-new-privileges`, memory and CPU limits, the port published on `127.0.0.1` only, an open-files `ulimit`, its own user-defined network, and a bounded restart policy. It deliberately has no `healthcheck:` block: the image ships its own `HEALTHCHECK` (it uses Python, because the image has no `curl`), and an override would need a command that exists inside the container.
 
 ```bash
 docker build -t wizardry:1.0.0 .
 docker compose -f examples/compose.yaml up -d --wait
 ```
 
-CI runs this exact file (`.github/scripts/smoke_compose.sh`): it waits for the container to become `healthy`, calls the endpoints, and checks with `docker inspect` that every setting above was actually applied.
+CI runs this exact file (`.github/scripts/smoke_compose.sh`): it waits for the container to become `healthy`, calls the endpoints, and checks that every setting above was actually applied: with `docker inspect` (what Docker was asked to do) and from inside the container (the root filesystem and `/tmp` mount options, the `ulimit`, and that the application files cannot be changed). It uses a unique Compose project name, so it can never touch a project of yours.
 
 ## ☸️ Kubernetes Security Context
 
-[`examples/namespace.yaml`](examples/namespace.yaml) and [`examples/pod.yaml`](examples/pod.yaml) show the same hardening in Kubernetes. The namespace **enforces the Pod Security `restricted` standard**. The Pod runs as a non-root user (`runAsNonRoot`, uid/gid 1337) with all capabilities dropped, `allowPrivilegeEscalation: false`, a read-only root filesystem with an `emptyDir` for `/tmp`, the `RuntimeDefault` seccomp profile, resource requests and limits, and liveness and readiness probes on `/health`.
+[`examples/namespace.yaml`](examples/namespace.yaml) and [`examples/pod.yaml`](examples/pod.yaml) show the same hardening in Kubernetes. The namespace **enforces the Pod Security `restricted` standard**. The Pod runs as a non-root user (`runAsNonRoot`, uid/gid 1337) with all capabilities dropped, `allowPrivilegeEscalation: false`, a read-only root filesystem with an `emptyDir` for `/tmp`, the `RuntimeDefault` seccomp profile, resource requests and limits, and liveness and readiness probes on `/health`. [`examples/networkpolicy.yaml`](examples/networkpolicy.yaml) adds network isolation (see section 8).
 
 ```bash
 docker build -t wizardry:1.0.0 .
-kubectl apply -f examples/namespace.yaml -f examples/pod.yaml
+kubectl apply -f examples/namespace.yaml -f examples/pod.yaml -f examples/networkpolicy.yaml
 ```
 
-CI applies these files to a throwaway `kind` cluster (`.github/scripts/smoke_kubernetes.sh`) and checks what Kubernetes actually enforced inside the container, not only what the manifest says.
+CI applies these files to a throwaway `kind` cluster (`.github/scripts/smoke_kubernetes.sh`) and checks what Kubernetes actually enforced inside the container, not only what the manifests say, and that the NetworkPolicy blocks what it should.
 
 ### Which user and group the container needs
 
@@ -151,6 +185,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: db-secret
+  namespace: wizardry   # must be the Pod's namespace: a secret volume cannot cross namespaces
 type: Opaque
 stringData:
   password: change-me   # placeholder; never commit real values
@@ -202,17 +237,21 @@ Before deploying to production, verify:
 - [ ] Read-only root filesystem enabled
 - [ ] All capabilities dropped (--cap-drop=ALL)
 - [ ] No new privileges flag set
-- [ ] Resource limits configured
+- [ ] Resource limits configured, including `--ulimit nofile` (OWASP Rule 7)
 - [ ] Health checks defined
 - [ ] Secrets mounted securely (not in ENV)
 - [ ] Image scanned for vulnerabilities
 - [ ] Base image regularly updated
+- [ ] Host kernel and Docker Engine patched (OWASP Rule 0)
+- [ ] Docker daemon not exposed over TCP (OWASP Rule 1)
+- [ ] Volumes mounted read-only where possible (OWASP Rule 8)
+- [ ] Default seccomp / AppArmor / SELinux profiles left enabled (OWASP Rule 6)
 - [ ] No privileged mode (--privileged) (CIS 5.5)
 - [ ] Published ports bound to a specific interface (CIS 5.14)
 - [ ] Restart policy limited (`--restart=on-failure:5`) (CIS 5.15)
 - [ ] Default seccomp profile left enabled (CIS 5.22)
 - [ ] Docker socket not mounted into the container (CIS 5.32)
-- [ ] Network policies defined (K8s)
+- [ ] User-defined network or NetworkPolicy so only the containers that must talk to it can (OWASP Rule 5)
 - [ ] Pod security standards enforced (K8s)
 - [ ] Logging configured
 - [ ] Security contexts applied
@@ -230,6 +269,7 @@ docker run -d \
   --memory=512m \
   --cpus=1.0 \
   --pids-limit=100 \
+  --ulimit nofile=1024:1024 \
   -p 127.0.0.1:8000:8000 \
   --restart=on-failure:5 \
   wizardry:latest

@@ -298,7 +298,8 @@ dockerfile-wizardry/
 ├── examples/              # 🧪 Hardened Compose + Kubernetes examples, smoke-tested in CI
 │   ├── compose.yaml
 │   ├── namespace.yaml     #    enforces the Pod Security "restricted" standard
-│   └── pod.yaml
+│   ├── pod.yaml
+│   └── networkpolicy.yaml #    only role=frontend pods may reach the app
 ├── pyproject.toml         # 📦 Python dependencies
 ├── uv.lock                # 🔒 Locked versions
 └── spellbook/
@@ -394,13 +395,21 @@ Beyond building and testing, the workflow guards the properties this repo claims
 - **Secret scan** of the repository (CIS 4.9).
 - **No setuid/setgid files** in the image (CIS 4.7).
 - **Read-only application files**: the app user can't write to, `chmod` or replace its code and dependencies (Spell #9).
-- **Example smoke tests**: `examples/compose.yaml` is started and its settings verified with `docker inspect`; `examples/namespace.yaml` + `pod.yaml` are applied to a throwaway `kind` cluster, where the script checks what Kubernetes actually enforced (user, capabilities, seccomp, read-only filesystem) and the documented random-UID outcomes. Both run on changes to the examples or the image, and weekly.
+- **Example smoke tests**: `examples/compose.yaml` is started and its settings verified with `docker inspect`; `examples/namespace.yaml` + `pod.yaml` + `networkpolicy.yaml` are applied to a throwaway `kind` cluster, where the script checks what Kubernetes actually enforced (user, capabilities, seccomp, read-only filesystem), that the NetworkPolicy blocks what it should, and the documented random-UID outcomes. Both run on changes to the examples or the image, and weekly.
 - **shellcheck** on the smoke-test scripts.
 - **Monthly standards watch** for new CIS Benchmark versions and OWASP cheat sheet changes.
 
 ## 🧭 Deliberately Not Included
 
-**Image signing and SBOM attestation (CIS 4.11).** CIS 4.11 asks that signed artifacts are validated. This repo does not sign images or publish an SBOM, on purpose: CI builds the image but never pushes it to a registry, so there is nothing for consumers to verify yet. When you publish it, add keyless signing with [cosign](https://docs.sigstore.dev/cosign/overview/) in the publish workflow (GitHub OIDC identity, no long-lived keys) plus an SBOM attestation, and verify with `cosign verify` at deploy time. It is listed here so the gap is a known choice rather than an oversight.
+**Publishing a signed, attested image (OWASP Rule 13, CIS 4.11).** OWASP Rule 13 lists five supply-chain practices: image *provenance*, an *SBOM*, *image signing*, a *trusted registry* and *secure deployment* policies. CIS 4.11 asks that signed artifacts are validated. This repo does the parts that need no registry - the base image is pinned by digest, dependencies are locked with hashes (`uv.lock`), the build is reproducible where it matters (two builds give an identical `site-packages`), and every image is scanned - but it deliberately does **not** publish, sign or attest an image: CI builds it and never pushes it to a registry, so there is nothing for consumers to verify yet.
+
+When you do publish it:
+- build with [Docker build attestations](https://docs.docker.com/build/metadata/attestations/) (`--provenance` and `--sbom`) so the image carries [SLSA provenance](https://slsa.dev/spec/v1.0/provenance) and an SBOM;
+- sign it keylessly with [cosign](https://docs.sigstore.dev/cosign/signing/overview/) in the publish workflow (GitHub OIDC identity, no long-lived keys);
+- push to a registry with strict access control;
+- verify the signature at deploy time with an admission policy (for example OPA or Kyverno) instead of trusting the tag.
+
+It is listed here so the gap is a known choice rather than an oversight.
 
 ## 📚 References
 

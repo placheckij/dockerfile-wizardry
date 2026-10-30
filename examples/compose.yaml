@@ -20,6 +20,12 @@ services:
           memory: 256M
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=100m
+    # Cap open file descriptors (OWASP Rule 7). Size this for your real number of connections.
+    # Compose puts the service on its own user-defined network, not the default bridge (CIS 5.30).
+    ulimits:
+      nofile:
+        soft: 1024
+        hard: 1024
     ports:
       - "127.0.0.1:8000:8000"
     # No healthcheck block: the image ships its own HEALTHCHECK (it uses Python,

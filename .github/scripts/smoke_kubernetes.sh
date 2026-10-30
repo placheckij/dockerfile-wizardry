@@ -1,28 +1,34 @@
 #!/usr/bin/env bash
-# Smoke test for examples/namespace.yaml + examples/pod.yaml on a throwaway kind cluster.
+# Smoke test for examples/namespace.yaml + pod.yaml + networkpolicy.yaml on a throwaway kind cluster.
 #
 # Creates a cluster, loads the image, applies the examples (the namespace enforces the
 # Pod Security "restricted" standard), then checks what Kubernetes ACTUALLY enforced
-# inside the container - not just what the manifest says - and the documented outcomes
-# for random user IDs (see "Which user and group the container needs" in RUNTIME_SECURITY.md).
+# inside the container - not just what the manifests say - that the NetworkPolicy really
+# blocks the traffic it should, and the documented outcomes for random user IDs
+# (see "Which user and group the container needs" in RUNTIME_SECURITY.md).
 #
-# SAFETY: everything runs against its own temporary kubeconfig file, never ~/.kube/config,
-# and the script refuses to continue unless the current context is the throwaway kind
-# cluster it just created. Your own kubectl contexts are never read or changed.
+# SAFETY
+#  - Everything runs against its own temporary kubeconfig file, never ~/.kube/config, and
+#    the script refuses to continue unless the current context is the throwaway cluster it
+#    just created. Your own kubectl contexts are never read or changed.
+#  - The kind cluster gets a unique name and is the only cluster this script ever deletes.
+#    kind identifies clusters by Docker container, not by kubeconfig, so the script also
+#    refuses to run if a cluster with the chosen name already exists.
 #
 # Needs: docker, kind, kubectl, python3, curl, and the image:  docker build -t wizardry:1.0.0 .
-# Optional: KIND_NODE_IMAGE (e.g. kindest/node:v1.37.0@sha256:...) to pin the node image.
+# Optional: KIND_NODE_IMAGE (e.g. kindest/node:v1.37.0@sha256:...) to pin the node image,
+#           KIND_CLUSTER_NAME to choose the cluster name.
 # Usage: .github/scripts/smoke_kubernetes.sh
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
 
 IMAGE=wizardry:1.0.0
-CLUSTER=${KIND_CLUSTER_NAME:-wizardry-smoke}
+CLUSTER=${KIND_CLUSTER_NAME:-wizardry-smoke-$$}
 NS=wizardry
-LOCAL_PORT=18000
 
 KUBECONFIG_FILE=$(mktemp "${TMPDIR:-/tmp}/wizardry-kubeconfig.XXXXXX")
+PF_LOG=$(mktemp "${TMPDIR:-/tmp}/wizardry-portforward.XXXXXX")
 export KUBECONFIG="$KUBECONFIG_FILE"   # kind and kubectl below use ONLY this file
 
 fail() { echo "❌ $*" >&2; exit 1; }
@@ -32,19 +38,25 @@ for tool in docker kind kubectl python3 curl; do
 done
 docker image inspect "$IMAGE" >/dev/null 2>&1 \
   || fail "image $IMAGE not found - build it first: docker build -t $IMAGE ."
+if kind get clusters 2>/dev/null | grep -qx "$CLUSTER"; then
+  fail "a kind cluster named '$CLUSTER' already exists; refusing to touch it (choose another KIND_CLUSTER_NAME)"
+fi
 
+CREATED=0
 PF_PID=""
 cleanup() {
   local rc=$?
   if [ -n "$PF_PID" ]; then kill "$PF_PID" 2>/dev/null || true; fi
-  if [ "$rc" -ne 0 ]; then
+  if [ "$rc" -ne 0 ] && [ "$CREATED" = 1 ]; then
     echo "--- diagnostics ---" >&2
-    kubectl get pods -n "$NS" -o wide >&2 2>/dev/null || true
+    kubectl get pods -A -o wide >&2 2>/dev/null || true
     kubectl describe pods -n "$NS" 2>/dev/null | tail -n 40 >&2 || true
     kubectl logs -n "$NS" wizardry --tail 20 >&2 2>/dev/null || true
   fi
-  kind delete cluster --name "$CLUSTER" --kubeconfig "$KUBECONFIG_FILE" >/dev/null 2>&1 || true
-  rm -f "$KUBECONFIG_FILE"
+  if [ "$CREATED" = 1 ]; then
+    kind delete cluster --name "$CLUSTER" --kubeconfig "$KUBECONFIG_FILE" >/dev/null 2>&1 || true
+  fi
+  rm -f "$KUBECONFIG_FILE" "$PF_LOG"
 }
 trap cleanup EXIT
 
@@ -52,10 +64,21 @@ step() { echo; echo "== $*"; }
 ok() { echo "✅ $*"; }
 
 # A pod's field via jsonpath
-pod_field() { kubectl get pod "$1" -n "$NS" -o jsonpath="$2"; }
+pod_field() { kubectl get pod "$1" -n "${3:-$NS}" -o jsonpath="$2"; }
 
 # Wait up to $2 seconds for pod $1 to be Ready
 wait_ready() { kubectl wait pod/"$1" -n "$NS" --for=condition=Ready --timeout="${2}s" >/dev/null; }
+
+# Wait (up to 120 s) for a run-to-completion pod and print its final phase
+wait_phase() { # wait_phase <namespace> <pod>
+  local deadline=$((SECONDS + 120)) phase
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    phase=$(kubectl get pod "$2" -n "$1" -o jsonpath='{.status.phase}' 2>/dev/null || true)
+    case "$phase" in Succeeded|Failed) echo "$phase"; return 0 ;; esac
+    sleep 2
+  done
+  echo Timeout
+}
 
 # examples/pod.yaml with a different name / random uid-gid, optionally without fsGroup
 make_variant() { # make_variant <name> <drop_fsgroup 0|1>
@@ -73,10 +96,49 @@ if drop:
 print(s)' "$1" "$2"
 }
 
+# A run-to-completion client pod (Pod Security "restricted"-compliant) that tries to reach the app
+make_client() { # make_client <name> <namespace> <role label or ''> <target ip>
+  python3 -c '
+import json, sys
+name, ns, role, ip = sys.argv[1:5]
+code = (
+    "import sys, urllib.request\n"
+    "try:\n"
+    "    urllib.request.urlopen(\"http://%s:8000/health\", timeout=4)\n"
+    "    print(\"REACHED\")\n"
+    "except Exception as e:\n"
+    "    print(\"BLOCKED\", type(e).__name__)\n"
+    "    sys.exit(1)\n" % ip
+)
+labels = "  labels:\n    role: %s\n" % role if role else ""
+print("""apiVersion: v1
+kind: Pod
+metadata:
+  name: %s
+  namespace: %s
+%sspec:
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1337
+    runAsGroup: 1337
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+  - name: client
+    image: wizardry:1.0.0
+    command: ["/usr/local/bin/python", "-c", %s]
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: [ALL]""" % (name, ns, labels, json.dumps(code)))' "$1" "$2" "$3" "$4"
+}
+
 step "Creating a throwaway kind cluster ($CLUSTER) with its own kubeconfig"
-kind delete cluster --name "$CLUSTER" --kubeconfig "$KUBECONFIG_FILE" >/dev/null 2>&1 || true
 kind create cluster --name "$CLUSTER" --kubeconfig "$KUBECONFIG_FILE" --wait 180s \
   ${KIND_NODE_IMAGE:+--image "$KIND_NODE_IMAGE"}
+CREATED=1
 [ "$(kubectl config current-context)" = "kind-$CLUSTER" ] \
   || fail "current kubectl context is not kind-$CLUSTER - refusing to continue"
 ok "kubectl is pointed at kind-$CLUSTER (temporary kubeconfig, not ~/.kube/config)"
@@ -84,18 +146,28 @@ ok "kubectl is pointed at kind-$CLUSTER (temporary kubeconfig, not ~/.kube/confi
 step "Loading the image and applying the examples"
 kind load docker-image "$IMAGE" --name "$CLUSTER" >/dev/null
 kubectl apply -f examples/namespace.yaml
-ok "namespace created; Pod Security enforce level: $(kubectl get ns "$NS" -o jsonpath='{.metadata.labels.pod-security\.kubernetes\.io/enforce}')"
+enforce=$(kubectl get ns "$NS" -o jsonpath='{.metadata.labels.pod-security\.kubernetes\.io/enforce}')
+[ "$enforce" = restricted ] || fail "namespace does not enforce Pod Security 'restricted' (label is '${enforce:-<missing>}')"
+ok "namespace enforces the Pod Security 'restricted' standard"
 kubectl apply -f examples/pod.yaml
-ok "examples/pod.yaml was ADMITTED by a namespace enforcing the 'restricted' standard"
+ok "examples/pod.yaml was ADMITTED by that namespace"
 wait_ready wizardry 120
 ok "pod Ready (readiness probe on /health passes)"
 
 step "Requests through a port-forward"
-kubectl port-forward -n "$NS" pod/wizardry "$LOCAL_PORT:8000" >/dev/null 2>&1 &
+free_port() { python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()'; }
+LOCAL_PORT=$(free_port)
+kubectl port-forward --address 127.0.0.1 -n "$NS" pod/wizardry "$LOCAL_PORT:8000" >"$PF_LOG" 2>&1 &
 PF_PID=$!
+for _ in $(seq 1 30); do
+  grep -q "Forwarding from 127.0.0.1:$LOCAL_PORT" "$PF_LOG" && break
+  kill -0 "$PF_PID" 2>/dev/null || fail "port-forward exited: $(cat "$PF_LOG")"
+  sleep 1
+done
+grep -q "Forwarding from 127.0.0.1:$LOCAL_PORT" "$PF_LOG" || fail "port-forward did not start: $(cat "$PF_LOG")"
 for pair in "health:healthy" "spell/fireball:Blazing" "potion/healing:phoenix_tear"; do
   path=${pair%%:*}; needle=${pair#*:}
-  body=$(curl -fs --retry 15 --retry-delay 1 --retry-all-errors "http://127.0.0.1:$LOCAL_PORT/$path") \
+  body=$(curl -fs --retry 5 --retry-delay 1 --retry-all-errors "http://127.0.0.1:$LOCAL_PORT/$path") \
     || fail "GET /$path failed"
   case "$body" in *"$needle"*) ok "GET /$path contains '$needle'" ;; *) fail "GET /$path: '$needle' not in: $body" ;; esac
 done
@@ -106,8 +178,8 @@ step "What Kubernetes enforced inside the container"
 out=$(kubectl exec -n "$NS" wizardry -- sh -c '
   echo "uid=$(id -u) gid=$(id -g)"
   grep -E "^(CapEff|NoNewPrivs|Seccomp):" /proc/1/status | tr -d "\t" | tr "\n" " "; echo
+  grep -Eq "^[^ ]+ / [^ ]+ ro[, ]" /proc/mounts || echo "VIOLATION: root filesystem is not mounted read-only"
   ( echo x > /spellbook/injected ) 2>/dev/null && echo "VIOLATION: /spellbook is writable"
-  ( echo x > /usr/local/bin/injected ) 2>/dev/null && echo "VIOLATION: /usr/local/bin is writable"
   ( echo x > /tmp/ok ) 2>/dev/null || echo "VIOLATION: /tmp is not writable"
   chmod u+w /spellbook/main.py 2>/dev/null && echo "VIOLATION: chmod u+w main.py succeeded"
   true')
@@ -116,7 +188,7 @@ case "$out" in *"uid=1337 gid=1337"*) ok "runs as uid/gid 1337" ;; *) fail "unex
 case "$out" in *"CapEff:0000000000000000"*) ok "effective capabilities: none" ;; *) fail "capabilities not empty: $out" ;; esac
 case "$out" in *"NoNewPrivs:1"*) ok "no-new-privileges is active" ;; *) fail "NoNewPrivs not set: $out" ;; esac
 case "$out" in *"Seccomp:2"*) ok "seccomp filter is active" ;; *) fail "seccomp not in filter mode: $out" ;; esac
-case "$out" in *VIOLATION:*) fail "filesystem/permission problem: $out" ;; *) ok "root filesystem and application files read-only; /tmp writable" ;; esac
+case "$out" in *VIOLATION:*) fail "filesystem/permission problem: $out" ;; *) ok "root filesystem mounted read-only; application files read-only; /tmp writable" ;; esac
 
 [ "$(pod_field wizardry '{.spec.containers[0].securityContext.readOnlyRootFilesystem}')" = true ] \
   || fail "readOnlyRootFilesystem is not true in the API object"
@@ -143,6 +215,30 @@ kubectl logs -n "$NS" arb-nogroup --previous 2>/dev/null | grep -q "Permission d
   || kubectl logs -n "$NS" arb-nogroup 2>/dev/null | grep -q "Permission denied" \
   || fail "arb-nogroup did not fail with 'Permission denied'"
 ok "uid/gid 10001 WITHOUT fsGroup: crash-loops with 'Permission denied', as documented"
+
+step "Network policy (examples/networkpolicy.yaml)"
+POD_IP=$(pod_field wizardry '{.status.podIP}')
+[ -n "$POD_IP" ] || fail "could not read the app pod IP"
+kubectl apply -f examples/networkpolicy.yaml
+ok "NetworkPolicy applied"
+# Three clients run the same code; only their namespace and labels differ
+make_client np-allowed         "$NS"   frontend "$POD_IP" | kubectl apply -f - >/dev/null
+make_client np-unlabelled      "$NS"   ""       "$POD_IP" | kubectl apply -f - >/dev/null
+make_client np-other-namespace default frontend "$POD_IP" | kubectl apply -f - >/dev/null
+[ "$(wait_phase "$NS" np-allowed)" = Succeeded ] \
+  || fail "a pod labelled role=frontend in the same namespace could NOT reach the app"
+ok "pod labelled role=frontend (same namespace): REACHED the app"
+[ "$(wait_phase "$NS" np-unlabelled)" = Failed ] \
+  || fail "a pod WITHOUT the role=frontend label reached the app - the policy is not enforced"
+ok "pod without the label (same namespace): BLOCKED"
+[ "$(wait_phase default np-other-namespace)" = Failed ] \
+  || fail "a pod in another namespace reached the app - the policy is not enforced"
+ok "pod in another namespace (even with the label): BLOCKED"
+[ "$(pod_field wizardry '{.status.containerStatuses[0].ready}')" = true ] \
+  || fail "app pod is no longer Ready after the policy (kubelet probes should be unaffected)"
+curl -fs --retry 3 --retry-delay 1 --retry-all-errors "http://127.0.0.1:$LOCAL_PORT/health" >/dev/null \
+  || fail "port-forward no longer works after the policy"
+ok "app still Ready and reachable through the port-forward"
 
 echo
 echo "All Kubernetes smoke checks passed."
