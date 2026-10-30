@@ -59,7 +59,7 @@ RUN apk -U upgrade && \
 ```
 Install only what's necessary, upgrade existing packages, and clean up in the same layer.
 
-`apk -U upgrade` and `apk add` share one `RUN`, so a cached update layer can never hide fresh patches (CIS 4.6).
+`apk -U upgrade` and `apk add` share one `RUN`, so the package index can't be cached on its own and then go stale before the install runs (CIS 4.6). That is a narrower guarantee than "always up to date": Docker still reuses the **whole** `RUN` layer from its build cache as long as the instruction and the base image digest are unchanged, so new patches only arrive when the cache is invalidated - `docker build --no-cache --pull`, a new base digest (Spell #1), or an edit to the `RUN`. That is why this repo's weekly CI run builds with `--no-cache`.
 
 **Source:** [CIS Docker Benchmark 4.3](https://www.cisecurity.org/benchmark/docker) - Ensure that unnecessary packages are not installed in the container | [CIS Docker Benchmark 4.6](https://www.cisecurity.org/benchmark/docker) - Ensure update instructions are not used alone in Dockerfiles
 
