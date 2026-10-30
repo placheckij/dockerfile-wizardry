@@ -94,10 +94,12 @@ jobs:
           echo "✅ File permissions verified"
 
       # setuid/setgid binaries are a privilege-escalation route (CIS 4.7, Level 2).
-      # The image has none today; this keeps it that way.
+      # The image has none today; this keeps it that way. Runs as root so find can read
+      # every directory (as the unprivileged user it exits 1 and would skip unreadable
+      # ones); the trailing `true` keeps bash -e from aborting on find's exit code.
       - name: Test image - No setuid or setgid files
         run: |
-          found=$(docker run --rm --entrypoint sh ${{ env.IMAGE_NAME }}:latest -c 'find / -xdev -perm /6000 -type f 2>/dev/null')
+          found=$(docker run --rm --user root --entrypoint sh ${{ env.IMAGE_NAME }}:latest -c 'find / -xdev -perm /6000 -type f 2>/dev/null; true')
           if [ -n "$found" ]; then
             echo "setuid/setgid files found:"
             echo "$found"
