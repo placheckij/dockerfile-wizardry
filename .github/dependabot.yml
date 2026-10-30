@@ -6,7 +6,9 @@ updates:
     schedule:
       interval: "weekly"
 
-  # Base image tags in the Dockerfiles
+  # Base image tags in the Dockerfiles. The main Dockerfile's FROM is assembled
+  # from ARGs, which Dependabot may not be able to follow - the weekly
+  # "Base Image Digest Is Current" CI job is what guarantees a stale pin is noticed.
   - package-ecosystem: "docker"
     directory: "/"
     schedule:

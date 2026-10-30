@@ -5,10 +5,13 @@
 # ║                          of magic! ✨                                 ║
 # ╚═══════════════════════════════════════════════════════════════════════╝
 
-# 🎯 Spell #1: Parameterized Base Image
+# 🎯 Spell #1: Parameterized Base Image, Pinned by Digest (CIS 4.2, 5.28)
+# The tag says what we intend; the digest says exactly which bytes we get. When
+# the tag is republished with patches, the weekly CI run fails and prints the new
+# digest (see .github/scripts/check_base_image.py).
 ARG PYTHON_VERSION=3.14.10
 ARG ALPINE_VERSION=3.24
-FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION} AS base
+FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION}@sha256:eb2c62658b8d51bff0acc408504b76521d02030de56a8a3c1e830083e89b89d2 AS base
 
 # 🏷️ Spell #2: Metadata Labels (OWASP)
 LABEL maintainer="placheckij" \

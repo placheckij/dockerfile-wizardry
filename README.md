@@ -29,15 +29,17 @@ Each "spell" in the Dockerfile is numbered and explained, making it easy to unde
 
 Our Dockerfile demonstrates 14 essential security and optimization "spells". CIS control numbers refer to the **CIS Docker Benchmark v1.9.0** (the numbering changed between versions, so older articles may differ); a monthly CI job warns when a newer version or an updated OWASP cheat sheet appears.
 
-### ⚙️ Spell #1: Parameterized Builds
+### ⚙️ Spell #1: Parameterized Builds, Pinned by Digest (CIS 4.2, 5.28)
 ```dockerfile
 ARG PYTHON_VERSION=3.14.10
 ARG ALPINE_VERSION=3.24
-FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION} AS base
+FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION}@sha256:eb2c6265... AS base
 ```
-Use ARG for flexible, maintainable version management.
+Use ARG for flexible, maintainable version management. The tag says what you intend; the `@sha256:` digest says exactly which bytes you get, so a republished or tampered tag can't change your build.
 
-**Source:** [Docker Best Practices - Using Build Arguments](https://docs.docker.com/build/building/best-practices/#using-build-arguments)
+**Pinning freezes the base image**, so patches stop arriving on their own. A weekly CI job compares the pinned digest with what the tag points to today and fails - with the new digest in the log - when the tag has moved. Bump the digest, rebuild, run the tests.
+
+**Source:** [CIS Docker Benchmark 4.2](https://www.cisecurity.org/benchmark/docker) - Ensure that containers use only trusted base images | [CIS Docker Benchmark 5.28](https://www.cisecurity.org/benchmark/docker) - Ensure that Docker commands always make use of the latest version of their image (its remediation calls for version pinning of base images) | [Docker Best Practices - Using Build Arguments](https://docs.docker.com/build/building/best-practices/#using-build-arguments) | [Docker Best Practices - Pin base image versions](https://docs.docker.com/build/building/best-practices/#pin-base-image-versions)
 
 ### 🏷️ Spell #2: Metadata Labels (OWASP)
 ```dockerfile
@@ -220,7 +222,7 @@ Leverages Docker's layer caching to avoid reinstalling dependencies on code chan
 
 ### 1. Use Specific Tags
 ❌ **Don't**: `FROM python:3.14`  
-✅ **Do**: `FROM python:3.14.10-alpine3.24`
+✅ **Do**: `FROM python:3.14.10-alpine3.24@sha256:<digest>` (pin the digest too - see Spell #1)
 
 Ensures reproducible builds and prevents unexpected changes.
 
@@ -365,6 +367,20 @@ docker run -d \
 ```
 
 See **[RUNTIME_SECURITY.md](RUNTIME_SECURITY.md)** for comprehensive production security guidelines!
+
+## 🛡️ What CI Checks
+
+Beyond building and testing, the workflow guards the properties this repo claims:
+- **Weekly rebuild without cache** and re-scan, so new CVEs and OS patches surface without a push (CIS 4.4).
+- **Base image digest freshness** - fails when the pinned digest is stale (Spell #1).
+- **Trivy** fails on HIGH/CRITICAL findings, and an assertion makes sure it can actually *see* the image's OS and Python packages (a scanner that sees nothing passes vacuously).
+- **Secret scan** of the repository (CIS 4.9).
+- **No setuid/setgid files** in the image (CIS 4.7).
+- **Monthly standards watch** for new CIS Benchmark versions and OWASP cheat sheet changes.
+
+## 🧭 Deliberately Not Included
+
+**Image signing and SBOM attestation (CIS 4.11).** CIS 4.11 asks that signed artifacts are validated. This repo does not sign images or publish an SBOM, on purpose: CI builds the image but never pushes it to a registry, so there is nothing for consumers to verify yet. When you publish it, add keyless signing with [cosign](https://docs.sigstore.dev/cosign/overview/) in the publish workflow (GitHub OIDC identity, no long-lived keys) plus an SBOM attestation, and verify with `cosign verify` at deploy time. It is listed here so the gap is a known choice rather than an oversight.
 
 ## 📚 References
 
