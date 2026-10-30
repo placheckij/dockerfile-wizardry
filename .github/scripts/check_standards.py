@@ -233,9 +233,14 @@ def main():
     if problems:
         print("\nOUTDATED:\n" + "\n".join(f"- {p}" for p in problems), file=sys.stderr)
         if diff_text:
+            # The diff is untrusted. In the job log the runner treats a line that STARTS with
+            # "::" or "##[" as a workflow command (::add-mask::, ::error::, ::stop-commands::,
+            # ...), so every line is prefixed and none can. (The Markdown step summary is not
+            # parsed for commands, so it keeps the raw diff.)
+            quoted = "\n".join("| " + line for line in diff_text.splitlines())
             print(
                 "\nWhat changed in the cheat sheet since the reviewed commit:\n"
-                + diff_text,
+                + quoted,
                 file=sys.stderr,
             )
         elif sha != owasp_reviewed:
