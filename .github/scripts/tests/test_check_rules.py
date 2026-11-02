@@ -381,3 +381,68 @@ class MainTest(RuleFileTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReferencesTest(RuleFileTestCase):
+    """Prose DW ids and relative links must resolve (checked by --check, after the index)."""
+
+    tree = MainTest.tree
+
+    def check(self, extra_files, rule_text=RULE):
+        self.tree(rule_text, [1], extra_files)
+        check_rules.main(["--write"], root=self.dir)
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code = check_rules.main(["--check"], root=self.dir)
+        return code, err.getvalue()
+
+    def test_a_prose_id_of_an_existing_rule_passes(self):
+        code, _ = self.check({"tradeoffs.md": "# T\n\nSee DW-BASE-01.\n"})
+        self.assertEqual(code, 0)
+
+    def test_a_prose_id_of_a_missing_rule_fails(self):
+        code, err = self.check({"tradeoffs.md": "# T\n\nSee DW-BASE-09.\n"})
+        self.assertEqual(code, 1)
+        self.assertIn("DW-BASE-09", err)
+        self.assertIn("tradeoffs.md", err)
+
+    def test_a_prose_id_inside_a_rule_body_is_checked(self):
+        bad = RULE.replace("A republished", "See DW-SUPPLY-07. A republished")
+        code, err = self.check({}, rule_text=bad)
+        self.assertEqual(code, 1)
+        self.assertIn("DW-SUPPLY-07", err)
+
+    def test_ids_inside_code_fences_are_ignored(self):
+        text = "# T\n\n```\nDW-BASE-09\n```\n"
+        code, _ = self.check({"tradeoffs.md": text})
+        self.assertEqual(code, 0)
+
+    def test_a_link_to_a_missing_file_fails(self):
+        code, err = self.check({"tradeoffs.md": "# T\n\n[x](nowhere.md)\n"})
+        self.assertEqual(code, 1)
+        self.assertIn("nowhere.md", err)
+
+    def test_a_link_to_a_heading_anchor_passes(self):
+        text = "# T\n\n## 1. Tag or digest: which?\n\n[x](tradeoffs.md#1-tag-or-digest-which)\n"
+        code, _ = self.check({"tradeoffs.md": text})
+        self.assertEqual(code, 0)
+
+    def test_a_link_to_a_missing_anchor_fails(self):
+        code, err = self.check({"tradeoffs.md": "# T\n\n[x](base-image.md#2-gone)\n"})
+        self.assertEqual(code, 1)
+        self.assertIn("#2-gone", err)
+
+    def test_a_same_file_anchor_is_checked(self):
+        code, err = self.check({"tradeoffs.md": "# T\n\n[x](#missing)\n"})
+        self.assertEqual(code, 1)
+        self.assertIn("#missing", err)
+
+    def test_a_rule_heading_is_a_valid_anchor(self):
+        link = "[x](base-image.md#dw-base-01-pin-the-base-image-by-digest)"
+        code, _ = self.check({"tradeoffs.md": f"# T\n\n{link}\n"})
+        self.assertEqual(code, 0)
+
+    def test_external_links_are_not_checked(self):
+        text = "# T\n\n[x](https://example.com/a#b) [y](mailto:a@b.c)\n"
+        code, _ = self.check({"tradeoffs.md": text})
+        self.assertEqual(code, 0)

@@ -18,6 +18,7 @@ heading and is followed by `field: value` lines:
     - https://docs.docker.com/...
 
 The script checks every entry, that every "Spell #N" heading in README.md is covered by a rule,
+that every DW id and relative link (with its #anchor) in the prose of docs/rules/*.md resolves,
 and that the generated index in docs/rules/README.md is current.
 
 Usage:
@@ -64,6 +65,8 @@ FIELD_RE = re.compile(r"^([a-z_]+):\s*(.*?)\s*$")
 INDEX_START = "<!-- rules-index:start -->"
 INDEX_END = "<!-- rules-index:end -->"
 SPELL_RE = re.compile(r"^###\s.*Spell #(\d+):", re.MULTILINE)
+RULE_ID_RE = re.compile(r"\bDW-[A-Z]+-\d+\b")
+LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 
 
 class RuleError(Exception):
@@ -273,7 +276,56 @@ def collect(root):
             problems.append(str(error))
     if not problems:
         problems.extend(validate(rules, spell_numbers(root / "README.md")))
+    if not problems:
+        problems.extend(check_references(rules_dir, rules))
     return rules, problems
+
+
+def heading_slug(heading):
+    """The anchor GitHub generates for a heading: lower case, punctuation dropped, spaces to
+    hyphens."""
+    text = re.sub(r"[`*_]", "", heading.strip().lower())
+    return re.sub(r"[^\w\- ]", "", text).replace(" ", "-")
+
+
+def anchors(path):
+    """The heading anchors of a Markdown file (a repeated heading gets -1, -2, ...)."""
+    found, counts = set(), {}
+    for line in unfenced_lines(path.read_text(encoding="utf-8")):
+        match = re.match(r"^#{1,6}\s+(.+?)\s*#*\s*$", line)
+        if match:
+            slug = heading_slug(match.group(1))
+            n = counts.get(slug, 0)
+            counts[slug] = n + 1
+            found.add(slug if n == 0 else f"{slug}-{n}")
+    return found
+
+
+def check_references(rules_dir, rules):
+    """Problems with DW ids and relative links in the prose of docs/rules/*.md."""
+    problems = []
+    known = {rule.id for rule in rules}
+    for path in sorted(rules_dir.glob("*.md")):
+        for line in unfenced_lines(path.read_text(encoding="utf-8")):
+            for rule_id in RULE_ID_RE.findall(line):
+                if rule_id not in known:
+                    problems.append(f"{path.name}: {rule_id} is not a rule")
+            for target in LINK_RE.findall(line):
+                if re.match(r"[a-z][a-z0-9+.-]*:", target, re.IGNORECASE):
+                    continue
+                file_part, _, fragment = target.partition("#")
+                linked = (path.parent / file_part) if file_part else path
+                if not linked.exists():
+                    problems.append(f"{path.name}: link to missing file {file_part}")
+                elif (
+                    fragment
+                    and linked.suffix == ".md"
+                    and fragment not in anchors(linked)
+                ):
+                    problems.append(
+                        f"{path.name}: link {target} has no matching heading"
+                    )
+    return problems
 
 
 def render_index(rules):
