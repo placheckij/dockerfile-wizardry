@@ -177,6 +177,30 @@ class ParseRuleFileTest(RuleFileTestCase):
                     with self.subTest(file=path.name, line=number):
                         self.assertEqual(lines[number - 2].strip(), "")
 
+    def test_a_longer_fence_is_not_closed_by_a_shorter_one(self):
+        text = "````markdown\n```\n## DW-BASE-02 - Title\n```\n````\n\n" + RULE
+        (rule,) = check_rules.parse_rule_file(self.write("base-image.md", text))
+        self.assertEqual(rule.id, "DW-BASE-01")
+
+    def test_rule_heading_at_the_wrong_level_rejected(self):
+        for heading in ("# DW-BASE-02: Title", "### DW-BASE-02: Title"):
+            with self.subTest(heading=heading):
+                path = self.write("base-image.md", RULE + "\n" + heading + "\n")
+                with self.assertRaises(check_rules.RuleError) as caught:
+                    check_rules.parse_rule_file(path)
+                self.assertIn("heading", str(caught.exception))
+
+    def test_source_without_a_hostname_rejected(self):
+        for source in ("https://#section", "https://?q=x", "https:///path"):
+            with self.subTest(source=source):
+                text = RULE.replace(
+                    "https://docs.docker.com/build/building/best-practices/#pin-base-image-versions",
+                    source,
+                )
+                with self.assertRaises(check_rules.RuleError) as caught:
+                    check_rules.parse_rule_file(self.write("base-image.md", text))
+                self.assertIn("https", str(caught.exception))
+
 
 class ValidateTest(RuleFileTestCase):
     def rules(self, text, name="base-image.md"):

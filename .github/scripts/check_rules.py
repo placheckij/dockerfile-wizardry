@@ -30,6 +30,7 @@ Runs with the runner's system python3 (no third-party packages).
 import datetime
 import re
 import sys
+import urllib.parse
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
@@ -50,6 +51,7 @@ LIST_FIELDS = ("spells", "sources")
 REQUIRED = ("strength", "spells", "last_verified", *TEXT_FIELDS, "sources")
 
 HEADING_RE = re.compile(r"^## (DW-([A-Z]+)-(\d+)): (.+?)\s*$")
+DW_HEADING_RE = re.compile(r"^#{1,6}\s+DW-")
 FIELD_RE = re.compile(r"^([a-z_]+):\s*(.*?)\s*$")
 INDEX_START = "<!-- rules-index:start -->"
 INDEX_END = "<!-- rules-index:end -->"
@@ -84,17 +86,18 @@ def _entries(path):
     fence = None
     current = None
     for line in path.read_text(encoding="utf-8").splitlines():
-        marker = re.match(r"^(`{3,}|~{3,})", line)
-        if marker:
-            if fence is None:
-                fence = marker.group(1)[0]
-            elif line.startswith(fence * 3):
+        opening = re.match(r"^(`{3,}|~{3,})", line)
+        if fence is None and opening:
+            fence = opening.group(1)
+            continue
+        if fence is not None:
+            # a closing fence uses the same character, at least as many times, and has no
+            # info string
+            if re.fullmatch(f"{re.escape(fence[0])}{{{len(fence)},}}", line.rstrip()):
                 fence = None
             continue
-        if fence:
-            continue
         heading = HEADING_RE.match(line)
-        if line.startswith("## DW-") and not heading:
+        if DW_HEADING_RE.match(line) and not heading:
             raise RuleError(
                 path,
                 None,
@@ -178,8 +181,15 @@ def parse_rule_file(path):
         except ValueError:
             raise fail("last_verified must be an ISO date (YYYY-MM-DD)") from None
         for source in fields["sources"]:
-            if not re.match(r"^https://[^\s/]+\S*$", source):
-                raise fail(f"source must be an https:// URL, got '{source}'")
+            parts = urllib.parse.urlsplit(source)
+            if (
+                parts.scheme != "https"
+                or not parts.hostname
+                or re.search(r"\s", source)
+            ):
+                raise fail(
+                    f"source must be an https:// URL with a host, got '{source}'"
+                )
         try:
             spells = [int(n) for n in fields["spells"]]
         except ValueError:
