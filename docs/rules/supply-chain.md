@@ -120,8 +120,10 @@ why:
   DW-BUILD-04.
 
 how_to_check:
-  A scanner such as Trivy, plus `docker history` or a layer inspector; this repository runs Trivy
-  in CI.
+  A scanner such as Trivy for the findings (this repository runs Trivy in CI). To confirm removed
+  files are gone, inspect the contents of each layer with a layer inspector or the layer tarballs
+  inside `docker save` output; `docker history` lists instructions and sizes, not files, so it
+  cannot show this.
 
 sources:
 - https://www.ncsc.gov.uk/collection/using-containerisation/building-container-images

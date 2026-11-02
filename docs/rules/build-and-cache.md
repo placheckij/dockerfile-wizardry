@@ -107,8 +107,9 @@ why:
   choices](tradeoffs.md#6-which-base-image-default-slim-alpine-or-distroless).
 
 how_to_check:
-  manual. Inspect each layer (for example with `docker history` or `dive`) to confirm the
-  removed files appear in none.
+  manual. Inspect the contents of each layer, with a layer inspector such as `dive` or the layer
+  tarballs inside `docker save` output, to confirm the removed files appear in none. `docker
+  history` lists instructions and sizes, not files, so it cannot show this.
 
 sources:
 - https://www.cisecurity.org/benchmark/docker
@@ -224,7 +225,8 @@ why:
   have to be pinned too.
 
 how_to_check:
-  manual. Build the image twice and compare digests.
+  manual. Build the image twice with `--no-cache`, so that the second build cannot reuse the first
+  build's layers, and compare the two digests.
 
 sources:
 - https://github.com/moby/buildkit/blob/master/docs/build-repro.md
