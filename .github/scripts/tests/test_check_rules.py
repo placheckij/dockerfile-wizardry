@@ -201,6 +201,27 @@ class ParseRuleFileTest(RuleFileTestCase):
                     check_rules.parse_rule_file(self.write("base-image.md", text))
                 self.assertIn("https", str(caught.exception))
 
+    def test_unparseable_source_url_rejected_without_a_traceback(self):
+        text = RULE.replace(
+            "https://docs.docker.com/build/building/best-practices/#pin-base-image-versions",
+            "https://[example.com/rule",
+        )
+        with self.assertRaises(check_rules.RuleError) as caught:
+            check_rules.parse_rule_file(self.write("base-image.md", text))
+        self.assertIn("DW-BASE-01", str(caught.exception))
+
+    def test_a_rule_inside_an_indented_fence_is_ignored(self):
+        # up to three spaces may precede a fence; the content may be less indented
+        text = "  ```markdown\n" + RULE + "  ```\n"
+        self.assertEqual(
+            check_rules.parse_rule_file(self.write("base-image.md", text)), []
+        )
+
+    def test_four_space_indented_backticks_are_not_a_fence(self):
+        text = "    ```\n\n" + RULE
+        (rule,) = check_rules.parse_rule_file(self.write("base-image.md", text))
+        self.assertEqual(rule.id, "DW-BASE-01")
+
 
 class ValidateTest(RuleFileTestCase):
     def rules(self, text, name="base-image.md"):

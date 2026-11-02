@@ -86,14 +86,16 @@ def _entries(path):
     fence = None
     current = None
     for line in path.read_text(encoding="utf-8").splitlines():
-        opening = re.match(r"^(`{3,}|~{3,})", line)
+        opening = re.match(r"^ {0,3}(`{3,}|~{3,})", line)
         if fence is None and opening:
             fence = opening.group(1)
             continue
         if fence is not None:
             # a closing fence uses the same character, at least as many times, and has no
             # info string
-            if re.fullmatch(f"{re.escape(fence[0])}{{{len(fence)},}}", line.rstrip()):
+            if re.fullmatch(
+                f" {{0,3}}{re.escape(fence[0])}{{{len(fence)},}}", line.rstrip()
+            ):
                 fence = None
             continue
         heading = HEADING_RE.match(line)
@@ -181,10 +183,15 @@ def parse_rule_file(path):
         except ValueError:
             raise fail("last_verified must be an ISO date (YYYY-MM-DD)") from None
         for source in fields["sources"]:
-            parts = urllib.parse.urlsplit(source)
+            try:
+                parts = urllib.parse.urlsplit(source)
+                host = parts.hostname
+            except ValueError:
+                parts, host = None, None
             if (
-                parts.scheme != "https"
-                or not parts.hostname
+                parts is None
+                or parts.scheme != "https"
+                or not host
                 or re.search(r"\s", source)
             ):
                 raise fail(
