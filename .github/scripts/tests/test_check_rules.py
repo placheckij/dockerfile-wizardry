@@ -38,6 +38,10 @@ class RuleFileTestCase(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.dir = Path(self._tmp.name)
+        # keep the checker's messages out of the test run's output; tests that assert on them
+        # redirect again inside
+        self.enterContext(contextlib.redirect_stdout(io.StringIO()))
+        self.enterContext(contextlib.redirect_stderr(io.StringIO()))
 
     def write(self, name, text):
         path = self.dir / name
@@ -294,6 +298,13 @@ INDEX_README = """\
 <!-- rules-index:end -->
 """
 
+SOURCES_PAGE = """\
+# Sources
+
+<!-- sources-index:start -->
+<!-- sources-index:end -->
+"""
+
 USER_RULE = RULE.replace("DW-BASE-01", "DW-USER-01").replace("Pin the base", "Run as")
 
 
@@ -305,6 +316,7 @@ class MainTest(RuleFileTestCase):
         for name, text in (extra_files or {}).items():
             (rules / name).write_text(text, encoding="utf-8")
         (rules / "README.md").write_text(INDEX_README, encoding="utf-8")
+        (rules / "sources.md").write_text(SOURCES_PAGE, encoding="utf-8")
         readme = "\n".join(f"### 🛡️ Spell #{n}: Name" for n in spell_headings)
         (self.dir / "README.md").write_text(readme + "\n", encoding="utf-8")
 
@@ -543,9 +555,62 @@ class ReferencesTest(RuleFileTestCase):
         self.assertEqual(code, 0)
 
     def test_an_emoji_heading_slugs_like_github(self):
-        text = "# T\n\n## \U0001f9d9\u200d\u2642\ufe0f Magic\n\n[x](#-magic)\n"
+        # GitHub drops the symbol and the joiner but keeps the variation selector, which is
+        # why the README table of contents has %EF%B8%8F in its anchors
+        text = "# T\n\n## \u2699\ufe0f Spell\n\n[x](#%EF%B8%8F-spell)\n"
         code, _ = self.check({"tradeoffs.md": text})
         self.assertEqual(code, 0)
+
+    def test_a_zero_width_joiner_stays_in_the_anchor(self):
+        # github.com keeps U+200D: the README title's anchor starts with %E2%80%8D%EF%B8%8F
+        text = "# T\n\n## a\u200db\n\n[x](#a%E2%80%8Db)\n"
+        code, _ = self.check({"tradeoffs.md": text})
+        self.assertEqual(code, 0)
+
+    def test_an_anchor_without_the_joiner_fails(self):
+        code, err = self.check({"tradeoffs.md": "# T\n\n## a\u200db\n\n[x](#ab)\n"})
+        self.assertEqual(code, 1)
+        self.assertIn("#ab", err)
+
+    def test_an_emoji_joiner_sequence_heading_slugs_like_github(self):
+        heading = "\U0001f9d9\u200d\u2642\ufe0f Magic"
+        text = f"# T\n\n## {heading}\n\n[x](#%E2%80%8D%EF%B8%8F-magic)\n"
+        code, _ = self.check({"tradeoffs.md": text})
+        self.assertEqual(code, 0)
+
+    def test_the_checker_and_the_toc_script_slug_alike(self):
+        import readme_toc
+
+        for heading in ("🧙\u200d♂️ Dockerfile Wizardry ✨", "1️⃣ Study", "_A_ b `c`"):
+            self.assertEqual(
+                check_rules.heading_slug(heading), readme_toc.slugify(heading)
+            )
+
+    def test_links_in_indented_code_are_not_checked(self):
+        text = "# T\n\nText.\n\n    [x](nowhere.md)\n"
+        code, _ = self.check({"tradeoffs.md": text})
+        self.assertEqual(code, 0)
+
+    def test_an_indented_list_continuation_is_still_checked(self):
+        text = "# T\n\n- item\n\n    [x](nowhere.md)\n"
+        code, err = self.check({"tradeoffs.md": text})
+        self.assertEqual(code, 1)
+        self.assertIn("nowhere.md", err)
+
+    def test_the_root_readme_is_not_stripped_like_the_rules_index(self):
+        self.tree(RULE, [1])
+        readme = self.dir / "README.md"
+        readme.write_text(
+            readme.read_text(encoding="utf-8")
+            + f"\n{check_rules.INDEX_START}\n[x](nowhere.md)\n{check_rules.INDEX_END}\n",
+            encoding="utf-8",
+        )
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            check_rules.main(["--write"], root=self.dir)
+            code = check_rules.main(["--check"], root=self.dir)
+        self.assertEqual(code, 1)
+        self.assertIn("nowhere.md", err.getvalue())
 
     def test_a_combining_mark_stays_in_the_anchor(self):
         text = "# T\n\n## Cafe\u0301\n\n[x](#cafe\u0301)\n"
@@ -569,6 +634,179 @@ class ReferencesTest(RuleFileTestCase):
         self.assertEqual(code, 1)
         self.assertIn("Spell #2", err.getvalue())
         self.assertIn("DW-BASE-09", err.getvalue())
+
+
+class SourcesIndexTest(RuleFileTestCase):
+    """docs/rules/sources.md lists every cited source with the rules that cite it."""
+
+    tree = MainTest.tree
+
+    def sources_text(self):
+        return (self.dir / "docs" / "rules" / "sources.md").read_text(encoding="utf-8")
+
+    def write_and_read(self, rule_text, spells=(1, 2)):
+        self.tree(rule_text, list(spells))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(check_rules.main(["--write"], root=self.dir), 0)
+        return self.sources_text()
+
+    def test_each_source_is_listed_under_its_site_with_linked_rule_ids(self):
+        second = RULE.replace("DW-BASE-01", "DW-BASE-02").replace("- 1\n", "- 2\n")
+        extra = second.replace(
+            "https://docs.docker.com/build/building/best-practices/#pin-base-image-versions",
+            "https://www.example.org/a",
+        )
+        text = self.write_and_read(RULE + "\n" + extra)
+        self.assertIn("## docs.docker.com", text)
+        self.assertIn("## example.org", text)
+        self.assertNotIn("###", text)
+        self.assertIn(
+            "- [docs.docker.com/build/building/best-practices/#pin-base-image-versions]"
+            "(<https://docs.docker.com/build/building/best-practices/#pin-base-image-versions>):"
+            " [DW-BASE-01](base-image.md#dw-base-01-pin-the-base-image-by-digest)",
+            text,
+        )
+        self.assertIn("(<https://www.example.org/a>): [DW-BASE-02]", text)
+        self.assertLess(text.index("## docs.docker.com"), text.index("## example.org"))
+
+    def test_a_source_cited_twice_lists_both_rules_once(self):
+        both = RULE + "\n" + RULE.replace("DW-BASE-01", "DW-BASE-02")
+        text = self.write_and_read(both, spells=(1,))
+        self.assertEqual(text.count("pin-base-image-versions>)"), 1)
+        self.assertIn("[DW-BASE-01](", text)
+        self.assertIn("[DW-BASE-02](", text)
+
+    def test_a_url_listed_twice_by_one_rule_names_the_rule_once(self):
+        url = "https://docs.docker.com/build/building/best-practices/#pin-base-image-versions"
+        text = self.write_and_read(RULE.replace(url, url + "\n- " + url), spells=(1,))
+        self.assertEqual(text.count("[DW-BASE-01]("), 1)
+
+    def test_anchors_of_one_page_are_grouped_under_it_in_natural_order(self):
+        base = "https://docs.docker.com/build/building/best-practices/"
+        rules = RULE.replace(
+            base + "#pin-base-image-versions",
+            base + "#rule-12\n- " + base + "#rule-2\n- " + base,
+        )
+        text = self.write_and_read(rules, spells=(1,))
+        self.assertIn(
+            f"- [docs.docker.com/build/building/best-practices/](<{base}>)\n", text
+        )
+        self.assertIn("  - [whole page](<", text)
+        self.assertLess(text.index("[#rule-2]"), text.index("[#rule-12]"))
+
+    def test_markdown_characters_in_a_label_are_escaped(self):
+        rules = RULE.replace(
+            "https://docs.docker.com/build/building/best-practices/#pin-base-image-versions",
+            "https://example.org/_private_/a*b*c/x)y",
+        )
+        text = self.write_and_read(rules, spells=(1,))
+        self.assertIn(
+            "[example.org/\\_private\\_/a\\*b\\*c/x)y](<https://example.org/_private_/a*b*c/x)y>)",
+            text,
+        )
+
+    def test_hosts_sort_without_www_and_labels_drop_it(self):
+        rules = RULE.replace(
+            "https://docs.docker.com/build/building/best-practices/#pin-base-image-versions",
+            "https://www.cisecurity.org/benchmark/docker\n- https://docs.docker.com/x",
+        )
+        text = self.write_and_read(rules, spells=(1,))
+        self.assertLess(
+            text.index("## cisecurity.org"), text.index("## docs.docker.com")
+        )
+        self.assertIn(
+            "[cisecurity.org/benchmark/docker](<https://www.cisecurity.org/", text
+        )
+
+    def test_percent_encoding_is_decoded_in_the_label_only(self):
+        rules = RULE.replace(
+            "https://docs.docker.com/build/building/best-practices/#pin-base-image-versions",
+            "https://github.com/moby/buildkit/releases/tag/dockerfile%2F1.16.0",
+        )
+        text = self.write_and_read(rules, spells=(1,))
+        self.assertIn(
+            "[github.com/moby/buildkit/releases/tag/dockerfile/1.16.0]"
+            "(<https://github.com/moby/buildkit/releases/tag/dockerfile%2F1.16.0>)",
+            text,
+        )
+
+    def test_sources_of_the_tradeoffs_page_are_listed_with_their_section(self):
+        tradeoffs = (
+            "# Trade-offs\n\n## 1. Tag or digest\n\nText.\n\n"
+            "Sources: [A](https://example.org/a), [B](https://docs.docker.com/b).\n"
+        )
+        self.tree(RULE, [1], {"tradeoffs.md": tradeoffs})
+        self.assertEqual(check_rules.main(["--write"], root=self.dir), 0)
+        text = self.sources_text()
+        self.assertIn(
+            "(<https://example.org/a>): [trade-off 1](tradeoffs.md#1-tag-or-digest)",
+            text,
+        )
+        self.assertIn(
+            "[trade-off 1](tradeoffs.md#1-tag-or-digest)",
+            text.split("## example.org")[0],
+        )
+
+    def test_check_fails_when_the_sources_page_is_stale(self):
+        self.tree(RULE, [1])
+        with contextlib.redirect_stdout(io.StringIO()):
+            check_rules.main(["--write"], root=self.dir)
+        page = self.dir / "docs" / "rules" / "sources.md"
+        page.write_text(
+            page.read_text(encoding="utf-8").replace("DW-BASE-01", "DW-BASE-99"),
+            encoding="utf-8",
+        )
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(check_rules.main(["--check"], root=self.dir), 1)
+        self.assertIn("sources.md: the sources index is out of date", err.getvalue())
+
+    def test_check_fails_when_the_sources_markers_are_missing(self):
+        self.tree(RULE, [1])
+        (self.dir / "docs" / "rules" / "sources.md").write_text(
+            "# S\n", encoding="utf-8"
+        )
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(check_rules.main(["--check"], root=self.dir), 1)
+        self.assertIn("sources.md", err.getvalue())
+
+    def test_sources_page_is_not_a_theme_file(self):
+        self.tree(RULE, [1])
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(check_rules.main(["--write"], root=self.dir), 0)
+        self.assertEqual(check_rules.main(["--check"], root=self.dir), 0)
+
+    def test_a_stale_sources_block_can_be_regenerated_after_a_rule_is_removed(self):
+        self.tree(RULE, [1])
+        page = self.dir / "docs" / "rules" / "sources.md"
+        page.write_text(
+            page.read_text(encoding="utf-8").replace(
+                check_rules.SOURCES_START,
+                check_rules.SOURCES_START + "\n- [x](https://a.example) - DW-BASE-09",
+            ),
+            encoding="utf-8",
+        )
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(check_rules.main(["--write"], root=self.dir), 0)
+            self.assertEqual(check_rules.main(["--check"], root=self.dir), 0)
+
+    def test_the_root_readme_links_are_checked(self):
+        self.tree(RULE, [1])
+        readme = self.dir / "README.md"
+        readme.write_text(
+            readme.read_text(encoding="utf-8")
+            + "\n[a](docs/rules/base-image.md#nope) [b](docs/rules/base-image.md)\n",
+            encoding="utf-8",
+        )
+        err = io.StringIO()
+        with contextlib.redirect_stdout(io.StringIO()):
+            check_rules.main(["--write"], root=self.dir)
+        with contextlib.redirect_stderr(err):
+            code = check_rules.main(["--check"], root=self.dir)
+        self.assertEqual(code, 1)
+        self.assertIn("#nope", err.getvalue())
 
 
 if __name__ == "__main__":

@@ -66,12 +66,15 @@ last_verified: 2026-11-02
 
 statement:
   `COPY` only the specific paths the image needs rather than the whole context, use `COPY` rather
-  than `ADD` for local files, and keep tests, docs, `.git` and anything secret out of the image.
+  than `ADD` for local files, and keep tests, docs, `.git` and anything secret out of the image,
+  for example with a `.dockerignore` file that keeps them out of the build context.
 
 why:
   Whatever is copied is in the image for good, including secrets copied by accident. For local
   files `COPY` is enough; `ADD` also unpacks local tar archives and can fetch remote URLs, which
-  is rarely what you meant (CIS 4.8, 4.9). For a remote file on purpose, see DW-DEPS-03. See the
+  is rarely what you meant (CIS 4.8, 4.9). Docker's best practices suggest a `.dockerignore` file,
+  which uses patterns like `.gitignore`, to exclude files not relevant to the build without
+  restructuring the repository. For a remote file on purpose, see DW-DEPS-03. See the
   [trade-offs](tradeoffs.md#5-add-or-copy) between `ADD` and `COPY`.
 
 how_to_check:
@@ -84,6 +87,7 @@ sources:
 - https://www.cisecurity.org/benchmark/docker
 - https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-12-utilize-docker-secrets-for-sensitive-data-management
 - https://docs.docker.com/reference/dockerfile/#add
+- https://docs.docker.com/build/building/best-practices/#exclude-with-dockerignore
 
 ## DW-BUILD-04: Prune what the app never runs, then flatten
 

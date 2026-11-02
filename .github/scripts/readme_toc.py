@@ -71,16 +71,27 @@ def slugify(text):
     return "".join(kept).replace(" ", "-")
 
 
+def unique_slugs(titles):
+    """The anchor of each heading in order, numbering repeats like GitHub: a repeated anchor
+    gets the next suffix that is not already in use (`a`, `a`, `a-1` give `a`, `a-1`, `a-1-1`)."""
+    occurrences, result = {}, []
+    for title in titles:
+        slug = original = slugify(title)
+        while slug in occurrences:
+            occurrences[original] += 1
+            slug = f"{original}-{occurrences[original]}"
+        occurrences[slug] = 0
+        result.append(slug)
+    return result
+
+
 def anchors(text):
     """(level, heading text, unique anchor) for every heading, numbering duplicates like GitHub."""
-    seen = {}
-    result = []
-    for level, title in headings(text):
-        base = slugify(title)
-        count = seen.get(base, 0)
-        seen[base] = count + 1
-        result.append((level, title, base if count == 0 else f"{base}-{count}"))
-    return result
+    found = list(headings(text))
+    slugs = unique_slugs(title for _, title in found)
+    return [
+        (level, title, slug) for (level, title), slug in zip(found, slugs, strict=True)
+    ]
 
 
 def build_toc(text):

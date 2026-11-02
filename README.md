@@ -10,21 +10,22 @@
 [![Trivy](https://img.shields.io/badge/security-scanned-success.svg)](https://github.com/aquasecurity/trivy)
 [![Docker Image Size](https://img.shields.io/badge/image%20size-~81MB-blue.svg)](https://github.com/placheckij/dockerfile-wizardry)
 
-Welcome to Dockerfile Wizardry - where security meets sorcery! This repository demonstrates production-ready Docker image creation following security best practices, optimization techniques, and industry standards (CIS Docker Benchmark, OWASP) while maintaining compact image sizes.
+A sourced guide to writing Dockerfiles, with a worked example. The [rulebook](docs/rules/README.md) gives each practice its strength, its reason, how to check it and links to the primary sources it comes from, and says where those sources disagree. The `Dockerfile` in this repository applies fourteen of the practices to a small Python service (the "spells" below), and CI checks the properties it claims. The practices follow the CIS Docker Benchmark, the OWASP Docker Security Cheat Sheet, Docker's own documentation and similar primary sources, and the rulebook is not specific to Python.
 
-> ⭐ If you find this project useful, please consider giving it a star! It helps others discover it and motivates further development.
+> ⭐ If you find this project useful, please consider giving it a star! It helps others find it.
 
 ## 📖 Table of Contents
 
 <!-- toc:start -->
-- [🎯 The Spellbook's Purpose](#-the-spellbooks-purpose)
+- [🧭 Start Here](#-start-here)
+- [📜 The Rulebook](#-the-rulebook)
 - [🔐 The Fourteen Security Spells](#-the-fourteen-security-spells)
   - [⚙️ Spell #1: Parameterized Builds, Pinned by Digest (CIS 4.2, 5.28)](#%EF%B8%8F-spell-1-parameterized-builds-pinned-by-digest-cis-42-528)
   - [🏷️ Spell #2: Metadata Labels](#%EF%B8%8F-spell-2-metadata-labels)
   - [🛡️ Spell #3: Minimal Packages (CIS 4.3, 4.6)](#%EF%B8%8F-spell-3-minimal-packages-cis-43-46)
   - [👥 Spell #4: Non-Root User (CIS 4.1)](#-spell-4-non-root-user-cis-41)
   - [📚 Spell #5: uv Installation (No Cache)](#-spell-5-uv-installation-no-cache)
-  - [⚡ Spell #6: Layer Caching Magic (CIS 4.8)](#-spell-6-layer-caching-magic-cis-48)
+  - [⚡ Spell #6: Layer Caching Magic](#-spell-6-layer-caching-magic)
   - [🏗️ Spell #7: Multi-Stage Builds](#%EF%B8%8F-spell-7-multi-stage-builds)
   - [🎯 Spell #8: Selective File Copying (CIS 4.8, 4.9)](#-spell-8-selective-file-copying-cis-48-49)
   - [🔒 Spell #9: Restrictive Permissions](#-spell-9-restrictive-permissions)
@@ -33,17 +34,6 @@ Welcome to Dockerfile Wizardry - where security meets sorcery! This repository d
   - [💚 Spell #12: Health Checks (CIS 4.5)](#-spell-12-health-checks-cis-45)
   - [🛑 Spell #13: Graceful Shutdown](#-spell-13-graceful-shutdown)
   - [🔄 Spell #14: Signal Handling with Tini](#-spell-14-signal-handling-with-tini)
-- [📦 Image Optimization Techniques](#-image-optimization-techniques)
-  - [Multi-Stage Builds](#multi-stage-builds)
-  - [Alpine Linux Base](#alpine-linux-base)
-  - [Layer Optimization](#layer-optimization)
-  - [Dependency Caching](#dependency-caching)
-- [🚀 Tips and Tricks](#-tips-and-tricks)
-  - [1. Use Specific Tags](#1-use-specific-tags)
-  - [2. Leverage .dockerignore](#2-leverage-dockerignore)
-  - [3. Order Matters](#3-order-matters)
-  - [4. Use BuildKit](#4-use-buildkit)
-  - [5. Scan for Vulnerabilities](#5-scan-for-vulnerabilities)
 - [📊 Benchmark Results](#-benchmark-results)
 - [📁 Project Structure](#-project-structure)
 - [🛠️ Usage & Learning Path](#%EF%B8%8F-usage--learning-path)
@@ -54,7 +44,6 @@ Welcome to Dockerfile Wizardry - where security meets sorcery! This repository d
   - [5️⃣ Production Deployment](#5%EF%B8%8F%E2%83%A3-production-deployment)
 - [🛡️ What CI Checks](#%EF%B8%8F-what-ci-checks)
 - [🧭 Deliberately Not Included](#-deliberately-not-included)
-- [📜 The Rulebook](#-the-rulebook)
 - [📚 References](#-references)
 - [🎓 Advanced Wizardry](#-advanced-wizardry)
   - [Inspect the Build Layers](#inspect-the-build-layers)
@@ -64,20 +53,36 @@ Welcome to Dockerfile Wizardry - where security meets sorcery! This repository d
   - [Third-Party Components](#third-party-components)
 <!-- toc:end -->
 
-## 🎯 The Spellbook's Purpose
+## 🧭 Start Here
 
-Master the ancient arts of Docker image crafting by learning:
+| If you want to... | Go to |
+| --- | --- |
+| Look up a practice, its reason and its sources | [The rulebook](docs/rules/README.md) |
+| See where reputable sources disagree | [Trade-offs](docs/rules/tradeoffs.md) |
+| See what the rules rest on | [Sources](docs/rules/sources.md) |
+| Read the practices applied to a real Dockerfile | [The fourteen spells](#-the-fourteen-security-spells) |
+| Run the container with hardened settings | [Runtime security](RUNTIME_SECURITY.md) and [`examples/`](examples/) |
+| Build the example yourself | [Usage](#%EF%B8%8F-usage--learning-path) |
 
-- **🛡️ Security Enchantments** - OWASP and CIS Docker Benchmark spells
-- **📦 Size Reduction Magic** - Multi-stage builds and Alpine base images
-- **⚡ Performance Potions** - Build caching and layer optimization
-- **🔮 Best Practices** - Production-ready incantations
+## 📜 The Rulebook
 
-Each "spell" in the Dockerfile is numbered and explained, making it easy to understand and apply these techniques to your own projects!
+The rules live in [`docs/rules/`](docs/rules/README.md), one page per theme:
+
+| Theme | What it covers |
+| --- | --- |
+| [Base image](docs/rules/base-image.md) | Pinning and labelling the image you build on (choosing one is [trade-off 6](docs/rules/tradeoffs.md#6-which-base-image-default-slim-alpine-or-distroless)) |
+| [Build and cache](docs/rules/build-and-cache.md) | Layers, stages, caches, what is copied in and what is taken out |
+| [Dependencies](docs/rules/dependencies.md) | Operating-system packages, language tooling and verifying downloads |
+| [Users and permissions](docs/rules/users-and-permissions.md) | Who the container runs as and what that user may change |
+| [Health and signals](docs/rules/health-and-signals.md) | Ports, health checks and clean shutdown |
+| [Secrets](docs/rules/secrets.md) | How credentials reach a build without ending up in the image |
+| [Supply chain](docs/rules/supply-chain.md) | Attestations, signing, scanning and the build pipeline |
+
+Each rule is `MUST`, `SHOULD` or `TRADE-OFF`, and a `TRADE-OFF` rule lays out each side instead of choosing for you; the larger recurring choices have their own section on the [trade-offs page](docs/rules/tradeoffs.md). Every rule links to its sources and carries the date it was last checked against them. The [sources page](docs/rules/sources.md) lists all of them by site. Each spell below maps to a rule in the [rulebook index](docs/rules/README.md#index).
 
 ## 🔐 The Fourteen Security Spells
 
-Our Dockerfile demonstrates 14 essential security and optimization "spells". CIS control numbers refer to the **CIS Docker Benchmark v1.9.0** (the numbering changed between versions, so older articles may differ); a monthly CI job warns when a newer version or an updated OWASP cheat sheet appears.
+The Dockerfile in this repository applies 14 of the practices, numbered as "spells" in its comments. CIS control numbers refer to the **CIS Docker Benchmark v1.9.0** (the numbering changed between versions, so older articles may differ); a monthly CI job warns when a newer version or an updated OWASP cheat sheet appears.
 
 ### ⚙️ Spell #1: Parameterized Builds, Pinned by Digest (CIS 4.2, 5.28)
 ```dockerfile
@@ -121,7 +126,7 @@ RUN addgroup -g 1337 wizards && \
     adduser -D -h /spellbook -G wizards -u 1337 wizard
 USER wizard
 ```
-**Never run as root!** Limits the blast radius if a container is compromised.
+Running as an unprivileged user limits what an attacker can do if the application is compromised.
 
 **Source:** [CIS Docker Benchmark 4.1](https://www.cisecurity.org/benchmark/docker) - Ensure that a user for the container has been created | [OWASP - Run as Non-Root](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-2-set-a-user)
 
@@ -140,7 +145,7 @@ Pin versions and use `--no-cache-dir` to keep layers small. The `UV_*` settings 
 
 **Source:** [Docker Best Practices - RUN](https://docs.docker.com/build/building/best-practices/#run) (clean up package caches in the same layer)
 
-### ⚡ Spell #6: Layer Caching Magic (CIS 4.8)
+### ⚡ Spell #6: Layer Caching Magic
 ```dockerfile
 # Copy dependencies FIRST (changes rarely)
 COPY ./pyproject.toml ./uv.lock ./
@@ -149,21 +154,25 @@ RUN uv sync --locked --no-dev
 # Copy code LATER (changes frequently)
 COPY ./spellbook/spells ./spells
 ```
-Leverage Docker's layer caching - dependencies won't rebuild when code changes!
+Docker reuses a layer until its inputs change, so with the dependency install before the code, a code change does not reinstall the dependencies.
 
 `--no-dev` installs runtime dependencies only. Without it, `uv sync` also installs the dev group (pytest, ruff, ...) into the image - in this repo that's about 39 MB of tooling you never run in production (120 MB → 81 MB). `--locked` makes the build fail if `uv.lock` is out of date, and uv verifies every download against the hashes in the lockfile.
 
-**Source:** [CIS Docker Benchmark 4.8](https://www.cisecurity.org/benchmark/docker) - Ensure that COPY is used instead of ADD in Dockerfiles | [Docker Docs - Leverage Build Cache](https://docs.docker.com/build/building/best-practices/#leverage-build-cache)
+**Source:** [Docker Docs - Leverage Build Cache](https://docs.docker.com/build/building/best-practices/#leverage-build-cache)
 
 ### 🏗️ Spell #7: Multi-Stage Builds
 ```dockerfile
 FROM base AS uv
 # Install dependencies here
 
-FROM base AS runtime
+FROM base AS pruned
 COPY --from=uv /spellbook/.venv /spellbook/.venv
+# ... prune (Spell #10)
+
+FROM scratch AS runtime
+COPY --from=pruned / /
 ```
-Discard build tools, keep only runtime artifacts. **50-70% size reduction!**
+Build tools and caches stay in a stage that is thrown away, and only the finished artifacts reach the final image. This Dockerfile has four stages: `base` (shared setup and the user), `uv` (dependency install), `pruned` (see Spell #10) and `runtime`. The [benchmark](#-benchmark-results) shows measured sizes.
 
 **Source:** [Docker Best Practices - Multi-stage Builds](https://docs.docker.com/build/building/best-practices/#use-multi-stage-builds)
 
@@ -175,9 +184,9 @@ COPY ./spellbook/potions ./potions
 
 # ❌ DON'T copy tests/, docs/, .git/, etc.
 ```
-Prevents accidental secrets and reduces image size. Check `spellbook/tests/` and `spellbook/docs/` - they're excluded!
+Prevents accidental secrets and reduces image size. Check `spellbook/tests/` and `spellbook/docs/` - they're excluded! A `.dockerignore` file keeps files such as `.git`, `.env` and test directories out of the build context altogether, so a broad `COPY` cannot pick them up by mistake.
 
-**Source:** [CIS Docker Benchmark 4.8](https://www.cisecurity.org/benchmark/docker) - Ensure that COPY is used instead of ADD in Dockerfiles | [CIS Docker Benchmark 4.9](https://www.cisecurity.org/benchmark/docker) - Ensure secrets are not stored in Dockerfiles | [OWASP - Secrets Management](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-12-utilize-docker-secrets-for-sensitive-data-management)
+**Source:** [CIS Docker Benchmark 4.8](https://www.cisecurity.org/benchmark/docker) - Ensure that COPY is used instead of ADD in Dockerfiles | [CIS Docker Benchmark 4.9](https://www.cisecurity.org/benchmark/docker) - Ensure secrets are not stored in Dockerfiles | [OWASP - Secrets Management](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-12-utilize-docker-secrets-for-sensitive-data-management) | [Docker Best Practices - Exclude with .dockerignore](https://docs.docker.com/build/building/best-practices/#exclude-with-dockerignore)
 
 ### 🔒 Spell #9: Restrictive Permissions
 ```dockerfile
@@ -217,12 +226,9 @@ Removes the package managers (`pip`, `apk`), C headers, `ensurepip`, IDLE/Tk, an
 ```dockerfile
 EXPOSE 8000
 ```
-**Why?** While EXPOSE doesn't actually publish the port, it serves three critical purposes:
-1. **Documentation** - Makes it clear which port the app uses without reading the code
-2. **Security Scanning** - Tools like Trivy and Snyk use this to verify port configuration
-3. **Container Orchestration** - Helps K8s, Docker Compose, and other tools auto-configure networking
+`EXPOSE` does not publish the port. The Dockerfile reference describes it as documentation between whoever builds the image and whoever runs it, about which ports are meant to be published, so readers see the port without reading the code.
 
-Note: You still need `-p` when running - publish it on loopback, `-p 127.0.0.1:8000:8000`, because a bare `-p 8000:8000` opens the port on all interfaces and Docker bypasses host firewalls such as UFW (OWASP Rule 5a). EXPOSE acts as the "contract" between image and runtime.
+You still need `-p` when running: publish it on loopback, `-p 127.0.0.1:8000:8000`, because a bare `-p 8000:8000` opens the port on all interfaces and Docker bypasses host firewalls such as UFW (OWASP Rule 5a).
 
 **Source:** [Dockerfile Reference - EXPOSE](https://docs.docker.com/reference/dockerfile/#expose)
 
@@ -231,7 +237,7 @@ Note: You still need `-p` when running - publish it on loopback, `-p 127.0.0.1:8
 HEALTHCHECK --interval=30s --timeout=3s \
     CMD ["/spellbook/.venv/bin/python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/health', timeout=2)"]
 ```
-Enables automatic healing - Docker/K8s will restart unhealthy containers. The check uses Python (already in the image) instead of `curl`, so `curl` and its libraries can be left out. A failed request raises, Python exits non-zero, and Docker marks the container unhealthy.
+Docker reports the container as `healthy` or `unhealthy`; it does not restart it by itself, and Kubernetes uses its own probes instead (see [trade-off 4](docs/rules/tradeoffs.md#4-a-healthcheck-in-the-image-or-probes-in-the-platform)). The check uses Python (already in the image) instead of `curl`, so `curl` and its libraries can be left out. A failed request raises, Python exits non-zero, and Docker marks the container unhealthy.
 
 **Source:** [CIS Docker Benchmark 4.5](https://www.cisecurity.org/benchmark/docker) - Ensure that HEALTHCHECK instructions have been added | [Docker Docs - HEALTHCHECK](https://docs.docker.com/reference/dockerfile/#healthcheck)
 
@@ -239,7 +245,7 @@ Enables automatic healing - Docker/K8s will restart unhealthy containers. The ch
 ```dockerfile
 STOPSIGNAL SIGTERM
 ```
-Ensures proper shutdown signal for cleanup operations.
+`docker stop` sends this signal first and kills the process after a timeout. `SIGTERM` is already Docker's default, so this line makes the choice explicit for readers; set a different signal if your application shuts down cleanly on another one.
 
 **Source:** [Dockerfile Reference - STOPSIGNAL](https://docs.docker.com/reference/dockerfile/#stopsignal)
 
@@ -248,80 +254,9 @@ Ensures proper shutdown signal for cleanup operations.
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/spellbook/.venv/bin/uvicorn", "main:app", ...]
 ```
-Prevents zombie processes and ensures graceful shutdowns. Essential for PID 1!
+Without an init, the application runs as PID 1, where the default signal handlers do not apply and orphaned processes are re-parented to it. Tini runs as PID 1 instead, forwards signals to the application and reaps zombie processes.
 
 **Source:** [Docker Docs - `docker run --init`](https://docs.docker.com/reference/cli/docker/container/run/#init) | [Tini Documentation](https://github.com/krallin/tini)
-
-## 📦 Image Optimization Techniques
-
-### Multi-Stage Builds
-The example uses three stages:
-1. **base**: Common dependencies and user setup
-2. **uv**: Dependency installation (discarded in final image)
-3. **runtime**: Minimal production image with only necessary artifacts
-
-This approach can reduce final image size by 50-70% compared to single-stage builds.
-
-### Alpine Linux Base
-```dockerfile
-FROM python:3.14.10-alpine3.24 AS base
-```
-Alpine images are typically 5-10x smaller than Debian-based alternatives.
-
-### Layer Optimization
-- Combine RUN commands to reduce layers
-- Use `--no-cache` flags to prevent caching package indexes
-- Clean up temporary files in the same layer they're created
-
-### Dependency Caching
-```dockerfile
-# Copy dependency files first for better caching
-COPY ./pyproject.toml ./uv.lock ./
-RUN uv sync --locked --no-dev
-```
-Leverages Docker's layer caching to avoid reinstalling dependencies on code changes.
-
-## 🚀 Tips and Tricks
-
-### 1. Use Specific Tags
-❌ **Don't**: `FROM python:3.14`  
-✅ **Do**: `FROM python:3.14.10-alpine3.24@sha256:<digest>` (pin the digest too - see Spell #1)
-
-Ensures reproducible builds and prevents unexpected changes.
-
-### 2. Leverage .dockerignore
-Create a `.dockerignore` file to exclude unnecessary files:
-```
-.git
-.gitignore
-.env
-*.md
-tests/
-__pycache__/
-*.pyc
-.pytest_cache
-```
-
-### 3. Order Matters
-Place least-changing instructions first:
-```dockerfile
-# 1. Base image and system packages (rarely change)
-# 2. Dependencies (change occasionally)
-# 3. Application code (changes frequently)
-```
-
-### 4. Use BuildKit
-Enable Docker BuildKit for improved caching and parallel builds:
-```bash
-DOCKER_BUILDKIT=1 docker build -t myapp .
-```
-
-### 5. Scan for Vulnerabilities
-```bash
-docker scout cves myimage:latest
-# or
-trivy image myimage:latest
-```
 
 ## 📊 Benchmark Results
 
@@ -350,6 +285,7 @@ dockerfile-wizardry/
 │   ├── namespace.yaml     #    enforces the Pod Security "restricted" standard
 │   ├── pod.yaml
 │   └── networkpolicy.yaml #    only role=frontend pods may reach the app
+├── docs/rules/            # 📜 The rulebook, trade-offs and sources index
 ├── pyproject.toml         # 📦 Python dependencies
 ├── uv.lock                # 🔒 Locked versions
 └── spellbook/
@@ -377,23 +313,20 @@ git clone https://github.com/placheckij/dockerfile-wizardry.git
 cd dockerfile-wizardry
 ```
 
-Open `Dockerfile` and read through each numbered spell (1-14). Each has detailed comments explaining the "why" and "how".
+Open `Dockerfile` and read through each numbered spell (1-14). The comments explain what each step does and why.
 
 ### 2️⃣ Build the Image
 ```bash
-# Enable BuildKit for better caching
-export DOCKER_BUILDKIT=1
-
-# Cast the build spell
+# BuildKit is Docker's default builder, so no extra setting is needed
 docker build -t wizardry:latest .
 
-# Check the magic - note the compact size!
+# Check the image size
 docker images wizardry:latest
 ```
 
 ### 3️⃣ Run the Container
 ```bash
-# Run the magical application
+# Run the application
 docker run -p 127.0.0.1:8000:8000 wizardry:latest
 
 # Visit the endpoints
@@ -434,7 +367,7 @@ docker run -d \
   wizardry:latest
 ```
 
-See **[RUNTIME_SECURITY.md](RUNTIME_SECURITY.md)** for comprehensive production security guidelines, and [`examples/`](examples/) for a ready-to-run Docker Compose file and Kubernetes Pod that apply them (both are run for real in CI)!
+See **[RUNTIME_SECURITY.md](RUNTIME_SECURITY.md)** for comprehensive production security guidelines, and [`examples/`](examples/) for a ready-to-run Docker Compose file and Kubernetes Pod that apply them (CI starts both and checks the result).
 
 ## 🛡️ What CI Checks
 
@@ -448,7 +381,7 @@ Beyond building and testing, the workflow guards the properties this repo claims
 - **Example smoke tests**: `examples/compose.yaml` is started and its settings verified with `docker inspect`; `examples/namespace.yaml` + `pod.yaml` + `networkpolicy.yaml` are applied to a throwaway `kind` cluster, where the script checks what Kubernetes actually enforced (user, capabilities, seccomp, read-only filesystem), that the NetworkPolicy blocks what it should, and the documented random-UID outcomes. Both run on changes to the examples or the image, and weekly.
 - **shellcheck** on the smoke-test scripts.
 - **README table of contents** is generated by `.github/scripts/readme_toc.py` and checked in CI, so it cannot drift from the headings (run the script without arguments to update it).
-- **Rulebook**: every entry in `docs/rules/` has its required fields, `https` sources and a valid date, every spell above is covered by a rule, the DW ids and relative links (with their anchors) in the rule pages resolve, and the generated rule index is current (`python3 .github/scripts/check_rules.py --check`; `--write` regenerates the index).
+- **Rulebook**: every entry in `docs/rules/` has its required fields, `https` sources and a valid date, every spell above is covered by a rule, the DW ids and relative links (with their anchors) in the rule pages and this README resolve, and the generated rule and sources indexes are current (`python3 .github/scripts/check_rules.py --check`; `--write` regenerates them).
 - **Monthly standards watch** for new CIS Benchmark versions and OWASP cheat sheet changes; when the cheat sheet changed, the failure shows what changed (a compare link plus that sheet's own diff).
 
 ## 🧭 Deliberately Not Included
@@ -463,24 +396,22 @@ When you do publish it:
 
 It is listed here so the gap is a known choice rather than an oversight.
 
-## 📜 The Rulebook
-
-The spells above are also written as sourced rules in [`docs/rules/`](docs/rules/README.md). Each rule gives its strength (`MUST`, `SHOULD` or `TRADE-OFF`), the reason, how to check it, links to the primary sources and the date it was last verified. Spells keep their numbers; the index maps each one to its rule. Where sources disagree, the [trade-offs page](docs/rules/tradeoffs.md) lays out each side.
-
 ## 📚 References
 
+The [sources page](docs/rules/sources.md) lists every document the rules and the trade-offs page cite. The most cited:
+
 - [CIS Docker Benchmark](https://www.cisecurity.org/benchmark/docker)
-- [OWASP Docker Security](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html)
-- [Docker Best Practices](https://docs.docker.com/develop/dev-best-practices/)
-- [Dockerfile Reference](https://docs.docker.com/engine/reference/builder/)
-- [Kubernetes Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/)
-- **[Runtime Security Guide](RUNTIME_SECURITY.md)** - Production deployment security
+- [OWASP Docker Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html)
+- [Docker build best practices](https://docs.docker.com/build/building/best-practices/) and the [Dockerfile reference](https://docs.docker.com/reference/dockerfile/)
+- [UK NCSC: building container images](https://www.ncsc.gov.uk/collection/using-containerisation/building-container-images)
+
+For running the image, see the [Runtime Security Guide](RUNTIME_SECURITY.md) and the [Kubernetes Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/).
 
 ## 🎓 Advanced Wizardry
 
 ### Inspect the Build Layers
 ```bash
-# See the multi-stage magic
+# List the layers and their sizes
 docker history wizardry:latest
 
 # Compare with a single-stage build
@@ -536,4 +467,4 @@ All third-party components are used in accordance with their respective licenses
 
 ---
 
-**Disclaimer**: Always adapt these practices to your specific security requirements and compliance needs. Regular security audits and vulnerability scanning are essential.
+**Disclaimer**: Following these rules, or passing the checks above, does not by itself make an image secure. Adapt the practices to your own security requirements and compliance needs, and keep auditing and scanning what you run.

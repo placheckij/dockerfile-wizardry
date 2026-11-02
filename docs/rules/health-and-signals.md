@@ -18,9 +18,10 @@ statement:
   hosts.
 
 why:
-  `EXPOSE` does not publish anything; it documents the port for readers, scanners and
-  orchestrators. A bare `-p 8000:8000` opens the port on all interfaces, and Docker's own
-  firewall rules bypass host firewalls such as UFW (OWASP Rule 5a).
+  `EXPOSE` does not publish anything; the Dockerfile reference calls it documentation between
+  whoever builds the image and whoever runs it about which ports are meant to be published. A bare
+  `-p 8000:8000` opens the port on all interfaces, and Docker's own firewall rules bypass host
+  firewalls such as UFW (OWASP Rule 5a).
 
 how_to_check:
   manual
@@ -72,7 +73,8 @@ statement:
 
 why:
   `docker stop` sends this signal first and kills the process after a timeout. A process that
-  ignores it loses in-flight work.
+  ignores it loses in-flight work. The default is `SIGTERM` when the instruction is not set, so
+  for most servers `STOPSIGNAL SIGTERM` makes that choice explicit rather than changing it.
 
 how_to_check:
   manual
