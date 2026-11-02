@@ -70,7 +70,8 @@ statement:
 
 why:
   Whatever is copied is in the image for good, including secrets copied by accident. `ADD` can
-  fetch remote files and unpack archives, which is rarely what you meant (CIS 4.8, 4.9).
+  fetch remote files and unpack archives, which is rarely what you meant (CIS 4.8, 4.9). See the
+  [trade-offs](tradeoffs.md#5-add-or-copy) between `ADD` and `COPY`.
 
 how_to_check:
   Hadolint DL3020 (use `COPY` instead of `ADD` for files and folders); Dockle CIS-DI-0009
@@ -98,11 +99,12 @@ statement:
 
 why:
   Deleting files in a later layer saves nothing, since they stay in the layers below and can be
-  extracted by anyone who pulls the image. Flattening removes them for real (94 MB to 81 MB
-  here). This is defense in depth, not a barrier: an interpreter and a shell remain, so rely on
-  the runtime flags for containment. Removing the shell as well is possible but breaks
-  `docker exec ... sh` debugging and any check that runs `ls` or `id` in the container, which
-  is why this is a trade-off between hardening and operability.
+  extracted by anyone who pulls the image. Flattening removes them for real (94 MB to 81 MB here).
+  This is defense in depth, not a barrier: an interpreter and a shell remain, so rely on the
+  runtime flags for containment. Removing the shell as well is possible but breaks `docker exec
+  ... sh` debugging and any check that runs `ls` or `id` in the container, which is why this is a
+  trade-off between hardening and operability. See also [base image
+  choices](tradeoffs.md#6-which-base-image-default-slim-alpine-or-distroless).
 
 how_to_check:
   manual. Inspect each layer (for example with `docker history` or `dive`) to confirm the
@@ -211,8 +213,9 @@ last_verified: 2026-11-02
 
 statement:
   Where reproducible builds matter, set `SOURCE_DATE_EPOCH` (Buildx 0.10 and later pass it through
-  from the environment) so build tools use a fixed timestamp, and add `rewrite-timestamp=true` to
-  the image exporter (BuildKit 0.13 and later) so file times inside the layers follow it.
+  from the environment) so the timestamps BuildKit records follow it, and add
+  `rewrite-timestamp=true` to the image exporter (BuildKit 0.13 and later) so file times inside
+  the layers follow it too.
 
 why:
   Timestamps are a common reason two builds of the same source differ. The BuildKit

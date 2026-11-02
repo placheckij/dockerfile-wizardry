@@ -19,10 +19,11 @@ statement:
   what the digest is.
 
 why:
-  A tag can be republished, so the same Dockerfile can build on different bytes tomorrow. A
-  digest names exactly one image. The cost is that pinning freezes the base: patches stop
-  arriving on their own, so pair the pin with something that proposes new digests (Dependabot
-  or Renovate) or with a CI job that fails when the tag has moved.
+  A tag can be republished, so the same Dockerfile can build on different bytes tomorrow. A digest
+  names exactly one image. The cost is that pinning freezes the base: patches stop arriving on
+  their own, so pair the pin with something that proposes new digests (Dependabot or Renovate) or
+  with a CI job that fails when the tag has moved. See the trade-offs on [tag or
+  digest](tradeoffs.md#1-tag-or-digest-for-the-base-image).
 
 how_to_check:
   Hadolint DL3006 (tag the image) and DL3007 (do not use `latest`) catch missing or floating
@@ -67,15 +68,17 @@ strength: SHOULD
 last_verified: 2026-11-02
 
 statement:
-  Keep the build tooling (Docker Engine, BuildKit, Buildx) up to date, and use BuildKit frontends
-  only from publishers you trust, including any image named in a `# syntax=` line.
+  Keep Docker Engine and BuildKit up to date, and use BuildKit frontends only from publishers you
+  trust, including any image named in a `# syntax=` line.
 
 why:
   BuildKit's GHSA-7236-3392-c5c6 (fixed in BuildKit 0.31.1, shipped in Docker Engine 29.6.1)
   describes a custom frontend that could send a crafted request disabling the Seccomp and AppArmor
   protections of the build container. The advisory's workaround is to use only BuildKit frontends
-  from trusted providers. The Engine release note does not mention `# syntax=` itself; the link to
-  that directive is an inference from how frontends are selected.
+  from trusted providers. The Dockerfile reference says the `syntax` directive declares which
+  Dockerfile syntax version to use, and that BuildKit uses a bundled version of the frontend when
+  it is not set; the Engine release note does not mention `# syntax=` itself, so applying the
+  advice to that directive is our reading.
 
 how_to_check:
   manual
@@ -83,3 +86,4 @@ how_to_check:
 sources:
 - https://github.com/advisories/GHSA-7236-3392-c5c6
 - https://docs.docker.com/engine/release-notes/29/
+- https://docs.docker.com/reference/dockerfile/#syntax

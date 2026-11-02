@@ -19,14 +19,16 @@ statement:
 
 why:
   Every extra package is attack surface and size (CIS 4.3). An index update in its own layer can
-  be cached and go stale before the install runs (CIS 4.6). On pinning, sources disagree:
-  linters such as Hadolint (DL3008 for apt) ask for pinned versions for reproducibility, while
-  repositories that keep only the current version of a package (Alpine does) break a pinned
-  build as soon as a fix is published. Pinning also stops automatic security fixes. This
-  repository does not pin OS packages and relies on a base-image digest check and a weekly
-  no-cache rebuild instead. Note that Docker still reuses a whole `RUN` layer from its cache
-  until the instruction or the base digest changes, so patches only arrive when the cache is
-  invalidated (`docker build --no-cache --pull`, a new digest, or an edit to the `RUN`).
+  be cached and go stale before the install runs (CIS 4.6). On pinning, sources disagree: linters
+  such as Hadolint (DL3008 for apt) ask for pinned versions for reproducibility, while
+  repositories that keep only the current version of a package (Alpine does) break a pinned build
+  as soon as a fix is published. Pinning also stops automatic security fixes. This repository does
+  not pin OS packages and relies on a base-image digest check and a weekly no-cache rebuild
+  instead. Note that Docker still reuses a whole `RUN` layer from its cache until the instruction
+  or the base digest changes, so patches only arrive when the cache is invalidated (`docker build
+  --no-cache --pull`, a new digest, or an edit to the `RUN`). See the trade-offs on
+  [pinning](tradeoffs.md#2-pinning-operating-system-package-versions) and
+  [updating](tradeoffs.md#3-update-inside-the-image-or-rebuild-from-a-fresh-base).
 
 how_to_check:
   Hadolint DL3008 (pin apt versions) and DL3018 (pin apk versions) check the pinning side of

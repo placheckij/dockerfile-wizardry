@@ -44,11 +44,12 @@ statement:
   failed check must exit non-zero.
 
 why:
-  CIS 4.5 asks for it: Docker then reports whether the application inside is working
-  (`healthy` or `unhealthy`), not only whether the process is still running. Using the language
-  runtime already in the image avoids shipping `curl` and its libraries just for the check.
-  Whether to rely on it is partly your platform's call, since an orchestrator can use its own
-  probes instead; Hadolint ships its missing-`HEALTHCHECK` rule disabled by default.
+  CIS 4.5 asks for it: Docker then reports whether the application inside is working (`healthy` or
+  `unhealthy`), not only whether the process is still running. Using the language runtime already
+  in the image avoids shipping `curl` and its libraries just for the check. Whether to rely on it
+  is partly your platform's call, since an orchestrator can use its own probes instead; Hadolint
+  ships its missing-`HEALTHCHECK` rule disabled by default. See the
+  [trade-offs](tradeoffs.md#4-a-healthcheck-in-the-image-or-probes-in-the-platform).
 
 how_to_check:
   Hadolint DL3057 (missing `HEALTHCHECK`; ignored by default, so enable it); Dockle CIS-DI-0006.

@@ -15,17 +15,20 @@ statement:
 
 why:
   Docker's documentation says build arguments and environment variables are inappropriate for
-  passing secrets because they persist in the final image. Secret mounts are not included in
+  passing secrets because they persist in the final image. Secret mounts are never included in
   provenance attestations, while the `max` provenance mode exposes the values of build arguments,
-  so a secret passed as an argument can leak through metadata as well as through layers. A secret
-  `COPY`ed in ends up in one of the layers.
+  so a secret passed as an argument can leak through metadata as well as through the image.
+  Anything copied into the image becomes part of it, and the NCSC guidance singles out temporary
+  secrets used during the build, which must not be stored in the resulting image.
 
 how_to_check:
-  Docker build check SecretsUsedInArgOrEnv (`docker build --check`); a secret scanner over the
-  repository and the image; Dockle CIS-DI-0010.
+  Docker build check SecretsUsedInArgOrEnv (`docker build --check`); Dockle CIS-DI-0010; a secret
+  scanner over the repository.
 
 sources:
 - https://docs.docker.com/build/building/secrets/
 - https://docs.docker.com/build/metadata/attestations/slsa-provenance/
 - https://docs.docker.com/reference/build-checks/secrets-used-in-arg-or-env/
+- https://github.com/goodwithtech/dockle/blob/master/CHECKPOINT.md
+- https://www.ncsc.gov.uk/collection/using-containerisation/building-container-images
 - https://www.cisecurity.org/benchmark/docker

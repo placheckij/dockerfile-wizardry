@@ -19,7 +19,7 @@ numbered "spells" in a worked example; the `Spells` column below maps one to the
 
 ## Trade-offs
 
-Where sources disagree, or the best choice depends on your situation, a rule is marked `TRADE-OFF` and the reasoning for each side is on the [trade-offs page](tradeoffs.md).
+Where sources disagree, or the best choice depends on your situation, a rule is marked `TRADE-OFF` and explains the choice itself; the larger recurring ones have a section on the [trade-offs page](tradeoffs.md), which the rules link to.
 
 ## Index
 

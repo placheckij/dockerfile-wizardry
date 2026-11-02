@@ -11,13 +11,14 @@ last_verified: 2026-11-02
 
 statement:
   Build published images with attestations: `--sbom=true` for a software bill of materials and
-  `--provenance=mode=min` (or `max`) for build provenance.
+  `--provenance=mode=max` for build provenance, or `mode=min` if build arguments might hold
+  anything sensitive.
 
 why:
-  Attestations let consumers see what is inside an image and how it was built. Docker describes
-  `mode=min` as safe for all builds because it leaves out build argument values and secret
-  identities, and `mode=max` as richer but exposing build argument values, so use `max` only when
-  no secret is passed as an argument (DW-SECRET-01).
+  Attestations let consumers see what is inside an image and how it was built. Docker says that
+  when possible you should prefer `mode=max` because it holds much more detail, and warns that it
+  exposes the values of build arguments, so pair it with DW-SECRET-01 and use `min` (which Docker
+  calls safe for all builds) when you cannot be sure.
 
 how_to_check:
   manual
@@ -33,20 +34,21 @@ strength: SHOULD
 last_verified: 2026-11-02
 
 statement:
-  Sign images you publish (for example with cosign) and verify the signature in the deployment
-  path rather than trusting a tag. Keep the signing tool current.
+  Sign images you publish (for example with cosign) and verify the signature, against the identity
+  you expect, in the deployment path rather than trusting a tag. Keep the signing tool current.
 
 why:
-  A signature ties an image to an identity, so a consumer can reject an image that was replaced.
-  Verification tooling itself has had bugs: cosign v3.1.3 resolved GHSA-fx35-mq7g-6g98, a
-  verification bypass using an unexpected public key in a legacy bundle. This repository does not
-  publish images; the README explains what it would take.
+  Verification checks a signature against an expected identity, so a consumer can reject an image
+  that was not signed by it. The tooling itself has had bugs: cosign v3.1.3 resolved
+  GHSA-fx35-mq7g-6g98, a verification bypass using an unexpected public key in a legacy bundle.
+  This repository does not publish images; the README explains what it would take.
 
 how_to_check:
   manual
 
 sources:
 - https://docs.sigstore.dev/cosign/signing/signing_with_containers/
+- https://docs.sigstore.dev/cosign/verifying/verify/
 - https://github.com/sigstore/cosign/releases/tag/v3.1.3
 
 ## DW-SUPPLY-03: Pin GitHub Actions to full commit SHAs
@@ -56,8 +58,7 @@ strength: SHOULD
 last_verified: 2026-11-02
 
 statement:
-  Reference third-party GitHub Actions by their full commit SHA, with the version as a comment,
-  not by a mutable tag.
+  Reference third-party GitHub Actions by their full commit SHA, not by a mutable tag.
 
 why:
   The Trivy supply chain advisory (GHSA-69fq-xp46-6x23, CVE-2026-33634, March 2026) recommends
@@ -87,7 +88,8 @@ why:
   than updating containers in place, and that build caching should not prevent security updates.
   Docker notes that pinning a base image to a digest means opting out of automated security fixes,
   and Renovate recommends pinning Docker images to an exact digest while it proposes updates; see
-  the trade-offs page.
+  [tag or digest](tradeoffs.md#1-tag-or-digest-for-the-base-image) and
+  [updating](tradeoffs.md#3-update-inside-the-image-or-rebuild-from-a-fresh-base).
 
 how_to_check:
   manual. Docker Scout's `No outdated base images` policy checks base image freshness.
@@ -104,14 +106,16 @@ strength: SHOULD
 last_verified: 2026-11-02
 
 statement:
-  Scan the built image's contents for vulnerabilities, misconfiguration and embedded secrets
-  without running it, and confirm that files you removed during the build are not still present in
-  a layer.
+  Scan the built image's contents for known vulnerabilities, misconfiguration and malware without
+  running it, and confirm that files you removed during the build are not still present in a
+  layer.
 
 why:
-  The NCSC guidance says scans should analyse a static image and that you should never need to run
-  the container to scan it, and that files removed during the build must be entirely removed from
-  the final image, which matters most for temporary secrets. See DW-BUILD-04.
+  The NCSC guidance asks for automated scanning to detect malware, known vulnerabilities and
+  misconfiguration, says scans should analyse a static image so you should never need to run the
+  container to scan it, and says you should be sure that files removed during the build are
+  entirely removed from the final image, which matters most for temporary secrets. See
+  DW-BUILD-04.
 
 how_to_check:
   A scanner such as Trivy, plus `docker history` or a layer inspector; this repository runs Trivy

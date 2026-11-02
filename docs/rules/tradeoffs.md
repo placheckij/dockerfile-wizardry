@@ -1,6 +1,6 @@
 # Trade-offs
 
-Some Dockerfile choices have no single right answer: reputable sources disagree, or the best option depends on your situation. This page sets out each side with its source, then says what to weigh. The [rules](README.md) link here instead of picking a side for you.
+Some Dockerfile choices have no single right answer: reputable sources disagree, or the best option depends on your situation. This page sets out each side with its source, then says what to weigh. Rules link here where a choice has its own section, instead of picking a side for you.
 
 ## 1. Tag or digest for the base image
 
@@ -10,7 +10,7 @@ Some Dockerfile choices have no single right answer: reputable sources disagree,
 
 **For digests.** The same page says that pinning to a digest guarantees you always use the same image version, even if the publisher replaces the tag, and that this helps supply chain integrity. Renovate's documentation recommends pinning Docker images to an exact digest. Kubernetes uses only the digest when an image reference has both a tag and a digest, and advises avoiding `:latest` in production.
 
-**The cost of digests.** Docker notes that looking up and updating digests by hand is tedious, and that you are opting out of automated security fixes. It suggests the Docker Scout policy `No outdated base images`, or an update bot, to compensate.
+**The cost of digests, and Docker's answer.** Docker notes that looking up and updating digests by hand is tedious, and that you are opting out of automated security fixes. Its suggestion is the Docker Scout policy `No outdated base images`, or GitHub Dependabot with the `docker` ecosystem, which raises pull requests that update base image tags and digests on a schedule; Docker calls that better than a tag that changes the version automatically, because you are in control and have an audit trail.
 
 **What to weigh.** If you can automate digest updates (a bot, or a CI job that fails when the tag has moved), pin and automate. If you cannot, a tag with regular rebuilds (`docker build --pull`) keeps you patched at the price of less repeatability. Keeping the tag next to the digest, as this repository does, means a reader can still tell what the digest is. See [DW-BASE-01](base-image.md) and [DW-SUPPLY-04](supply-chain.md).
 
@@ -24,23 +24,23 @@ Sources: [Docker: pin base image versions](https://docs.docker.com/build/buildin
 
 **Against pinning.** A pin stays where you put it until you change it, so fixes stop arriving on their own, and a repository that removes old versions breaks a pinned build. In this repository's experience Alpine keeps only the current version of each package per release, which is why [DW-DEPS-01](dependencies.md) does not pin; that is an observation about this project, not a cited source.
 
-**An alternative (our suggestion).** Build from a dated snapshot of the distribution archive, which fixes the whole repository state instead of each package. snapshot.debian.org documents the URL form for Debian, but it does not describe this use, and old snapshots can be unavailable.
+**An alternative (our suggestion).** Build from a dated snapshot of the distribution archive, which fixes the whole repository state instead of each package. snapshot.debian.org documents the URL form for Debian archives at a given date, but it does not describe this use, and its own page records that snapshots from an import failure were lost.
 
 **What to weigh.** Pin if you rebuild on a schedule and update pins with it; do not pin if you rely on rebuilds to pick up fixes and your repository drops old versions.
 
-Sources: [Docker: apt-get and version pinning](https://docs.docker.com/build/building/best-practices/#apt-get), [Hadolint rules](https://github.com/hadolint/hadolint).
+Sources: [Docker: apt-get and version pinning](https://docs.docker.com/build/building/best-practices/#apt-get), [Hadolint rules](https://github.com/hadolint/hadolint), [snapshot.debian.org](https://snapshot.debian.org/).
 
 ## 3. Update inside the image, or rebuild from a fresh base
 
-**The choice.** Run `apk upgrade` or `apt-get upgrade` during the build, against relying on a freshly pulled base image.
+**The choice.** Run `apk upgrade` or `apt-get upgrade` during the build, against relying on a freshly pulled base image and a plain install.
 
-**For upgrading in the build.** It picks up patches the base image does not have yet. This repository runs `apk -U upgrade` in the same layer as its package install ([DW-DEPS-01](dependencies.md)).
+**For upgrading in the build.** It picks up patches the base image does not have yet. This repository runs `apk -U upgrade` in the same layer as its package install ([DW-DEPS-01](dependencies.md)). Docker's current best-practices page gives no advice either way.
 
-**Against.** Dockle's DKL-DI-0003 flags `apt-get dist-upgrade`, and its notes refer to Docker's former advice to avoid `upgrade` and `dist-upgrade`. The NCSC guidance says updates are typically applied by building a new image rather than updating in place, and that build caching must not stop updates from landing.
+**For relying on the base image.** Dockle's DKL-DI-0003 flags `apt-get dist-upgrade`, and its notes refer to Docker's former advice to avoid `upgrade` and `dist-upgrade`, which Dockle shows struck through, so treat it as a linter rule rather than current Docker guidance. The NCSC guidance says updates are typically applied by building a new image rather than updating containers in place; a build-time upgrade also produces a new image, so that advice supports both approaches, and its real warning is that build caching must not stop updates from landing.
 
-**What to weigh.** Whichever you choose, make sure the layer that holds the update is rebuilt: Docker reuses a whole `RUN` layer from its cache until the instruction or the base digest changes, so use `--pull`, a periodic build without cache, or a changed digest. See [DW-SUPPLY-04](supply-chain.md).
+**What to weigh.** Whichever you choose, make sure the layer that holds the update is rebuilt: Docker reuses a layer from the build cache while its instruction and inputs are unchanged, so use `--pull`, a periodic build without cache, or a changed digest. See [DW-SUPPLY-04](supply-chain.md).
 
-Sources: [Dockle checkpoints](https://github.com/goodwithtech/dockle/blob/master/CHECKPOINT.md), [NCSC: building container images](https://www.ncsc.gov.uk/collection/using-containerisation/building-container-images).
+Sources: [Dockle checkpoints](https://github.com/goodwithtech/dockle/blob/master/CHECKPOINT.md), [NCSC: building container images](https://www.ncsc.gov.uk/collection/using-containerisation/building-container-images), [Docker: optimize cache usage](https://docs.docker.com/build/cache/optimize/).
 
 ## 4. A HEALTHCHECK in the image, or probes in the platform
 
@@ -54,19 +54,19 @@ Sources: [Dockle checkpoints](https://github.com/goodwithtech/dockle/blob/master
 
 ## 5. ADD or COPY
 
-**COPY.** Docker's best-practices page says you will mostly want `COPY`, and Hadolint (DL3020) and Dockle (CIS-DI-0009) flag `ADD` where `COPY` would do.
+**COPY.** Docker's best-practices page says you will mostly want `COPY` for copying files from one stage to another in a multi-stage build, and that for files needed by a single `RUN` you can often use a bind mount instead. Hadolint (DL3020) and Dockle (CIS-DI-0009) flag `ADD` where `COPY` would do.
 
-**ADD.** `ADD` can fetch remote HTTPS and Git URLs and extract tar files from the build context. For remote files `ADD --checksum=sha256:<hash>` verifies the download (SHA-256 only, Dockerfile syntax 1.6 or later).
+**ADD.** The same page says `ADD` is best for when you need to download a remote artifact as part of your build, and better than fetching with `wget` and `tar` because it gives a more precise build cache and has built-in checksum validation. `ADD --checksum=sha256:<hash>` verifies the download (SHA-256 only, Dockerfile syntax 1.6 or later).
 
-**What to weigh.** Use `COPY` for local files. For a remote file, either `ADD --checksum` or `RUN curl` followed by a checksum and signature check is reasonable; the important part is that the download is verified ([DW-DEPS-03](dependencies.md), [DW-BUILD-03](build-and-cache.md)).
+**What to weigh.** Use `COPY` for files from your own build context or an earlier stage. For a remote file, Docker prefers `ADD --checksum`; linters that flag every `ADD` will need an exception, and a `RUN curl` with its own checksum and signature check is the alternative. The important part is that the download is verified ([DW-DEPS-03](dependencies.md), [DW-BUILD-03](build-and-cache.md)).
 
-Sources: [Docker: ADD or COPY](https://docs.docker.com/build/building/best-practices/#add-or-copy), [Dockerfile reference: ADD](https://docs.docker.com/reference/dockerfile/#add).
+Sources: [Docker: ADD or COPY](https://docs.docker.com/build/building/best-practices/#add-or-copy), [Dockerfile reference: ADD](https://docs.docker.com/reference/dockerfile/#add), [Dockle checkpoints](https://github.com/goodwithtech/dockle/blob/master/CHECKPOINT.md), [Hadolint rules](https://github.com/hadolint/hadolint).
 
 ## 6. Which base image: default, slim, Alpine or distroless
 
 **Default and slim.** For Python, the official image's own README says that unless you are working in an environment where only the `python` image will be deployed and you have space constraints, they highly recommend the default image. The `slim` variant contains only the minimal Debian packages needed to run Python.
 
-**Alpine.** The same README calls Alpine much smaller and useful when final image size is your primary concern, with the caveat that it uses musl libc instead of glibc, so some software runs into issues. A well-known article argues that Alpine can make Python builds much slower; it also notes that PEP 656 now lets pip and PyPI support musl wheels, so the penalty is smaller than it was.
+**Alpine.** The same README calls Alpine much smaller and useful when final image size is your primary concern, with the caveat that it uses musl libc instead of glibc, so software often runs into issues, depending on how much it assumes about its libc. A well-known article argues that Alpine can make Python builds much slower; it also notes that PEP 656 now lets pip and PyPI support musl wheels, so the penalty is smaller than it was.
 
 **Distroless.** Google's distroless images contain only your application and its runtime dependencies, with no package managers or shells, and offer a `:debug` variant with a busybox shell for troubleshooting. The NCSC guidance gives the security argument: fewer tools in the image leaves fewer for a successful attacker.
 
