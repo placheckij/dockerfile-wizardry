@@ -21,11 +21,12 @@ The script checks every entry, that every "Spell #N" heading in README.md is cov
 that every DW id, and every relative link or link definition (with its #anchor), in the prose of
 docs/rules/*.md and the README resolves (inline code and HTML comments are not searched for links),
 and that the generated blocks in docs/rules/README.md (rule index) and docs/rules/sources.md
-(sources index) are current.
+(sources index, which also lists the sources of docs/rules/tradeoffs.md) are current. Heading
+anchors come from readme_toc.py, so both scripts agree with the anchors github.com generates.
 
 Usage:
     python3 .github/scripts/check_rules.py --check   # exit 1 on any problem (CI)
-    python3 .github/scripts/check_rules.py --write   # regenerate the index
+    python3 .github/scripts/check_rules.py --write   # regenerate the generated blocks
 
 Runs with the runner's system python3 (no third-party packages).
 """
@@ -33,13 +34,15 @@ Runs with the runner's system python3 (no third-party packages).
 import datetime
 import re
 import sys
-import unicodedata
 import urllib.parse
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+# readme_toc.py sits next to this file; `python3 -I` does not put the script's directory on the path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import readme_toc
 
 # pages in docs/rules/ that hold prose, not rule entries
 NON_THEME_FILES = ("README.md", "sources.md", "tradeoffs.md")
@@ -287,14 +290,8 @@ def collect(root):
 
 
 def heading_slug(heading):
-    """The anchor GitHub generates for a heading: link syntax and emphasis removed, lower case,
-    punctuation and symbols dropped, spaces to hyphens. Letters, combining marks, numbers,
-    hyphens and underscores stay."""
-    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", heading)
-    text = re.sub(r"[`*]|(?<!\w)_+|_+(?!\w)", "", text.strip().lower())
-    text = unicodedata.normalize("NFC", text)
-    kept = (c for c in text if unicodedata.category(c)[0] in "LMN" or c in "_- ")
-    return "".join(kept).replace(" ", "-")
+    """The anchor GitHub generates for a heading (shared with readme_toc.py)."""
+    return readme_toc.slugify(heading)
 
 
 def anchors(path):
@@ -307,15 +304,30 @@ def anchors(path):
         elif re.match(r"^ {0,3}(=+|-+)\s*$", line) and previous.strip():
             headings.append(previous.strip())
         previous = line
-    found, occurrences = set(), {}
-    for heading in headings:
-        slug = original = heading_slug(heading)
-        while slug in occurrences:
-            occurrences[original] += 1
-            slug = f"{original}-{occurrences[original]}"
-        occurrences[slug] = 0
-        found.add(slug)
-    return found
+    return set(readme_toc.unique_slugs(headings))
+
+
+def prose_lines(text):
+    """The lines of `text` outside fenced and indented code blocks. An indented line (four
+    spaces or a tab) is code when it follows a blank line or more code, unless the paragraph
+    before the blank line belongs to a list, where indentation continues the list item."""
+    in_code, blank_before, in_list = False, True, False
+    for line in unfenced_lines(text):
+        if not line.strip():
+            blank_before = True
+            yield line
+            continue
+        indented = line.startswith(("    ", "\t"))
+        if indented and (in_code or (blank_before and not in_list)):
+            in_code = True
+        else:
+            in_code = False
+            if not indented:
+                in_list = bool(re.match(r"^ {0,3}([-*+]|\d+[.)])\s", line)) or (
+                    in_list and not blank_before
+                )
+            yield line
+        blank_before = False
 
 
 def link_targets(prose):
@@ -341,12 +353,12 @@ def check_references(rules_dir, rules):
             ("README.md", INDEX_START, INDEX_END),
             ("sources.md", SOURCES_START, SOURCES_END),
         ):
-            if path.name == page:
+            if path.parent == rules_dir and path.name == page:
                 # a generated block is compared with the rules separately, and must be
                 # regenerable when it is stale
                 head, _, rest = text.partition(start)
                 text = head + rest.partition(end)[2]
-        prose = "\n".join(unfenced_lines(text))
+        prose = "\n".join(prose_lines(text))
         for rule_id in dict.fromkeys(RULE_ID_RE.findall(prose)):
             if rule_id not in known:
                 problems.append(f"{path.name}: {rule_id} is not a rule")
@@ -358,7 +370,6 @@ def check_references(rules_dir, rules):
             file_part, fragment = (
                 urllib.parse.unquote(x) for x in (file_part, fragment)
             )
-            fragment = unicodedata.normalize("NFC", fragment)
             if file_part.startswith("/"):
                 linked = root / file_part.lstrip("/")
             else:
@@ -386,22 +397,73 @@ def render_index(rules):
     return "\n".join(lines)
 
 
-def render_sources(rules):
-    """Markdown listing every cited source under its host, with the rules that cite it."""
-    cited = {}
+def tradeoff_sources(path):
+    """(section heading, [source URLs]) for each section of the trade-offs page, read from its
+    `Sources:` lines."""
+    if not path.exists():
+        return []
+    sections, heading = [], None
+    for line in unfenced_lines(path.read_text(encoding="utf-8")):
+        match = re.match(r"^## (.+?)\s*$", line)
+        if match:
+            heading = match.group(1)
+        elif heading and line.startswith("Sources:"):
+            sections.append((heading, re.findall(r"\]\((https://[^)\s]+)\)", line)))
+    return sections
+
+
+def _natural(text):
+    """Sort key that orders the numbers inside `text` by value (rule-2 before rule-12)."""
+    return [int(part) if part.isdigit() else part for part in re.split(r"(\d+)", text)]
+
+
+def _label(text):
+    """`text` safe to use as link text: Markdown's emphasis and bracket characters escaped."""
+    return re.sub(r"([\\`*_\[\]<>])", r"\\\1", text)
+
+
+def render_sources(rules, tradeoffs=()):
+    """Markdown listing every cited source under its site, grouped by page, with links to the
+    rules and trade-off sections that cite it."""
+    cited = {}  # url -> {reference link: sort key}
     for rule in rules:
+        link = (
+            f"[{rule.id}]({rule.theme}.md#{heading_slug(f'{rule.id}: {rule.title}')})"
+        )
         for source in rule.sources:
-            cited.setdefault(source, []).append(rule.id)
-    by_host = {}
-    for source in cited:
-        by_host.setdefault(urllib.parse.urlsplit(source).hostname, []).append(source)
+            cited.setdefault(source, {})[link] = (0, _natural(rule.id))
+    for heading, urls in tradeoffs:
+        number = re.match(r"(\d+)\.", heading)
+        name = f"trade-off {number.group(1)}" if number else heading
+        link = f"[{_label(name)}](tradeoffs.md#{heading_slug(heading)})"
+        for url in urls:
+            cited.setdefault(url, {})[link] = (1, _natural(heading))
+    sites = {}  # site -> page -> [urls]
+    for url in cited:
+        parts = urllib.parse.urlsplit(url)
+        site = parts.hostname.removeprefix("www.")
+        page = url.split("#", 1)[0]
+        sites.setdefault(site, {}).setdefault(page, []).append(url)
+
+    def shown(url):
+        text = url.removeprefix("https://").removeprefix("www.")
+        return _label(urllib.parse.unquote(text))
+
+    def refs(url):
+        return ", ".join(sorted(cited[url], key=cited[url].get))
+
     lines = []
-    for host in sorted(by_host):
-        lines += [f"### {host}", ""]
-        for source in sorted(by_host[host]):
-            label = source.removeprefix("https://")
-            ids = ", ".join(sorted(cited[source]))
-            lines.append(f"- [{label}]({source}) - {ids}")
+    for site in sorted(sites, key=_natural):
+        lines += [f"## {site}", ""]
+        for page in sorted(sites[site], key=_natural):
+            urls = sorted(sites[site][page], key=_natural)
+            if len(urls) == 1:
+                lines.append(f"- [{shown(urls[0])}](<{urls[0]}>): {refs(urls[0])}")
+                continue
+            lines.append(f"- [{shown(page)}](<{page}>)")
+            for url in urls:
+                name = "whole page" if url == page else "#" + url.split("#", 1)[1]
+                lines.append(f"  - [{_label(name)}](<{url}>): {refs(url)}")
         lines.append("")
     return "\n".join(lines).rstrip("\n")
 
@@ -419,7 +481,7 @@ def with_block(text, start, end, body):
     return head + start + "\n" + body + "\n" + end + tail
 
 
-def generated_pages(rules):
+def generated_pages(rules, tradeoffs=()):
     """(file name, label, start marker, end marker, body) of each generated block."""
     return (
         ("README.md", "rule index", INDEX_START, INDEX_END, render_index(rules)),
@@ -428,7 +490,7 @@ def generated_pages(rules):
             "sources index",
             SOURCES_START,
             SOURCES_END,
-            render_sources(rules),
+            render_sources(rules, tradeoffs),
         ),
     )
 
@@ -441,7 +503,8 @@ def main(argv, root=ROOT):
     rules_dir = root / "docs" / "rules"
     updates = []  # (path, label, current text, new text)
     if not problems:
-        for name, label, start, end, body in generated_pages(rules):
+        tradeoffs = tradeoff_sources(rules_dir / "tradeoffs.md")
+        for name, label, start, end, body in generated_pages(rules, tradeoffs):
             path = rules_dir / name
             try:
                 current = path.read_text(encoding="utf-8")
