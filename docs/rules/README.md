@@ -17,6 +17,10 @@ numbered "spells" in a worked example; the `Spells` column below maps one to the
   Rules are paraphrased, never copied, so the source is always the place to confirm the wording.
 - **Last verified**: the date someone last read the sources and confirmed the rule still holds.
 
+## Scope
+
+Most rules are about the Dockerfile and the way it is built. A few cover the build pipeline around it (for example pinning GitHub Actions, or keeping BuildKit patched) because they decide what ends up in the image.
+
 ## Trade-offs
 
 Where sources disagree, or the best choice depends on your situation, a rule is marked `TRADE-OFF` and explains the choice itself; the larger recurring ones have a section on the [trade-offs page](tradeoffs.md), which the rules link to.

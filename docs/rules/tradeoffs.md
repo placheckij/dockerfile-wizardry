@@ -58,9 +58,9 @@ Sources: [Dockle checkpoints](https://github.com/goodwithtech/dockle/blob/master
 
 **ADD.** The same page says `ADD` is best for when you need to download a remote artifact as part of your build, and better than fetching with `wget` and `tar` because it gives a more precise build cache and has built-in checksum validation. `ADD --checksum=sha256:<hash>` verifies the download (SHA-256 only, Dockerfile syntax 1.6 or later).
 
-**What to weigh.** Use `COPY` for files from your own build context or an earlier stage. For a remote file, Docker prefers `ADD --checksum`; linters that flag every `ADD` will need an exception, and a `RUN curl` with its own checksum and signature check is the alternative. The important part is that the download is verified ([DW-DEPS-03](dependencies.md), [DW-BUILD-03](build-and-cache.md)).
+**What to weigh.** Use `COPY` for files from your own build context or an earlier stage. For a remote file, Docker prefers `ADD --checksum`; Hadolint's DL3020 only flags `ADD` of plain local files, not URLs or archives, so it does not object to that, and a `RUN curl` with its own checksum and signature check is the alternative. The important part is that the download is verified ([DW-DEPS-03](dependencies.md), [DW-BUILD-03](build-and-cache.md)).
 
-Sources: [Docker: ADD or COPY](https://docs.docker.com/build/building/best-practices/#add-or-copy), [Dockerfile reference: ADD](https://docs.docker.com/reference/dockerfile/#add), [Dockle checkpoints](https://github.com/goodwithtech/dockle/blob/master/CHECKPOINT.md), [Hadolint rules](https://github.com/hadolint/hadolint).
+Sources: [Docker: ADD or COPY](https://docs.docker.com/build/building/best-practices/#add-or-copy), [Dockerfile reference: ADD](https://docs.docker.com/reference/dockerfile/#add), [Dockle checkpoints](https://github.com/goodwithtech/dockle/blob/master/CHECKPOINT.md), [Hadolint rules](https://github.com/hadolint/hadolint), [Hadolint DL3020 source](https://github.com/hadolint/hadolint/blob/master/src/Hadolint/Rule/DL3020.hs).
 
 ## 6. Which base image: default, slim, Alpine or distroless
 

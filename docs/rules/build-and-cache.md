@@ -69,8 +69,9 @@ statement:
   than `ADD` for local files, and keep tests, docs, `.git` and anything secret out of the image.
 
 why:
-  Whatever is copied is in the image for good, including secrets copied by accident. `ADD` can
-  fetch remote files and unpack archives, which is rarely what you meant (CIS 4.8, 4.9). See the
+  Whatever is copied is in the image for good, including secrets copied by accident. For local
+  files, `ADD` can also fetch remote URLs and unpack archives, which is rarely what you meant (CIS
+  4.8, 4.9); for a remote file on purpose, see DW-DEPS-03. See the
   [trade-offs](tradeoffs.md#5-add-or-copy) between `ADD` and `COPY`.
 
 how_to_check:
@@ -125,7 +126,10 @@ last_verified: 2026-11-02
 statement:
   Give the package manager's cache directory to the build with `RUN
   --mount=type=cache,target=<dir>` instead of baking downloads into a layer. Use the option
-  `sharing=locked` for apt, which needs exclusive access to its data.
+  `sharing=locked` for apt, which needs exclusive access to its data. On Debian and Ubuntu images
+  apt is configured to delete downloaded packages, so the Dockerfile reference's apt example first
+  removes `/etc/apt/apt.conf.d/docker-clean` and sets `Binary::apt::APT::Keep-Downloaded-Packages
+  "true"`.
 
 why:
   A cache mount survives between builds without ending up in the image, so repeated builds skip
@@ -137,6 +141,7 @@ how_to_check:
 
 sources:
 - https://docs.docker.com/build/cache/optimize/
+- https://docs.docker.com/reference/dockerfile/
 
 ## DW-BUILD-06: Mount a large source tree instead of copying it when it only produces an artifact
 
