@@ -186,7 +186,7 @@ def owasp_diff(reviewed, latest):
 
 def broken_owasp_anchors():
     cited = set()
-    for path in ROOT.glob("*.md"):
+    for path in [*ROOT.glob("*.md"), *ROOT.glob("docs/rules/*.md")]:
         cited.update(CITED_ANCHOR_RE.findall(path.read_text(encoding="utf-8")))
     cited = {anchor for anchor in cited if ANCHOR_RE.match(anchor)}
     page_ids = set(PAGE_ID_RE.findall(fetch(OWASP_PAGE)))
