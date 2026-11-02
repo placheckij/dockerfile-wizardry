@@ -121,10 +121,13 @@ why:
   DW-BUILD-04.
 
 how_to_check:
-  A scanner such as Trivy for the findings (this repository runs Trivy in CI). To confirm removed
-  files are gone, inspect the contents of each layer with a layer inspector or the layer tarballs
-  inside `docker save` output; `docker history` lists instructions and sizes, not files, so it
-  cannot show this.
+  A scanner such as Trivy covers known vulnerabilities, misconfiguration and secrets (this
+  repository runs it in CI); its documentation does not describe malware detection, which the NCSC
+  guidance also asks for, so that needs a separate tool if you want it. To confirm removed files
+  are gone, inspect the contents of each layer with a layer inspector or the layer tarballs inside
+  `docker save` output; `docker history` lists instructions and sizes, not files, so it cannot
+  show this.
 
 sources:
 - https://www.ncsc.gov.uk/collection/using-containerisation/building-container-images
+- https://trivy.dev/latest/docs/
