@@ -244,6 +244,20 @@ class ParseRuleFileTest(RuleFileTestCase):
         )
         self.assertEqual(check_rules.spell_numbers(readme), {1})
 
+    def test_secrets_and_supply_chain_themes_are_known(self):
+        for theme, code in (("secrets", "SECRET"), ("supply-chain", "SUPPLY")):
+            with self.subTest(theme=theme):
+                text = RULE.replace("DW-BASE-01", f"DW-{code}-01")
+                (rule,) = check_rules.parse_rule_file(self.write(f"{theme}.md", text))
+                self.assertEqual(rule.id, f"DW-{code}-01")
+                self.assertEqual(rule.theme, theme)
+
+    def test_a_secrets_id_in_the_supply_chain_file_rejected(self):
+        text = RULE.replace("DW-BASE-01", "DW-SECRET-01")
+        with self.assertRaises(check_rules.RuleError) as caught:
+            check_rules.parse_rule_file(self.write("supply-chain.md", text))
+        self.assertIn("DW-SUPPLY-", str(caught.exception))
+
 
 class ValidateTest(RuleFileTestCase):
     def rules(self, text, name="base-image.md"):

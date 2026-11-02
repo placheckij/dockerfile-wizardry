@@ -46,6 +46,8 @@ THEMES = {
     "dependencies": "DEPS",
     "users-and-permissions": "USER",
     "health-and-signals": "HEALTH",
+    "secrets": "SECRET",
+    "supply-chain": "SUPPLY",
 }
 STRENGTHS = ("MUST", "SHOULD", "TRADE-OFF")
 TEXT_FIELDS = ("statement", "why", "how_to_check")
