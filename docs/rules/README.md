@@ -35,7 +35,6 @@ out of date.
 | --- | --- | --- | --- | --- |
 | DW-BASE-01 | Pin the base image by digest | SHOULD | #1 | [base-image](base-image.md) |
 | DW-BASE-02 | Label the image with metadata | SHOULD | #2 | [base-image](base-image.md) |
-| DW-BASE-03 | Keep Docker Engine and BuildKit patched, and use only trusted frontends | SHOULD | - | [base-image](base-image.md) |
 | DW-BUILD-01 | Order layers by how often they change | SHOULD | #6 | [build-and-cache](build-and-cache.md) |
 | DW-BUILD-02 | Use multi-stage builds | SHOULD | #7 | [build-and-cache](build-and-cache.md) |
 | DW-BUILD-03 | Copy only what the image needs | MUST | #8 | [build-and-cache](build-and-cache.md) |
@@ -60,6 +59,7 @@ out of date.
 | DW-SUPPLY-03 | Pin GitHub Actions to full commit SHAs | SHOULD | - | [supply-chain](supply-chain.md) |
 | DW-SUPPLY-04 | Rebuild and replace instead of patching in place, and do not let cache hide updates | SHOULD | - | [supply-chain](supply-chain.md) |
 | DW-SUPPLY-05 | Scan the static image, and check removed files are really gone | SHOULD | - | [supply-chain](supply-chain.md) |
+| DW-SUPPLY-06 | Keep Docker Engine and BuildKit patched, and use only trusted frontends | SHOULD | - | [supply-chain](supply-chain.md) |
 | DW-USER-01 | Run as a non-root user | MUST | #4 | [users-and-permissions](users-and-permissions.md) |
 | DW-USER-02 | The runtime user must not own or be able to change what it runs | SHOULD | #9 | [users-and-permissions](users-and-permissions.md) |
 <!-- rules-index:end -->

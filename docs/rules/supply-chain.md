@@ -139,3 +139,32 @@ how_to_check:
 sources:
 - https://www.ncsc.gov.uk/collection/using-containerisation/building-container-images
 - https://trivy.dev/latest/docs/
+
+## DW-SUPPLY-06: Keep Docker Engine and BuildKit patched, and use only trusted frontends
+
+strength: SHOULD
+
+last_verified: 2026-11-02
+
+statement:
+  Keep Docker Engine and BuildKit up to date, and use BuildKit frontends only from publishers you
+  trust, including any image named in a `# syntax=` line.
+
+why:
+  BuildKit's GHSA-7236-3392-c5c6 (fixed in BuildKit 0.31.1, shipped in Docker Engine 29.6.1)
+  describes a custom frontend that could send a crafted request disabling the Seccomp and AppArmor
+  protections of the build container. The advisory's workaround is to use only BuildKit frontends
+  from trusted providers. The Dockerfile reference says the `syntax` directive declares which
+  Dockerfile syntax version to use, and that BuildKit uses a bundled version of the frontend when
+  it is not set. The Engine 29.9.0 release note describes the gRPC server that BuildKit runs for
+  frontend containers as serving "images referenced by a `# syntax=` directive", so an image named
+  there is a frontend you are trusting. Pinning it by digest, as for base images, is our
+  suggestion, not something the sources state.
+
+how_to_check:
+  manual
+
+sources:
+- https://github.com/advisories/GHSA-7236-3392-c5c6
+- https://docs.docker.com/engine/release-notes/29/
+- https://docs.docker.com/reference/dockerfile/#syntax

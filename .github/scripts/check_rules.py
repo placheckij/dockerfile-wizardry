@@ -306,7 +306,13 @@ def check_references(rules_dir, rules):
     problems = []
     known = {rule.id for rule in rules}
     for path in sorted(rules_dir.glob("*.md")):
-        for line in unfenced_lines(path.read_text(encoding="utf-8")):
+        text = path.read_text(encoding="utf-8")
+        if path.name == "README.md":
+            # the generated index is compared with the rules separately, and must be
+            # regenerable when it is stale
+            head, _, rest = text.partition(INDEX_START)
+            text = head + rest.partition(INDEX_END)[2]
+        for line in unfenced_lines(text):
             for rule_id in RULE_ID_RE.findall(line):
                 if rule_id not in known:
                     problems.append(f"{path.name}: {rule_id} is not a rule")

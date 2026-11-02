@@ -446,3 +446,16 @@ class ReferencesTest(RuleFileTestCase):
         text = "# T\n\n[x](https://example.com/a#b) [y](mailto:a@b.c)\n"
         code, _ = self.check({"tradeoffs.md": text})
         self.assertEqual(code, 0)
+
+    def test_a_stale_index_can_be_regenerated_after_a_rule_is_removed(self):
+        self.tree(RULE, [1])
+        stale = self.dir / "docs" / "rules" / "README.md"
+        stale.write_text(
+            stale.read_text(encoding="utf-8").replace(
+                check_rules.INDEX_START,
+                check_rules.INDEX_START + "\n| DW-BASE-09 | Gone | MUST | - | x |",
+            ),
+            encoding="utf-8",
+        )
+        self.assertEqual(check_rules.main(["--write"], root=self.dir), 0)
+        self.assertEqual(check_rules.main(["--check"], root=self.dir), 0)
