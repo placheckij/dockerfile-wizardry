@@ -38,5 +38,5 @@ out of date.
 | DW-HEALTH-03 | Set the stop signal | SHOULD | #13 | [health-and-signals](health-and-signals.md) |
 | DW-HEALTH-04 | Run a minimal init as PID 1 | SHOULD | #14 | [health-and-signals](health-and-signals.md) |
 | DW-USER-01 | Run as a non-root user | MUST | #4 | [users-and-permissions](users-and-permissions.md) |
-| DW-USER-02 | The runtime user must not own or be able to change what it runs | MUST | #9 | [users-and-permissions](users-and-permissions.md) |
+| DW-USER-02 | The runtime user must not own or be able to change what it runs | SHOULD | #9 | [users-and-permissions](users-and-permissions.md) |
 <!-- rules-index:end -->

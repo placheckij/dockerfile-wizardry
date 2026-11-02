@@ -1,7 +1,7 @@
 # Dependencies
 
 What goes into the image besides your code: operating-system packages and language tooling.
-Written from [Spell #3](../../README.md) and [Spell #5](../../README.md).
+Written from Spell #3 and Spell #5.
 
 ## DW-DEPS-01: Install only the packages you need, in one layer
 
@@ -29,12 +29,14 @@ why:
   invalidated (`docker build --no-cache --pull`, a new digest, or an edit to the `RUN`).
 
 how_to_check:
-  Hadolint DL3008 (apt pin) is the pinning side of the trade-off; Dockle CIS-DI-0007 flags an
-  update instruction used alone. Choosing between them is a decision for your situation.
+  Hadolint DL3008 (pin apt versions) and DL3018 (pin apk versions) check the pinning side of
+  the trade-off; Dockle CIS-DI-0007 flags an update instruction used alone. Whether to pin is the
+  decision described above.
 
 sources:
 - https://www.cisecurity.org/benchmark/docker
 - https://docs.docker.com/build/building/best-practices/#run
+- https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-9-integrate-container-scanning-tools-into-your-cicd-pipeline
 
 ## DW-DEPS-02: Install language tooling pinned, without caches
 
@@ -46,20 +48,22 @@ spells:
 last_verified: 2026-11-02
 
 statement:
-  Pin the version of the installer you add to the image (here `uv`), keep its download cache out
-  of the layer, and configure it to use the interpreter already in the base image. For Python,
-  compile bytecode at install time when the root filesystem will be read-only.
+  Keep the installer's download cache out of the layer, configure it to use the interpreter
+  already in the base image, and pin its version (this repository pins `uv`). For Python, compile
+  bytecode at install time when the root filesystem will be read-only.
 
 why:
-  An unpinned installer makes builds differ over time. A cache left in a layer adds size that
-  can never be removed. With a read-only runtime filesystem Python cannot write its own `.pyc`
+  A cache left in a layer adds size that can never be removed, and an unpinned installer makes
+  builds differ over time. With a read-only runtime filesystem Python cannot write its own `.pyc`
   files, so without install-time compilation it recompiles every module on every start; in this
-  repository that measured 644 ms against 358 ms for dependency imports. Setting
-  `SOURCE_DATE_EPOCH` makes the bytecode reproducible. The size cost of bytecode is about 8 MB
-  here; turn it off if size matters more than start-up time.
+  repository that measured 644 ms against 358 ms for dependency imports, for about 8 MB more
+  image. Python writes hash-based `.pyc` files when `SOURCE_DATE_EPOCH` is set, which makes the
+  bytecode reproducible. Turn compilation off if size matters more than start-up time.
 
 how_to_check:
   manual
 
 sources:
 - https://docs.docker.com/build/building/best-practices/#run
+- https://docs.astral.sh/uv/guides/integration/docker/
+- https://docs.python.org/3/library/py_compile.html

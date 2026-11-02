@@ -1,7 +1,7 @@
 # Users and permissions
 
 Who the container runs as, and what that user may change. Written from
-[Spell #4](../../README.md) and [Spell #9](../../README.md).
+Spell #4 and Spell #9.
 
 ## DW-USER-01: Run as a non-root user
 
@@ -21,8 +21,7 @@ why:
   not root, which limits what a compromise can reach (CIS 4.1, OWASP Rule 2).
 
 how_to_check:
-  Hadolint DL3002 (last user should not be root) and DL3066 (non-numeric user ID); Dockle
-  CIS-DI-0001 (a user has been created).
+  Hadolint DL3002 (last user should not be root); Dockle CIS-DI-0001 (a user has been created).
 
 sources:
 - https://www.cisecurity.org/benchmark/docker
@@ -30,7 +29,7 @@ sources:
 
 ## DW-USER-02: The runtime user must not own or be able to change what it runs
 
-strength: MUST
+strength: SHOULD
 
 spells:
 - 9
@@ -44,9 +43,10 @@ statement:
 
 why:
   An owner can always `chmod` its own files back to writable, and a writable directory lets
-  entries be renamed or replaced, so a compromised process could tamper with its own code. This
-  is the build-time side of OWASP Rule 8; the `--read-only` runtime flag is the other side and
-  remains the primary control. This setting holds even when the runtime flag is missing.
+  entries be renamed or replaced, so a compromised process could tamper with its own code. OWASP
+  Rule 8 asks for a read-only filesystem at runtime; making the files root-owned is this
+  repository's build-time complement, which keeps the protection even when the runtime flag is
+  missing. The runtime flag remains the primary control.
 
 how_to_check:
   manual. This repository's CI runs a check that the application user cannot write, `chmod` or

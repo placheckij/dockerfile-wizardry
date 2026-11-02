@@ -38,6 +38,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 # theme file name (without .md) -> the code used in its rule ids
+# pages in docs/rules/ that hold prose, not rule entries
+NON_THEME_FILES = ("README.md", "tradeoffs.md")
 THEMES = {
     "base-image": "BASE",
     "build-and-cache": "BUILD",
@@ -48,7 +50,11 @@ THEMES = {
 STRENGTHS = ("MUST", "SHOULD", "TRADE-OFF")
 TEXT_FIELDS = ("statement", "why", "how_to_check")
 LIST_FIELDS = ("spells", "sources")
-REQUIRED = ("strength", "spells", "last_verified", *TEXT_FIELDS, "sources")
+REQUIRED = ("strength", "last_verified", *TEXT_FIELDS, "sources")
+KNOWN = (
+    *REQUIRED,
+    "spells",
+)  # `spells` is optional: a rule need not come from a README spell
 
 HEADING_RE = re.compile(r"^## (DW-([A-Z]+)-(\d+)): (.+?)\s*$")
 DW_HEADING_RE = re.compile(r"^#{1,6}\s+DW-")
@@ -81,11 +87,10 @@ class Rule:
     path: Path
 
 
-def _entries(path):
-    """Yield (id, code, title, body lines) for each rule entry outside fenced code blocks."""
+def unfenced_lines(text):
+    """The lines of `text` that are outside fenced code blocks."""
     fence = None
-    current = None
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in text.splitlines():
         opening = re.match(r"^ {0,3}(`{3,}|~{3,})", line)
         if fence is None and opening:
             fence = opening.group(1)
@@ -98,6 +103,13 @@ def _entries(path):
             ):
                 fence = None
             continue
+        yield line
+
+
+def _entries(path):
+    """Yield (id, code, title, body lines) for each rule entry outside fenced code blocks."""
+    current = None
+    for line in unfenced_lines(path.read_text(encoding="utf-8")):
         heading = HEADING_RE.match(line)
         if DW_HEADING_RE.match(line) and not heading:
             raise RuleError(
@@ -133,7 +145,7 @@ def _fields(lines, fail):
         if not match:
             raise fail(f"unexpected line {line.strip()[:60]!r}")
         name, value = match.groups()
-        if name not in REQUIRED:
+        if name not in KNOWN:
             raise fail(f"unknown field '{name}'")
         if name in fields:
             raise fail(f"field '{name}' appears twice")
@@ -170,8 +182,9 @@ def parse_rule_file(path):
         for name in REQUIRED:
             if not fields.get(name):
                 raise fail(f"missing field '{name}'")
+        for name, value in fields.items():
             wants_list = name in LIST_FIELDS
-            if isinstance(fields[name], list) != wants_list:
+            if isinstance(value, list) != wants_list:
                 raise fail(
                     f"'{name}' must be "
                     + ("a list (one '- ' line per item)" if wants_list else "text")
@@ -179,6 +192,8 @@ def parse_rule_file(path):
         if fields["strength"] not in STRENGTHS:
             raise fail(f"strength must be one of {', '.join(STRENGTHS)}")
         try:
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", fields["last_verified"]):
+                raise ValueError
             datetime.date.fromisoformat(fields["last_verified"])
         except ValueError:
             raise fail("last_verified must be an ISO date (YYYY-MM-DD)") from None
@@ -198,7 +213,7 @@ def parse_rule_file(path):
                     f"source must be an https:// URL with a host, got '{source}'"
                 )
         try:
-            spells = [int(n) for n in fields["spells"]]
+            spells = [int(n) for n in fields.get("spells", [])]
         except ValueError:
             raise fail("spells must be a list of spell numbers") from None
         rules.append(
@@ -239,7 +254,8 @@ def validate(rules, spell_numbers):
 
 
 def spell_numbers(readme):
-    return {int(n) for n in SPELL_RE.findall(readme.read_text(encoding="utf-8"))}
+    text = "\n".join(unfenced_lines(readme.read_text(encoding="utf-8")))
+    return {int(n) for n in SPELL_RE.findall(text)}
 
 
 def collect(root):
@@ -247,7 +263,7 @@ def collect(root):
     rules, problems = [], []
     rules_dir = root / "docs" / "rules"
     for path in sorted(rules_dir.glob("*.md")):
-        if path.name == "README.md":
+        if path.name in NON_THEME_FILES:
             continue
         try:
             rules.extend(parse_rule_file(path))
@@ -266,7 +282,7 @@ def render_index(rules):
     ]
     for rule in sorted(rules, key=lambda r: r.id):
         title = rule.title.replace("|", "\\|")
-        spells = ", ".join(f"#{n}" for n in sorted(rule.spells))
+        spells = ", ".join(f"#{n}" for n in sorted(rule.spells)) or "-"
         theme = f"[{rule.theme}]({rule.theme}.md)"
         lines.append(f"| {rule.id} | {title} | {rule.strength} | {spells} | {theme} |")
     return "\n".join(lines)
@@ -288,6 +304,9 @@ def with_index(text, rules):
 
 
 def main(argv, root=ROOT):
+    if sorted(argv) not in (["--check"], ["--write"]):
+        print("usage: check_rules.py --check | --write", file=sys.stderr)
+        return 2
     rules, problems = collect(root)
     index = root / "docs" / "rules" / "README.md"
     new = None

@@ -1,3 +1,5 @@
+import contextlib
+import io
 import sys
 import tempfile
 import unittest
@@ -222,6 +224,26 @@ class ParseRuleFileTest(RuleFileTestCase):
         (rule,) = check_rules.parse_rule_file(self.write("base-image.md", text))
         self.assertEqual(rule.id, "DW-BASE-01")
 
+    def test_date_must_use_the_yyyy_mm_dd_form(self):
+        for date in ("20261102", "2026-W44-1"):
+            with self.subTest(date=date):
+                text = RULE.replace("2026-11-02", date)
+                with self.assertRaises(check_rules.RuleError) as caught:
+                    check_rules.parse_rule_file(self.write("base-image.md", text))
+                self.assertIn("last_verified", str(caught.exception))
+
+    def test_a_rule_without_spells_is_valid(self):
+        text = RULE.replace("spells:\n- 1\n\n", "")
+        (rule,) = check_rules.parse_rule_file(self.write("base-image.md", text))
+        self.assertEqual(rule.spells, [])
+
+    def test_spell_headings_inside_code_fences_are_not_spells(self):
+        readme = self.write(
+            "README.md",
+            "### Spell #1: Real\n\n```markdown\n### Spell #9: Example\n```\n",
+        )
+        self.assertEqual(check_rules.spell_numbers(readme), {1})
+
 
 class ValidateTest(RuleFileTestCase):
     def rules(self, text, name="base-image.md"):
@@ -241,11 +263,13 @@ class ValidateTest(RuleFileTestCase):
         self.assertIn("DW-BASE-01", joined)
         self.assertIn("Spell #9", joined)
 
-    def test_duplicate_id_across_files_rejected(self):
-        first = self.rules(RULE)
-        # Same id in a second file whose theme code is also BASE is impossible by
-        # the filename check, so build the duplicate from an already-parsed rule.
-        problems = check_rules.validate(first + first, {1})
+    def test_duplicate_id_rejected(self):
+        # theme codes are unique per file, so a duplicate id can only repeat inside one file
+        rules_dir = self.dir / "docs" / "rules"
+        rules_dir.mkdir(parents=True)
+        (rules_dir / "base-image.md").write_text(RULE + "\n" + RULE, encoding="utf-8")
+        (self.dir / "README.md").write_text("### Spell #1: Name\n", encoding="utf-8")
+        _, problems = check_rules.collect(self.dir)
         self.assertTrue(any("duplicate" in p.lower() for p in problems))
 
 
@@ -284,7 +308,13 @@ class MainTest(RuleFileTestCase):
 
     def test_check_reports_a_broken_rule_file_without_a_traceback(self):
         self.tree(RULE.replace("MUST", "ALWAYS"), [1])
-        self.assertEqual(check_rules.main(["--check"], root=self.dir), 1)
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            self.assertEqual(check_rules.main(["--check"], root=self.dir), 1)
+        message = stderr.getvalue()
+        self.assertIn("base-image.md", message)
+        self.assertIn("DW-BASE-01", message)
+        self.assertNotIn("Traceback", message)
 
     def test_index_lists_every_rule_sorted(self):
         self.tree(
@@ -298,24 +328,41 @@ class MainTest(RuleFileTestCase):
 
     def test_write_is_idempotent(self):
         self.tree(RULE, [1])
-        check_rules.main(["--write"], root=self.dir)
+        self.assertEqual(check_rules.main(["--write"], root=self.dir), 0)
         first = self.index_text()
-        check_rules.main(["--write"], root=self.dir)
+        self.assertNotEqual(first, INDEX_README)
+        self.assertEqual(check_rules.main(["--write"], root=self.dir), 0)
         self.assertEqual(self.index_text(), first)
 
     def test_check_fails_when_index_stale(self):
         self.tree(RULE, [1])
-        check_rules.main(["--write"], root=self.dir)
+        self.assertEqual(check_rules.main(["--write"], root=self.dir), 0)
         path = self.dir / "docs" / "rules" / "README.md"
-        path.write_text(
-            path.read_text(encoding="utf-8").replace("MUST", "SHOULD"), encoding="utf-8"
-        )
+        before = path.read_text(encoding="utf-8")
+        path.write_text(before.replace("MUST", "SHOULD"), encoding="utf-8")
+        self.assertNotEqual(path.read_text(encoding="utf-8"), before)
         self.assertEqual(check_rules.main(["--check"], root=self.dir), 1)
 
     def test_check_fails_when_the_index_markers_are_missing(self):
         self.tree(RULE, [1])
         (self.dir / "docs" / "rules" / "README.md").write_text("# Rules\n")
         self.assertEqual(check_rules.main(["--check"], root=self.dir), 1)
+
+    def test_a_tradeoffs_page_is_not_a_theme_file(self):
+        self.tree(RULE, [1], {"tradeoffs.md": "# Trade-offs\n\nProse only.\n"})
+        self.assertEqual(check_rules.main(["--write"], root=self.dir), 0)
+        self.assertEqual(check_rules.main(["--check"], root=self.dir), 0)
+
+    def test_index_shows_a_dash_for_a_rule_without_spells(self):
+        self.tree(RULE.replace("spells:\n- 1\n\n", ""), [])
+        self.assertEqual(check_rules.main(["--write"], root=self.dir), 0)
+        self.assertIn("| MUST | - |", self.index_text())
+
+    def test_usage_errors_exit_2(self):
+        self.tree(RULE, [1])
+        for argv in ([], ["--bogus"], ["--check", "--write"]):
+            with self.subTest(argv=argv), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(check_rules.main(argv, root=self.dir), 2)
 
 
 if __name__ == "__main__":

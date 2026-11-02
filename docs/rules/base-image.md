@@ -1,7 +1,7 @@
 # Base image
 
 Which image you build on, and how you identify it. Rules in this file are written from the
-README's [Spell #1](../../README.md) and [Spell #2](../../README.md); the code is in the
+README's Spell #1 and Spell #2; the code is in the
 [Dockerfile](../../Dockerfile).
 
 ## DW-BASE-01: Pin the base image by digest

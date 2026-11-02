@@ -1,8 +1,8 @@
 # Build and cache
 
 How the image is assembled: layer order, stages, what is copied in and what is taken out.
-Written from [Spell #6](../../README.md), [#7](../../README.md), [#8](../../README.md) and
-[#10](../../README.md).
+Written from Spell #6, #7, #8 and
+#10.
 
 ## DW-BUILD-01: Order layers by how often they change
 
@@ -20,16 +20,17 @@ statement:
 
 why:
   Docker reuses a layer until its inputs change, so putting the rarely-changing install step
-  before the often-changing code keeps rebuilds fast. Leaving dev tooling out saved about 39 MB
-  here (120 MB to 81 MB), and a locked install verifies every download against the hashes in the
-  lockfile.
+  before the often-changing code keeps rebuilds fast. Leaving dev tooling out saved about 39 MB in
+  this repository (120 MB to 81 MB). A locked install (`uv sync --locked` here) fails when the
+  lockfile no longer matches the project, so the image is built from exactly the versions you
+  reviewed.
 
 how_to_check:
   manual
 
 sources:
 - https://docs.docker.com/build/building/best-practices/#leverage-build-cache
-- https://www.cisecurity.org/benchmark/docker
+- https://docs.astral.sh/uv/guides/integration/docker/
 
 ## DW-BUILD-02: Use multi-stage builds
 
@@ -64,14 +65,12 @@ spells:
 last_verified: 2026-11-02
 
 statement:
-  `COPY` specific paths rather than the whole context, use `COPY` rather than `ADD` for local
-  files, and keep tests, docs, `.git` and anything secret out of the image (and out of the build
-  context with a `.dockerignore`).
+  `COPY` only the specific paths the image needs rather than the whole context, use `COPY` rather
+  than `ADD` for local files, and keep tests, docs, `.git` and anything secret out of the image.
 
 why:
-  Whatever is copied is in the image for good, including secrets copied by accident. Selective
-  copying also keeps the image smaller. `ADD` can fetch remote files and unpack archives, which
-  is rarely what you meant (CIS 4.8, 4.9).
+  Whatever is copied is in the image for good, including secrets copied by accident. `ADD` can
+  fetch remote files and unpack archives, which is rarely what you meant (CIS 4.8, 4.9).
 
 how_to_check:
   Hadolint DL3020 (use `COPY` instead of `ADD` for files and folders); Dockle CIS-DI-0009

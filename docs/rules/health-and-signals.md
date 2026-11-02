@@ -1,8 +1,8 @@
 # Health and signals
 
 How the image tells the platform it is working, and how it shuts down. Written from
-[Spell #11](../../README.md), [#12](../../README.md), [#13](../../README.md) and
-[#14](../../README.md).
+Spell #11, #12, #13 and
+#14.
 
 ## DW-HEALTH-01: Declare the port the application listens on
 
@@ -28,7 +28,7 @@ how_to_check:
 
 sources:
 - https://docs.docker.com/reference/dockerfile/#expose
-- https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html
+- https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-5a-be-careful-when-mapping-container-ports-to-the-host-with-firewalls-like-ufw
 
 ## DW-HEALTH-02: Add a health check
 
