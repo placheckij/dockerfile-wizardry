@@ -8,11 +8,11 @@ heading and is followed by `field: value` lines:
     spells:                        # README spells this rule covers
     - 1
     last_verified: 2026-11-02
-    statement: |
+    statement:
       One or two sentences.
-    why: |
+    why:
       The reason.
-    how_to_check: |
+    how_to_check:
       A linter rule id, a command, or `manual`.
     sources:                       # https:// links to the primary source
     - https://docs.docker.com/...
@@ -46,6 +46,7 @@ THEMES = {
 }
 STRENGTHS = ("MUST", "SHOULD", "TRADE-OFF")
 TEXT_FIELDS = ("statement", "why", "how_to_check")
+LIST_FIELDS = ("spells", "sources")
 REQUIRED = ("strength", "spells", "last_verified", *TEXT_FIELDS, "sources")
 
 HEADING_RE = re.compile(r"^## (DW-([A-Z]+)-(\d+)): (.+?)\s*$")
@@ -93,6 +94,12 @@ def _entries(path):
         if fence:
             continue
         heading = HEADING_RE.match(line)
+        if line.startswith("## DW-") and not heading:
+            raise RuleError(
+                path,
+                None,
+                f"malformed rule heading {line!r} (expected '## DW-<THEME>-<NN>: <title>')",
+            )
         if heading:
             if current:
                 yield current
@@ -107,30 +114,40 @@ def _entries(path):
         yield current
 
 
-def _fields(lines):
-    """Split an entry body into {field: str | list[str]}."""
+def _fields(lines, fail):
+    """Split an entry body into {field: str | list[str]}; any line that is not part of a field is
+    an error, so malformed input cannot be silently dropped."""
     fields = {}
     i = 0
     while i < len(lines):
-        match = FIELD_RE.match(lines[i])
+        line = lines[i]
         i += 1
-        if not match:
+        if not line.strip():
             continue
+        match = FIELD_RE.match(line)
+        if not match:
+            raise fail(f"unexpected line {line.strip()[:60]!r}")
         name, value = match.groups()
-        if value == "|":
-            block = []
-            while i < len(lines) and (not lines[i].strip() or lines[i].startswith(" ")):
-                block.append(lines[i].strip())
-                i += 1
-            fields[name] = "\n".join(block).strip()
-        elif value == "":
+        if name not in REQUIRED:
+            raise fail(f"unknown field '{name}'")
+        if name in fields:
+            raise fail(f"field '{name}' appears twice")
+        if value:
+            fields[name] = value
+        elif i < len(lines) and lines[i].startswith("- "):
             items = []
             while i < len(lines) and lines[i].startswith("- "):
                 items.append(lines[i][2:].strip())
                 i += 1
             fields[name] = items
         else:
-            fields[name] = value
+            block = []
+            while i < len(lines) and (
+                not lines[i].strip() or lines[i].startswith("  ")
+            ):
+                block.append(lines[i].strip())
+                i += 1
+            fields[name] = "\n".join(block).strip()
     return fields
 
 
@@ -144,10 +161,16 @@ def parse_rule_file(path):
         fail = partial(RuleError, path, rule_id)
         if code != THEMES[theme]:
             raise fail(f"id must start with DW-{THEMES[theme]}- in {path.name}")
-        fields = _fields(body)
+        fields = _fields(body, fail)
         for name in REQUIRED:
             if not fields.get(name):
                 raise fail(f"missing field '{name}'")
+            wants_list = name in LIST_FIELDS
+            if isinstance(fields[name], list) != wants_list:
+                raise fail(
+                    f"'{name}' must be "
+                    + ("a list (one '- ' line per item)" if wants_list else "text")
+                )
         if fields["strength"] not in STRENGTHS:
             raise fail(f"strength must be one of {', '.join(STRENGTHS)}")
         try:

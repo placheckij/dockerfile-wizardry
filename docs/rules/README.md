@@ -34,7 +34,7 @@ out of date.
 | DW-DEPS-01 | Install only the packages you need, in one layer | TRADE-OFF | #3 | [dependencies](dependencies.md) |
 | DW-DEPS-02 | Install language tooling pinned, without caches | SHOULD | #5 | [dependencies](dependencies.md) |
 | DW-HEALTH-01 | Declare the port the application listens on | SHOULD | #11 | [health-and-signals](health-and-signals.md) |
-| DW-HEALTH-02 | Add a health check | MUST | #12 | [health-and-signals](health-and-signals.md) |
+| DW-HEALTH-02 | Add a health check | SHOULD | #12 | [health-and-signals](health-and-signals.md) |
 | DW-HEALTH-03 | Set the stop signal | SHOULD | #13 | [health-and-signals](health-and-signals.md) |
 | DW-HEALTH-04 | Run a minimal init as PID 1 | SHOULD | #14 | [health-and-signals](health-and-signals.md) |
 | DW-USER-01 | Run as a non-root user | MUST | #4 | [users-and-permissions](users-and-permissions.md) |

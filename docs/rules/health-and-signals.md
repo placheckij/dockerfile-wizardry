@@ -5,72 +5,102 @@ How the image tells the platform it is working, and how it shuts down. Written f
 [#14](../../README.md).
 
 ## DW-HEALTH-01: Declare the port the application listens on
+
 strength: SHOULD
+
 spells:
 - 11
+
 last_verified: 2026-11-02
-statement: |
+
+statement:
   Add `EXPOSE <port>` for the port the application uses. When running the container, publish the
   port on loopback (`-p 127.0.0.1:8000:8000`) unless it is meant to be reachable from other
   hosts.
-why: |
+
+why:
   `EXPOSE` does not publish anything; it documents the port for readers, scanners and
   orchestrators. A bare `-p 8000:8000` opens the port on all interfaces, and Docker's own
   firewall rules bypass host firewalls such as UFW (OWASP Rule 5a).
-how_to_check: |
+
+how_to_check:
   manual
+
 sources:
 - https://docs.docker.com/reference/dockerfile/#expose
 - https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html
 
 ## DW-HEALTH-02: Add a health check
-strength: MUST
+
+strength: SHOULD
+
 spells:
 - 12
+
 last_verified: 2026-11-02
-statement: |
+
+statement:
   Add a `HEALTHCHECK` that exercises the application, using a tool that exists in the image. A
   failed check must exit non-zero.
-why: |
-  Docker and orchestrators can then restart or stop sending traffic to an unhealthy container
-  (CIS 4.5). Using the language runtime already in the image avoids shipping `curl` and its
-  libraries just for the check.
-how_to_check: |
+
+why:
+  CIS 4.5 asks for it: Docker then reports whether the application inside is working
+  (`healthy` or `unhealthy`), not only whether the process is still running. Using the language
+  runtime already in the image avoids shipping `curl` and its libraries just for the check.
+  Whether to rely on it is partly your platform's call, since an orchestrator can use its own
+  probes instead; Hadolint ships its missing-`HEALTHCHECK` rule disabled by default.
+
+how_to_check:
   Hadolint DL3057 (missing `HEALTHCHECK`; ignored by default, so enable it); Dockle CIS-DI-0006.
+
 sources:
 - https://www.cisecurity.org/benchmark/docker
 - https://docs.docker.com/reference/dockerfile/#healthcheck
 
 ## DW-HEALTH-03: Set the stop signal
+
 strength: SHOULD
+
 spells:
 - 13
+
 last_verified: 2026-11-02
-statement: |
+
+statement:
   Set `STOPSIGNAL` to the signal your application handles for a clean shutdown (`SIGTERM` for
   most servers), and make sure the process actually handles it.
-why: |
+
+why:
   `docker stop` sends this signal first and kills the process after a timeout. A process that
   ignores it loses in-flight work.
-how_to_check: |
+
+how_to_check:
   manual
+
 sources:
 - https://docs.docker.com/reference/dockerfile/#stopsignal
 
 ## DW-HEALTH-04: Run a minimal init as PID 1
+
 strength: SHOULD
+
 spells:
 - 14
+
 last_verified: 2026-11-02
-statement: |
+
+statement:
   Use an init such as `tini` (or `docker run --init`) as the entrypoint, with the application
   started in exec form.
-why: |
+
+why:
   PID 1 has special signal and child-reaping behaviour. Without an init, orphaned child
   processes can accumulate as zombies and signals may not reach the application, which delays
   or breaks graceful shutdown.
-how_to_check: |
+
+how_to_check:
   manual
+
 sources:
 - https://docs.docker.com/reference/cli/docker/container/run/#init
 - https://github.com/krallin/tini

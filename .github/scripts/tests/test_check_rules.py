@@ -9,16 +9,23 @@ import check_rules
 
 RULE = """\
 ## DW-BASE-01: Pin the base image by digest
+
 strength: MUST
+
 spells:
 - 1
+
 last_verified: 2026-11-02
-statement: |
+
+statement:
   Reference the base image by `tag@sha256:digest`.
-why: |
+
+why:
   A republished tag cannot change which bytes you build on.
-how_to_check: |
+
+how_to_check:
   manual
+
 sources:
 - https://docs.docker.com/build/building/best-practices/#pin-base-image-versions
 """
@@ -51,7 +58,13 @@ class ParseRuleFileTest(RuleFileTestCase):
         self.assertEqual(len(rule.sources), 1)
 
     def test_missing_field_names_file_and_rule(self):
-        path = self.write("base-image.md", RULE.replace("why: |", "wyh: |"))
+        path = self.write(
+            "base-image.md",
+            RULE.replace(
+                "why:\n  A republished tag cannot change which bytes you build on.\n\n",
+                "",
+            ),
+        )
         with self.assertRaises(check_rules.RuleError) as caught:
             check_rules.parse_rule_file(path)
         message = str(caught.exception)
@@ -94,6 +107,75 @@ class ParseRuleFileTest(RuleFileTestCase):
         text = "```markdown\n" + RULE + "```\n"
         path = self.write("base-image.md", text)
         self.assertEqual(check_rules.parse_rule_file(path), [])
+
+    def test_blank_lines_between_fields_and_multiline_text_parse(self):
+        text = RULE.replace(
+            "  A republished tag cannot change which bytes you build on.",
+            "  A republished tag cannot change\n\n  which bytes you build on.",
+        )
+        (rule,) = check_rules.parse_rule_file(self.write("base-image.md", text))
+        self.assertIn("which bytes", rule.why)
+
+    def test_malformed_rule_heading_rejected(self):
+        for heading in (
+            "## DW-BASE-02 - Title",
+            "## DW-Base-02: Title",
+            "## DW-BASE-2",
+        ):
+            with self.subTest(heading=heading):
+                path = self.write("base-image.md", RULE + "\n" + heading + "\n")
+                with self.assertRaises(check_rules.RuleError) as caught:
+                    check_rules.parse_rule_file(path)
+                self.assertIn("heading", str(caught.exception))
+
+    def test_inline_spells_rejected(self):
+        path = self.write("base-image.md", RULE.replace("spells:\n- 1", "spells: 12"))
+        with self.assertRaises(check_rules.RuleError) as caught:
+            check_rules.parse_rule_file(path)
+        self.assertIn("spells", str(caught.exception))
+
+    def test_list_given_for_a_scalar_field_rejected_without_a_traceback(self):
+        path = self.write(
+            "base-image.md",
+            RULE.replace("last_verified: 2026-11-02", "last_verified:\n- 2026-11-02"),
+        )
+        with self.assertRaises(check_rules.RuleError) as caught:
+            check_rules.parse_rule_file(path)
+        self.assertIn("last_verified", str(caught.exception))
+
+    def test_list_item_after_a_blank_line_rejected(self):
+        text = RULE.replace(
+            "best-practices/#pin-base-image-versions",
+            "best-practices/#pin-base-image-versions\n\n- http://evil.example/x",
+        )
+        with self.assertRaises(check_rules.RuleError) as caught:
+            check_rules.parse_rule_file(self.write("base-image.md", text))
+        self.assertIn("unexpected", str(caught.exception))
+
+    def test_unindented_continuation_line_rejected(self):
+        text = RULE.replace("  manual", "  manual\nand more text")
+        with self.assertRaises(check_rules.RuleError) as caught:
+            check_rules.parse_rule_file(self.write("base-image.md", text))
+        self.assertIn("unexpected", str(caught.exception))
+
+    def test_unknown_field_rejected(self):
+        text = RULE.replace("strength: MUST", "strength: MUST\n\nstrenght: MUST")
+        with self.assertRaises(check_rules.RuleError) as caught:
+            check_rules.parse_rule_file(self.write("base-image.md", text))
+        self.assertIn("strenght", str(caught.exception))
+
+    def test_real_rule_files_separate_fields_with_blank_lines(self):
+        # GitHub folds a field into the previous list or paragraph unless a blank line
+        # separates them, which garbles the rendered page.
+        rules_dir = check_rules.ROOT / "docs" / "rules"
+        for path in sorted(rules_dir.glob("*.md")):
+            lines = path.read_text(encoding="utf-8").splitlines()
+            for number, line in enumerate(lines[1:], start=2):
+                if check_rules.FIELD_RE.match(line) or check_rules.HEADING_RE.match(
+                    line
+                ):
+                    with self.subTest(file=path.name, line=number):
+                        self.assertEqual(lines[number - 2].strip(), "")
 
 
 class ValidateTest(RuleFileTestCase):
