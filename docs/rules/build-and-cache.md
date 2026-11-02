@@ -70,13 +70,14 @@ statement:
 
 why:
   Whatever is copied is in the image for good, including secrets copied by accident. For local
-  files, `ADD` can also fetch remote URLs and unpack archives, which is rarely what you meant (CIS
-  4.8, 4.9); for a remote file on purpose, see DW-DEPS-03. See the
+  files `COPY` is enough; `ADD` also unpacks local tar archives and can fetch remote URLs, which
+  is rarely what you meant (CIS 4.8, 4.9). For a remote file on purpose, see DW-DEPS-03. See the
   [trade-offs](tradeoffs.md#5-add-or-copy) between `ADD` and `COPY`.
 
 how_to_check:
   Hadolint DL3020 (use `COPY` instead of `ADD` for files and folders); Dockle CIS-DI-0009
-  (use `COPY` instead of `ADD`).
+  (use `COPY` instead of `ADD`). Dockle also flags a deliberate `ADD --checksum <url>`, so that
+  needs an exception or a `RUN curl` with a checksum instead.
 
 sources:
 - https://www.cisecurity.org/benchmark/docker
@@ -93,16 +94,18 @@ spells:
 last_verified: 2026-11-02
 
 statement:
-  Remove package managers, headers and network tools the application does not use, then copy
-  the pruned filesystem into a fresh `scratch` stage so the deleted files are gone from every
-  layer. Declare `ENV`, `LABEL`, `USER`, `WORKDIR` and the rest again, because `scratch` carries
-  no metadata.
+  Remove package managers, headers and network tools the application does not use, but keep the
+  package database (such as `/lib/apk/db` or `/var/lib/dpkg`), then copy the pruned filesystem
+  into a fresh `scratch` stage so the deleted files are gone from every layer. Declare `ENV`,
+  `LABEL`, `USER`, `WORKDIR` and the rest again, because `scratch` carries no metadata.
 
 why:
   Deleting files in a later layer saves nothing, since they stay in the layers below and can be
   extracted by anyone who pulls the image. Flattening removes them for real (94 MB to 81 MB here).
   This is defense in depth, not a barrier: an interpreter and a shell remain, so rely on the
-  runtime flags for containment. Removing the shell as well is possible but breaks `docker exec
+  runtime flags for containment. The database stays because vulnerability scanners read it to
+  list the OS packages; without it the scan can pass while checking nothing (DW-SUPPLY-05).
+  Removing the shell as well is possible but breaks `docker exec
   ... sh` debugging and any check that runs `ls` or `id` in the container, which is why this is a
   trade-off between hardening and operability. See also [base image
   choices](tradeoffs.md#6-which-base-image-default-slim-alpine-or-distroless).
@@ -126,10 +129,9 @@ last_verified: 2026-11-02
 statement:
   Give the package manager's cache directory to the build with `RUN
   --mount=type=cache,target=<dir>` instead of baking downloads into a layer. Use the option
-  `sharing=locked` for apt, which needs exclusive access to its data. On Debian and Ubuntu images
-  apt is configured to delete downloaded packages, so the Dockerfile reference's apt example first
-  removes `/etc/apt/apt.conf.d/docker-clean` and sets `Binary::apt::APT::Keep-Downloaded-Packages
-  "true"`.
+  `sharing=locked` for apt, which needs exclusive access to its data. The Dockerfile reference's
+  apt example first removes `/etc/apt/apt.conf.d/docker-clean` (a Debian and Ubuntu image setting
+  that clears downloaded packages) and sets `Binary::apt::APT::Keep-Downloaded-Packages "true"`.
 
 why:
   A cache mount survives between builds without ending up in the image, so repeated builds skip
@@ -218,8 +220,9 @@ strength: SHOULD
 last_verified: 2026-11-02
 
 statement:
-  Where reproducible builds matter, set `SOURCE_DATE_EPOCH` (Buildx 0.10 and later pass it through
-  from the environment) so the timestamps BuildKit records follow it, and add
+  Where reproducible builds matter, give the build a `SOURCE_DATE_EPOCH`, as a build argument, as
+  a default `ARG` in the global scope, or in the environment of the client (Buildx 0.10 and later
+  pass it through), so the timestamps BuildKit records follow it, and add
   `rewrite-timestamp=true` to the image exporter (BuildKit 0.13 and later) so file times inside
   the layers follow it too.
 
@@ -253,7 +256,8 @@ why:
   remote management tools like SSH or RDP, because management happens with container tooling
   outside the container, and should not need package management tools, because the contents are
   not expected to change at runtime. Fewer tools also leaves fewer for an attacker to use. See
-  DW-BUILD-04 for removing them from an existing image.
+  DW-BUILD-04 for removing them from an existing image. Remove the tool, not its package
+  database, or scanners stop seeing the OS packages (DW-SUPPLY-05).
 
 how_to_check:
   manual

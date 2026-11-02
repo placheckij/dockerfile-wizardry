@@ -42,7 +42,7 @@ sources:
 - https://docs.docker.com/build/building/best-practices/#run
 - https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-9-integrate-container-scanning-tools-into-your-cicd-pipeline
 
-## DW-DEPS-02: Install language tooling pinned, without caches
+## DW-DEPS-02: Install language tooling pinned, with its cache out of the layer
 
 strength: SHOULD
 
@@ -52,13 +52,15 @@ spells:
 last_verified: 2026-11-02
 
 statement:
-  Keep the installer's download cache out of the layer, configure it to use the interpreter
-  already in the base image, and pin its version (this repository pins `uv`). For Python, compile
+  Keep the installer's download cache out of the layer, either by disabling it or by keeping it
+  in a cache mount (DW-BUILD-05); configure the installer to use the interpreter already in the
+  base image, and pin its version (this repository pins `uv`). For Python, compile
   bytecode at install time when the root filesystem will be read-only.
 
 why:
   A cache left in a layer adds size that can never be removed, and an unpinned installer makes
-  builds differ over time. With a read-only runtime filesystem Python cannot write its own `.pyc`
+  builds differ over time. The uv Docker guide shows both ways: a cache mount, and `--no-cache` or
+  `UV_NO_CACHE` for when you are not mounting the cache. This repository disables the cache. With a read-only runtime filesystem Python cannot write its own `.pyc`
   files, so without install-time compilation it recompiles every module on every start; in this
   repository that measured 644 ms against 358 ms for dependency imports, for about 8 MB more
   image. Python writes hash-based `.pyc` files when `SOURCE_DATE_EPOCH` is set, which makes the
@@ -82,8 +84,9 @@ statement:
   When a build downloads a file or source archive, fetch it over HTTPS and check it against an
   embedded checksum, and against a signature with the publisher's full key fingerprint when one is
   published. `ADD --checksum=<hash> <url>` does the check for you: for HTTP sources it takes a
-  SHA-256 digest (`sha256:<hash>`, the only supported algorithm), for Git sources the commit SHA,
-  and it needs Dockerfile syntax 1.6 or later.
+  SHA-256 digest (`sha256:<hash>`, the only supported algorithm) and needs Dockerfile syntax 1.6
+  or later; for Git sources it takes the commit SHA (use the full SHA, since the reference also
+  accepts a prefix of one or more characters) and needs syntax 1.16 or later.
 
 why:
   The Docker Official Images guidelines ask for all three where possible (HTTPS, a signature check

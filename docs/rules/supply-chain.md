@@ -64,8 +64,7 @@ statement:
 why:
   The Trivy supply chain advisory (GHSA-69fq-xp46-6x23, CVE-2026-33634, March 2026) recommends
   pinning GitHub Actions to full, immutable commit SHA hashes and not using mutable version tags,
-  after malicious releases and action tags were published. The advisory covers Actions; it does
-  not make a general claim about other tools.
+  after malicious releases and action tags were published.
 
 how_to_check:
   manual
@@ -116,10 +115,11 @@ statement:
 
 why:
   The NCSC guidance asks for automated scanning to detect malware, known vulnerabilities and
-  misconfiguration, says scans should analyse a static image so you should never need to run the
-  container to scan it, and says you should be sure that files removed during the build are
-  entirely removed from the final image, which matters most for temporary secrets. See
-  DW-BUILD-04.
+  misconfiguration, says vulnerability scans should analyse a static image so you should never
+  need to run the container to scan it for vulnerabilities, and says you should be sure that files
+  removed during the build are entirely removed from the final image, which matters most for
+  temporary secrets. See DW-BUILD-04. A scan can only report what it can see: keep the OS package
+  database in the image (DW-BUILD-04), and check that the scanner lists packages.
 
 how_to_check:
   A scanner such as Trivy covers known vulnerabilities, misconfiguration and secrets (this

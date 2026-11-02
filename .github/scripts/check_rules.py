@@ -37,9 +37,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# theme file name (without .md) -> the code used in its rule ids
 # pages in docs/rules/ that hold prose, not rule entries
 NON_THEME_FILES = ("README.md", "tradeoffs.md")
+# theme file name (without .md) -> the code used in its rule ids
 THEMES = {
     "base-image": "BASE",
     "build-and-cache": "BUILD",

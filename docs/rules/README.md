@@ -23,7 +23,7 @@ Most rules are about the Dockerfile and the way it is built. A few cover the bui
 
 ## Trade-offs
 
-Where sources disagree, or the best choice depends on your situation, a rule is marked `TRADE-OFF` and explains the choice itself; the larger recurring ones have a section on the [trade-offs page](tradeoffs.md), which the rules link to.
+Where sources disagree, or the best choice depends on your situation, a rule is marked `TRADE-OFF` and explains the choice itself. The larger recurring choices have a section on the [trade-offs page](tradeoffs.md); rules of any strength link there when they take one side of such a choice.
 
 ## Index
 
@@ -47,7 +47,7 @@ out of date.
 | DW-BUILD-09 | Use SOURCE_DATE_EPOCH when you need reproducible output | SHOULD | - | [build-and-cache](build-and-cache.md) |
 | DW-BUILD-10 | Leave out remote-management and package-management tools | SHOULD | - | [build-and-cache](build-and-cache.md) |
 | DW-DEPS-01 | Install only the packages you need, in one layer | TRADE-OFF | #3 | [dependencies](dependencies.md) |
-| DW-DEPS-02 | Install language tooling pinned, without caches | SHOULD | #5 | [dependencies](dependencies.md) |
+| DW-DEPS-02 | Install language tooling pinned, with its cache out of the layer | SHOULD | #5 | [dependencies](dependencies.md) |
 | DW-DEPS-03 | Verify what you download during the build | SHOULD | - | [dependencies](dependencies.md) |
 | DW-HEALTH-01 | Declare the port the application listens on | SHOULD | #11 | [health-and-signals](health-and-signals.md) |
 | DW-HEALTH-02 | Add a health check | SHOULD | #12 | [health-and-signals](health-and-signals.md) |

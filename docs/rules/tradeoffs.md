@@ -1,6 +1,6 @@
 # Trade-offs
 
-Some Dockerfile choices have no single right answer: reputable sources disagree, or the best option depends on your situation. This page sets out each side with its source, then says what to weigh. Rules link here where a choice has its own section, instead of picking a side for you.
+Some Dockerfile choices have no single right answer: reputable sources disagree, or the best option depends on your situation. This page sets out each side with its source, then says what to weigh. Rules link here where a choice has its own section; some rules still recommend one side and link here for the other.
 
 ## 1. Tag or digest for the base image
 
@@ -34,7 +34,7 @@ Sources: [Docker: apt-get and version pinning](https://docs.docker.com/build/bui
 
 **The choice.** Run `apk upgrade` or `apt-get upgrade` during the build, against relying on a freshly pulled base image and a plain install.
 
-**For upgrading in the build.** It picks up patches the base image does not have yet. This repository runs `apk -U upgrade` in the same layer as its package install ([DW-DEPS-01](dependencies.md)). Docker's current best-practices page gives no advice either way.
+**For upgrading in the build.** It picks up patches the base image does not have yet. This repository runs `apk -U upgrade` in the same layer as its package install (see its Dockerfile). Docker's current best-practices page gives no advice either way.
 
 **For relying on the base image.** Dockle's DKL-DI-0003 flags `apt-get dist-upgrade`, and its notes refer to Docker's former advice to avoid `upgrade` and `dist-upgrade`, which Dockle shows struck through, so treat it as a linter rule rather than current Docker guidance. The NCSC guidance says updates are typically applied by building a new image rather than updating containers in place; a build-time upgrade also produces a new image, so that advice supports both approaches, and its real warning is that build caching must not stop updates from landing.
 
@@ -56,9 +56,9 @@ Sources: [Dockle checkpoints](https://github.com/goodwithtech/dockle/blob/master
 
 **COPY.** Docker's best-practices page says you will mostly want `COPY` for copying files from one stage to another in a multi-stage build, and that for files needed by a single `RUN` you can often use a bind mount instead. Hadolint (DL3020) and Dockle (CIS-DI-0009) flag `ADD` where `COPY` would do.
 
-**ADD.** The same page says `ADD` is best for when you need to download a remote artifact as part of your build, and better than fetching with `wget` and `tar` because it gives a more precise build cache and has built-in checksum validation. `ADD --checksum=sha256:<hash>` verifies the download (SHA-256 only, Dockerfile syntax 1.6 or later).
+**ADD.** The same page says `ADD` is best for when you need to download a remote artifact as part of your build, and better than fetching with `wget` and `tar` because it gives a more precise build cache and has built-in checksum validation. `ADD --checksum=sha256:<hash>` verifies the download (for HTTP sources SHA-256 only, Dockerfile syntax 1.6 or later; for Git sources the commit SHA, syntax 1.16 or later).
 
-**What to weigh.** Use `COPY` for files from your own build context or an earlier stage. For a remote file, Docker prefers `ADD --checksum`; Hadolint's DL3020 only flags `ADD` of plain local files, not URLs or archives, so it does not object to that, and a `RUN curl` with its own checksum and signature check is the alternative. The important part is that the download is verified ([DW-DEPS-03](dependencies.md), [DW-BUILD-03](build-and-cache.md)).
+**What to weigh.** Use `COPY` for files from your own build context or an earlier stage. For a remote file, Docker prefers `ADD --checksum`; Hadolint's DL3020 only flags `ADD` of plain local files, not URLs or archives, so it does not object to that. Dockle's CIS-DI-0009 does not make that distinction: it looks for `ADD` in the image history, so an `ADD --checksum <url>` is flagged too and needs a documented exception. A `RUN curl` with its own checksum and signature check is the alternative that passes both linters. The important part is that the download is verified ([DW-DEPS-03](dependencies.md), [DW-BUILD-03](build-and-cache.md)).
 
 Sources: [Docker: ADD or COPY](https://docs.docker.com/build/building/best-practices/#add-or-copy), [Dockerfile reference: ADD](https://docs.docker.com/reference/dockerfile/#add), [Dockle checkpoints](https://github.com/goodwithtech/dockle/blob/master/CHECKPOINT.md), [Hadolint rules](https://github.com/hadolint/hadolint), [Hadolint DL3020 source](https://github.com/hadolint/hadolint/blob/master/src/Hadolint/Rule/DL3020.hs).
 
