@@ -122,17 +122,33 @@ class ValidateTest(RuleFileTestCase):
         self.assertTrue(any("duplicate" in p.lower() for p in problems))
 
 
+INDEX_README = """\
+# Rules
+
+<!-- rules-index:start -->
+<!-- rules-index:end -->
+"""
+
+USER_RULE = RULE.replace("DW-BASE-01", "DW-USER-01").replace("Pin the base", "Run as")
+
+
 class MainTest(RuleFileTestCase):
-    def tree(self, rule_text, spell_headings):
-        (self.dir / "docs" / "rules").mkdir(parents=True)
-        (self.dir / "docs" / "rules" / "base-image.md").write_text(
-            rule_text, encoding="utf-8"
-        )
+    def tree(self, rule_text, spell_headings, extra_files=None):
+        rules = self.dir / "docs" / "rules"
+        rules.mkdir(parents=True)
+        (rules / "base-image.md").write_text(rule_text, encoding="utf-8")
+        for name, text in (extra_files or {}).items():
+            (rules / name).write_text(text, encoding="utf-8")
+        (rules / "README.md").write_text(INDEX_README, encoding="utf-8")
         readme = "\n".join(f"### 🛡️ Spell #{n}: Name" for n in spell_headings)
         (self.dir / "README.md").write_text(readme + "\n", encoding="utf-8")
 
+    def index_text(self):
+        return (self.dir / "docs" / "rules" / "README.md").read_text(encoding="utf-8")
+
     def test_check_passes_on_a_complete_tree(self):
         self.tree(RULE, [1])
+        self.assertEqual(check_rules.main(["--write"], root=self.dir), 0)
         self.assertEqual(check_rules.main(["--check"], root=self.dir), 0)
 
     def test_check_fails_when_a_spell_has_no_rule(self):
@@ -141,6 +157,37 @@ class MainTest(RuleFileTestCase):
 
     def test_check_reports_a_broken_rule_file_without_a_traceback(self):
         self.tree(RULE.replace("MUST", "ALWAYS"), [1])
+        self.assertEqual(check_rules.main(["--check"], root=self.dir), 1)
+
+    def test_index_lists_every_rule_sorted(self):
+        self.tree(
+            RULE, [1, 2], {"users-and-permissions.md": USER_RULE.replace("- 1", "- 2")}
+        )
+        self.assertEqual(check_rules.main(["--write"], root=self.dir), 0)
+        text = self.index_text()
+        self.assertIn("| DW-BASE-01 | Pin the base image by digest | MUST | #1 |", text)
+        self.assertIn("[users-and-permissions](users-and-permissions.md)", text)
+        self.assertLess(text.index("DW-BASE-01"), text.index("DW-USER-01"))
+
+    def test_write_is_idempotent(self):
+        self.tree(RULE, [1])
+        check_rules.main(["--write"], root=self.dir)
+        first = self.index_text()
+        check_rules.main(["--write"], root=self.dir)
+        self.assertEqual(self.index_text(), first)
+
+    def test_check_fails_when_index_stale(self):
+        self.tree(RULE, [1])
+        check_rules.main(["--write"], root=self.dir)
+        path = self.dir / "docs" / "rules" / "README.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace("MUST", "SHOULD"), encoding="utf-8"
+        )
+        self.assertEqual(check_rules.main(["--check"], root=self.dir), 1)
+
+    def test_check_fails_when_the_index_markers_are_missing(self):
+        self.tree(RULE, [1])
+        (self.dir / "docs" / "rules" / "README.md").write_text("# Rules\n")
         self.assertEqual(check_rules.main(["--check"], root=self.dir), 1)
 
 

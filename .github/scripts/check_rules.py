@@ -50,6 +50,8 @@ REQUIRED = ("strength", "spells", "last_verified", *TEXT_FIELDS, "sources")
 
 HEADING_RE = re.compile(r"^## (DW-([A-Z]+)-(\d+)): (.+?)\s*$")
 FIELD_RE = re.compile(r"^([a-z_]+):\s*(.*?)\s*$")
+INDEX_START = "<!-- rules-index:start -->"
+INDEX_END = "<!-- rules-index:end -->"
 SPELL_RE = re.compile(r"^###\s.*Spell #(\d+):", re.MULTILINE)
 
 
@@ -216,14 +218,62 @@ def collect(root):
     return rules, problems
 
 
+def render_index(rules):
+    """The Markdown table listing every rule, sorted by id."""
+    lines = [
+        "| Rule | Title | Strength | Spells | Theme |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for rule in sorted(rules, key=lambda r: r.id):
+        title = rule.title.replace("|", "\\|")
+        spells = ", ".join(f"#{n}" for n in sorted(rule.spells))
+        theme = f"[{rule.theme}]({rule.theme}.md)"
+        lines.append(f"| {rule.id} | {title} | {rule.strength} | {spells} | {theme} |")
+    return "\n".join(lines)
+
+
+def with_index(text, rules):
+    """`text` with the block between the index markers replaced by the current index."""
+    if (
+        text.count(INDEX_START) != 1
+        or text.count(INDEX_END) != 1
+        or text.index(INDEX_START) > text.index(INDEX_END)
+    ):
+        raise ValueError(
+            f"must contain exactly one {INDEX_START} ... {INDEX_END} block"
+        )
+    head, rest = text.split(INDEX_START, 1)
+    _, tail = rest.split(INDEX_END, 1)
+    return head + INDEX_START + "\n" + render_index(rules) + "\n" + INDEX_END + tail
+
+
 def main(argv, root=ROOT):
-    _, problems = collect(root)
+    rules, problems = collect(root)
+    index = root / "docs" / "rules" / "README.md"
+    new = None
+    if not problems:
+        try:
+            new = with_index(index.read_text(encoding="utf-8"), rules)
+        except (OSError, ValueError) as error:
+            problems.append(f"docs/rules/README.md: {error}")
     if problems:
         print("The rulebook has problems:", file=sys.stderr)
         for problem in problems:
             print(f"  - {problem}", file=sys.stderr)
         return 1
-    print("The rulebook is valid.")
+    if "--write" in argv:
+        if new != index.read_text(encoding="utf-8"):
+            index.write_text(new, encoding="utf-8")
+            print("docs/rules/README.md: index updated.")
+        return 0
+    if new != index.read_text(encoding="utf-8"):
+        print(
+            "docs/rules/README.md: the rule index is out of date.\n"
+            "Run:  python3 .github/scripts/check_rules.py --write   and commit the result.",
+            file=sys.stderr,
+        )
+        return 1
+    print("The rulebook is valid and its index is current.")
     return 0
 
 
