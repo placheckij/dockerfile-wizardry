@@ -15,11 +15,12 @@ statement:
 
 why:
   Docker's documentation says build arguments and environment variables are inappropriate for
-  passing secrets because they persist in the final image. Secret mounts are never included in
-  provenance attestations, while the `max` provenance mode exposes the values of build arguments,
-  so a secret passed as an argument can leak through metadata as well as through the image.
-  Anything copied into the image becomes part of it, and the NCSC guidance singles out temporary
-  secrets used during the build, which must not be stored in the resulting image.
+  passing secrets because they persist in the final image. Provenance attestations never include
+  the contents of secret mounts, but the `max` mode does expose the values of build arguments, and
+  Docker lists the identities of secrets among the details that `min` mode leaves out, so with
+  `max` even the names of your secrets can end up in published metadata. Anything copied into the
+  image becomes part of it, and the NCSC guidance singles out temporary secrets used during the
+  build, which must not be stored in the resulting image.
 
 how_to_check:
   Docker build check SecretsUsedInArgOrEnv (`docker build --check`); Dockle CIS-DI-0010; a secret

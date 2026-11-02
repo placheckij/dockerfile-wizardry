@@ -226,10 +226,12 @@ why:
 
 how_to_check:
   manual. Build the image twice with `--no-cache`, so that the second build cannot reuse the first
-  build's layers, and compare the two digests.
+  build's layers, and compare the two digests. Provenance attestations record build timestamps, so
+  make the comparison with attestations turned off.
 
 sources:
 - https://github.com/moby/buildkit/blob/master/docs/build-repro.md
+- https://docs.docker.com/build/metadata/attestations/slsa-provenance/
 
 ## DW-BUILD-10: Leave out remote-management and package-management tools
 

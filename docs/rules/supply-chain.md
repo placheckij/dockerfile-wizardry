@@ -17,8 +17,9 @@ statement:
 why:
   Attestations let consumers see what is inside an image and how it was built. Docker says that
   when possible you should prefer `mode=max` because it holds much more detail, and warns that it
-  exposes the values of build arguments, so pair it with DW-SECRET-01 and use `min` (which Docker
-  calls safe for all builds) when you cannot be sure.
+  exposes the values of build arguments; `min` leaves out build argument values, the identities of
+  secrets and rich layer metadata, and Docker calls it safe for all builds. Pair `max` with
+  DW-SECRET-01, and use `min` when you cannot be sure or do not want to publish those details.
 
 how_to_check:
   manual
