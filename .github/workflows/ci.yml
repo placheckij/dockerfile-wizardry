@@ -50,6 +50,14 @@ jobs:
       - name: Check the README table of contents is up to date
         run: python3 .github/scripts/readme_toc.py --check
 
+      # docs/rules/ holds the sourced rulebook; its index is generated
+      # (fix: python3 .github/scripts/check_rules.py --write)
+      - name: Check the rulebook entries and index
+        run: python3 .github/scripts/check_rules.py --check
+
+      - name: Test the rulebook checker
+        run: python3 -m unittest discover -s .github/scripts/tests
+
   security-scan:
     name: 🛡️ Security Scan
     runs-on: ubuntu-latest
