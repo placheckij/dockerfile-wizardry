@@ -379,10 +379,6 @@ class MainTest(RuleFileTestCase):
                 self.assertEqual(check_rules.main(argv, root=self.dir), 2)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class ReferencesTest(RuleFileTestCase):
     """Prose DW ids and relative links must resolve (checked by --check, after the index)."""
 
@@ -459,3 +455,43 @@ class ReferencesTest(RuleFileTestCase):
         )
         self.assertEqual(check_rules.main(["--write"], root=self.dir), 0)
         self.assertEqual(check_rules.main(["--check"], root=self.dir), 0)
+
+    def test_a_link_wrapped_over_two_lines_is_checked(self):
+        text = "# T\n\n[some\ntext](base-image.md#nope)\n"
+        code, err = self.check({"tradeoffs.md": text})
+        self.assertEqual(code, 1)
+        self.assertIn("#nope", err)
+
+    def test_a_heading_with_an_underscore_keeps_it_in_the_anchor(self):
+        text = "# T\n\n## Use SOURCE_DATE_EPOCH\n\n[x](#use-source_date_epoch)\n"
+        code, _ = self.check({"tradeoffs.md": text})
+        self.assertEqual(code, 0)
+
+    def test_a_repeated_heading_gets_a_numbered_anchor(self):
+        text = "# T\n\n## Same\n\n## Same\n\n[x](#same) [y](#same-1)\n"
+        code, _ = self.check({"tradeoffs.md": text})
+        self.assertEqual(code, 0)
+
+    def test_a_numbered_anchor_beyond_the_repeats_fails(self):
+        text = "# T\n\n## Same\n\n## Same\n\n[x](#same-2)\n"
+        code, err = self.check({"tradeoffs.md": text})
+        self.assertEqual(code, 1)
+        self.assertIn("#same-2", err)
+
+    def test_a_link_title_is_ignored_but_the_target_is_checked(self):
+        text = '# T\n\n[x](nowhere.md "a title")\n'
+        code, err = self.check({"tradeoffs.md": text})
+        self.assertEqual(code, 1)
+        self.assertIn("nowhere.md", err)
+
+    def test_an_angle_bracket_target_is_unwrapped(self):
+        code, _ = self.check({"tradeoffs.md": "# T\n\n[x](<base-image.md>)\n"})
+        self.assertEqual(code, 0)
+
+    def test_a_percent_encoded_path_is_decoded(self):
+        code, _ = self.check({"tradeoffs.md": "# T\n\n[x](base%2Dimage.md)\n"})
+        self.assertEqual(code, 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

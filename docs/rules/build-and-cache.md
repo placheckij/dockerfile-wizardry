@@ -1,8 +1,8 @@
 # Build and cache
 
 How the image is assembled: layer order, stages, what is copied in and what is taken out.
-Written from Spell #6, #7, #8 and
-#10.
+The first four rules are written from Spell #6, #7, #8 and #10; the rest come from the cited
+sources alone.
 
 ## DW-BUILD-01: Order layers by how often they change
 
@@ -77,7 +77,8 @@ why:
 how_to_check:
   Hadolint DL3020 (use `COPY` instead of `ADD` for files and folders); Dockle CIS-DI-0009
   (use `COPY` instead of `ADD`). Dockle also flags a deliberate `ADD --checksum <url>` in the final
-  stage; do it in an earlier stage (see the trade-offs), or use an exception or a `RUN curl`.
+  stage (it ignores only the earliest `ADD` in the history); do it in an earlier stage (see the
+  trade-offs), or use an exception, or a `RUN curl` in a build stage.
 
 sources:
 - https://www.cisecurity.org/benchmark/docker
@@ -133,7 +134,8 @@ statement:
   apt example first removes `/etc/apt/apt.conf.d/docker-clean` (a Debian and Ubuntu image setting
   that clears downloaded packages) and sets `Binary::apt::APT::Keep-Downloaded-Packages "true"`.
   Do that in a build stage, since it is its own `RUN` and persists into whatever image the stage
-  produces. A cache mount is created with `uid` 0 and mode `0755` by default, so when the stage
+  produces; in the final stage, install runtime packages as usual and clean up in the same layer
+  (DW-DEPS-01). A cache mount is created with `uid` 0 and mode `0755` by default, so when the stage
   runs as another user, pass `uid=` and `gid=` and point `target` at that user's actual cache
   directory.
 
@@ -146,7 +148,9 @@ why:
   Docker documentation lists them per tool, so read the page for yours.
 
 how_to_check:
-  manual
+  manual. Hadolint's DL3009, DL3019 and DL3042 understand cache mounts. Dockle reads the image
+  history, not the Dockerfile, so it cannot see a mount and may still report an `apk add` without
+  `--no-cache` (DKL-DI-0004) or an apt install that leaves its lists (DKL-DI-0005).
 
 sources:
 - https://docs.docker.com/build/cache/optimize/
@@ -184,16 +188,16 @@ last_verified: 2026-11-02
 statement:
   In CI, share cache between runs with `--cache-to` and `--cache-from` (for example
   `type=registry`). The `mode` parameter decides which layers are exported: `min` is the default
-  and `max` exports more. Try both and keep the one that suits your builds.
+  and `max` exports more, including layers of intermediate stages. Try both and keep the one that
+  suits your builds, and restrict who can read the cache accordingly.
 
 why:
   CI runners usually start empty, so without an exported cache every run rebuilds everything. A
   larger export can raise the cache hit rate but costs storage and upload time, and Docker says
   `max` caches all layers, even those of intermediate steps, so a build stage's contents (and
-  anything you removed only in a later stage, see DW-BUILD-04) end up in the cache: give the cache
-  reference the same access control as the image. It does not carry cache mounts (DW-BUILD-05). If
-  you use the `max` provenance mode as well, remember that it is a separate setting (see
-  DW-SUPPLY-01).
+  anything you removed only in a later stage, see DW-BUILD-04) end up in the cache. Give the cache
+  reference at least the access control of the most sensitive build stage, which for a public image
+  usually means keeping the cache private. It does not carry cache mounts (DW-BUILD-05).
 
 how_to_check:
   manual
@@ -267,8 +271,7 @@ why:
   remote management tools like SSH or RDP, because management happens with container tooling
   outside the container, and should not need package management tools, because the contents are
   not expected to change at runtime. Fewer tools also leaves fewer for an attacker to use. See
-  DW-BUILD-04 for removing them from an existing image. Remove the tool, not its package
-  database, or scanners stop seeing the OS packages (DW-SUPPLY-05).
+  DW-BUILD-04 for removing them from an existing image. Keep the package database (see DW-BUILD-04).
 
 how_to_check:
   manual

@@ -1,7 +1,8 @@
 # Dependencies
 
 What goes into the image besides your code: operating-system packages and language tooling.
-Written from Spell #3 and Spell #5.
+DW-DEPS-01 and DW-DEPS-02 are written from Spell #3 and Spell #5; DW-DEPS-03 comes from its sources
+alone.
 
 ## DW-DEPS-01: Install only the packages you need, in one layer
 
@@ -19,16 +20,15 @@ statement:
   each OS package to an exact version is a trade-off, described below.
 
 why:
-  Every extra package is attack surface and size (CIS 4.3). An index update in its own layer can
-  be cached and go stale before the install runs (CIS 4.6). On pinning, sources disagree: linters
-  such as Hadolint (DL3008 for apt) ask for pinned versions for reproducibility, while a pinned
-  version can disappear from a repository that keeps only the current one, which in this
-  repository's experience Alpine does; that is an observation about this project, not a cited
-  source. Pinning also stops automatic security fixes. This repository does not pin OS packages
-  and relies on a base-image digest check and a weekly no-cache rebuild instead. Note that Docker
-  still reuses a whole `RUN` layer from its cache until the instruction or the base digest
-  changes, so patches only arrive when the cache is invalidated (`docker build --no-cache --pull`,
-  a new digest, or an edit to the `RUN`). See the trade-offs on
+  Every extra package is attack surface and size (CIS 4.3). An index update in its own layer can be
+  cached and go stale before the install runs (CIS 4.6). On pinning, sources disagree: linters such
+  as Hadolint (DL3008 for apt) ask for pinned versions for reproducibility, while a pinned version
+  can disappear from a repository that keeps only the current one, which in this repository's
+  experience Alpine does (see the pinning trade-off). Pinning also stops automatic security fixes.
+  This repository does not pin OS packages and relies on a base-image digest check and a weekly
+  no-cache rebuild instead. Note that Docker still reuses a whole `RUN` layer from its cache until
+  the instruction or the base digest changes, so patches only arrive when the cache is invalidated
+  (`docker build --no-cache --pull`, a new digest, or an edit to the `RUN`). See the trade-offs on
   [pinning](tradeoffs.md#2-pinning-operating-system-package-versions) and
   [updating](tradeoffs.md#3-update-inside-the-image-or-rebuild-from-a-fresh-base).
 
@@ -85,9 +85,11 @@ strength: SHOULD
 last_verified: 2026-11-02
 
 statement:
-  When a build downloads a file or source archive, fetch it over HTTPS and check it against an
-  embedded checksum, and against a signature with the publisher's full key fingerprint when one is
-  published. `ADD --checksum=<hash> <url>` does the check for you: for HTTP sources it takes a
+  When a build downloads a file or source archive directly (with `ADD`, `curl` or `wget`), fetch
+  it over HTTPS and check it against an embedded checksum, and against a signature with the
+  publisher's full key fingerprint when one is published. Packages that come from a package manager
+  are covered by its own verification and, where you have one, a lock file with hashes. `ADD
+  --checksum=<hash> <url>` does the checksum check for you: for HTTP sources it takes a
   SHA-256 digest (`sha256:<hash>`, the only supported algorithm) and needs Dockerfile syntax 1.6
   or later; for Git sources it takes the commit SHA (use the full SHA, since the reference also
   accepts a prefix of one or more characters) and needs syntax 1.16 or later.

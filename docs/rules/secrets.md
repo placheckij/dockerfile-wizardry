@@ -27,7 +27,9 @@ why:
 how_to_check:
   Docker build check SecretsUsedInArgOrEnv (`docker build --check`), which reports `ENV` and `ARG`
   keys that look sensitive, so it matches names only; Dockle CIS-DI-0010, which checks
-  environment variables and credential files, not `ARG`; a secret scanner over the repository.
+  environment variables and credential files, and in practice also flags sensitive-looking
+  `KEY=value` words in the final image's history, which is where a build argument used by a `RUN`
+  shows up; a secret scanner over the repository.
 
 sources:
 - https://docs.docker.com/build/building/secrets/

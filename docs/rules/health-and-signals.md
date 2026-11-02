@@ -1,8 +1,7 @@
 # Health and signals
 
-How the image tells the platform it is working, and how it shuts down. Written from
-Spell #11, #12, #13 and
-#14.
+How the image tells the platform it is working, and how it shuts down. The first four rules are
+written from Spell #11, #12, #13 and #14; DW-HEALTH-05 comes from its sources alone.
 
 ## DW-HEALTH-01: Declare the port the application listens on
 

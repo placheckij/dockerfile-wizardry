@@ -66,10 +66,9 @@ why:
   The Trivy supply chain advisory (GHSA-69fq-xp46-6x23, CVE-2026-33634, March 2026) recommends
   pinning GitHub Actions to full, immutable commit SHA hashes and not using mutable version tags,
   after malicious releases and action tags were published. It also shows that pinning the top
-  level is not the whole job: a `trivy-action` pinned to an older commit would itself have been
-  safe but would have run a malicious `setup-trivy` during the exposure window, so check what a
-  pinned action fetches in turn, and the advisory says Trivy images referenced by digest
-  were not affected.
+  level is not the whole job: a `trivy-action` pinned to a commit from before 2025-04-09 would
+  itself have been safe but would have run a malicious `setup-trivy` during the exposure window, so
+  check what a pinned action fetches in turn.
 
 how_to_check:
   manual
@@ -125,16 +124,14 @@ why:
   contents and secure your supply chain), says vulnerability scans should analyse a static image so
   you should never need to run the container to scan it for vulnerabilities, and says you should be
   sure that files removed during the build are entirely removed from the final image, which matters
-  most for temporary secrets. See DW-BUILD-04. A scan can only report what it can see: keep the OS
-  package database in the image (DW-BUILD-04), and check that the scanner lists packages.
+  most for temporary secrets. A scan can only report what it can see: keep the OS package database
+  in the image, and check that the scanner lists packages (see DW-BUILD-04).
 
 how_to_check:
   A scanner such as Trivy covers known vulnerabilities, misconfiguration and secrets (this
   repository runs it in CI); its documentation does not describe malware detection, which the NCSC
   guidance also asks for, so that needs a separate tool if you want it. To confirm removed files
-  are gone, inspect the contents of each layer with a layer inspector or the layer tarballs inside
-  `docker save` output; `docker history` lists instructions and sizes, not files, so it cannot
-  show this.
+  are gone, inspect the contents of each layer as described in DW-BUILD-04.
 
 sources:
 - https://www.ncsc.gov.uk/collection/using-containerisation/building-container-images
@@ -156,8 +153,8 @@ why:
   protections of the build container. The advisory's workaround is to use only BuildKit frontends
   from trusted providers. The Dockerfile reference says the `syntax` directive declares which
   Dockerfile syntax version to use, and that BuildKit uses a bundled version of the frontend when
-  it is not set. The Engine 29.9.0 release note describes the gRPC server that BuildKit runs for
-  frontend containers as serving "images referenced by a `# syntax=` directive", so an image named
+  it is not set. The Engine 29.9.0 release note refers to "the gRPC server that BuildKit runs for
+  frontend containers, such as images referenced by a `# syntax=` directive", so an image named
   there is a frontend you are trusting. Pinning it by digest, as for base images, is our
   suggestion, not something the sources state.
 

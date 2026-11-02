@@ -66,7 +66,7 @@ INDEX_START = "<!-- rules-index:start -->"
 INDEX_END = "<!-- rules-index:end -->"
 SPELL_RE = re.compile(r"^###\s.*Spell #(\d+):", re.MULTILINE)
 RULE_ID_RE = re.compile(r"\bDW-[A-Z]+-\d+\b")
-LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
+LINK_RE = re.compile(r"\[[^\]]*\]\(\s*(<[^>]*>|[^)\s]+)[^)]*\)")
 
 
 class RuleError(Exception):
@@ -284,7 +284,7 @@ def collect(root):
 def heading_slug(heading):
     """The anchor GitHub generates for a heading: lower case, punctuation dropped, spaces to
     hyphens."""
-    text = re.sub(r"[`*_]", "", heading.strip().lower())
+    text = re.sub(r"[`*]", "", heading.strip().lower())
     return re.sub(r"[^\w\- ]", "", text).replace(" ", "-")
 
 
@@ -312,25 +312,23 @@ def check_references(rules_dir, rules):
             # regenerable when it is stale
             head, _, rest = text.partition(INDEX_START)
             text = head + rest.partition(INDEX_END)[2]
-        for line in unfenced_lines(text):
-            for rule_id in RULE_ID_RE.findall(line):
-                if rule_id not in known:
-                    problems.append(f"{path.name}: {rule_id} is not a rule")
-            for target in LINK_RE.findall(line):
-                if re.match(r"[a-z][a-z0-9+.-]*:", target, re.IGNORECASE):
-                    continue
-                file_part, _, fragment = target.partition("#")
-                linked = (path.parent / file_part) if file_part else path
-                if not linked.exists():
-                    problems.append(f"{path.name}: link to missing file {file_part}")
-                elif (
-                    fragment
-                    and linked.suffix == ".md"
-                    and fragment not in anchors(linked)
-                ):
-                    problems.append(
-                        f"{path.name}: link {target} has no matching heading"
-                    )
+        prose = "\n".join(unfenced_lines(text))
+        for rule_id in RULE_ID_RE.findall(prose):
+            if rule_id not in known:
+                problems.append(f"{path.name}: {rule_id} is not a rule")
+        # a link's text may wrap over lines, so search the whole text, not line by line
+        for target in LINK_RE.findall(prose):
+            target = urllib.parse.unquote(target.strip("<>"))
+            if re.match(r"[a-z][a-z0-9+.-]*:", target, re.IGNORECASE):
+                continue
+            file_part, _, fragment = target.partition("#")
+            linked = (path.parent / file_part) if file_part else path
+            if not linked.exists():
+                problems.append(f"{path.name}: link to missing file {file_part}")
+            elif (
+                fragment and linked.suffix == ".md" and fragment not in anchors(linked)
+            ):
+                problems.append(f"{path.name}: link {target} has no matching heading")
     return problems
 
 
