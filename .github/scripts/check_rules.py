@@ -19,8 +19,9 @@ heading and is followed by `field: value` lines:
 
 The script checks every entry, that every "Spell #N" heading in README.md is covered by a rule,
 that every DW id, and every relative link or link definition (with its #anchor), in the prose of
-docs/rules/*.md resolves (inline code and HTML comments are not searched for links),
-and that the generated index in docs/rules/README.md is current.
+docs/rules/*.md and the README resolves (inline code and HTML comments are not searched for links),
+and that the generated blocks in docs/rules/README.md (rule index) and docs/rules/sources.md
+(sources index) are current.
 
 Usage:
     python3 .github/scripts/check_rules.py --check   # exit 1 on any problem (CI)
@@ -292,12 +293,7 @@ def heading_slug(heading):
     text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", heading)
     text = re.sub(r"[`*]|(?<!\w)_+|_+(?!\w)", "", text.strip().lower())
     text = unicodedata.normalize("NFC", text)
-    kept = (
-        c
-        for c in text
-        if c not in "\u200d\ufe0f"
-        and (unicodedata.category(c)[0] in "LMN" or c in "_- ")
-    )
+    kept = (c for c in text if unicodedata.category(c)[0] in "LMN" or c in "_- ")
     return "".join(kept).replace(" ", "-")
 
 
@@ -331,12 +327,15 @@ def link_targets(prose):
 
 
 def check_references(rules_dir, rules):
-    """Problems with DW ids and relative links in the prose of docs/rules/*.md. Ids are checked
+    """Problems with DW ids and relative links in the prose of docs/rules/*.md and the README. Ids are checked
     wherever they appear outside fenced code, inline code included."""
     problems = []
     known = {rule.id for rule in rules}
     root = rules_dir.parents[1]
-    for path in sorted(rules_dir.glob("*.md")):
+    pages = sorted(rules_dir.glob("*.md"))
+    if (root / "README.md").exists():
+        pages.append(root / "README.md")
+    for path in pages:
         text = path.read_text(encoding="utf-8")
         for page, start, end in (
             ("README.md", INDEX_START, INDEX_END),

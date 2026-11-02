@@ -551,7 +551,14 @@ class ReferencesTest(RuleFileTestCase):
         self.assertEqual(code, 0)
 
     def test_an_emoji_heading_slugs_like_github(self):
-        text = "# T\n\n## \U0001f9d9\u200d\u2642\ufe0f Magic\n\n[x](#-magic)\n"
+        # GitHub drops the symbol and the joiner but keeps the variation selector, which is
+        # why the README table of contents has %EF%B8%8F in its anchors
+        text = "# T\n\n## \u2699\ufe0f Spell\n\n[x](#%EF%B8%8F-spell)\n"
+        code, _ = self.check({"tradeoffs.md": text})
+        self.assertEqual(code, 0)
+
+    def test_a_zero_width_joiner_is_dropped_from_the_anchor(self):
+        text = "# T\n\n## a\u200db\n\n[x](#ab)\n"
         code, _ = self.check({"tradeoffs.md": text})
         self.assertEqual(code, 0)
 
@@ -661,6 +668,22 @@ class SourcesIndexTest(RuleFileTestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(check_rules.main(["--write"], root=self.dir), 0)
             self.assertEqual(check_rules.main(["--check"], root=self.dir), 0)
+
+    def test_the_root_readme_links_are_checked(self):
+        self.tree(RULE, [1])
+        readme = self.dir / "README.md"
+        readme.write_text(
+            readme.read_text(encoding="utf-8")
+            + "\n[a](docs/rules/base-image.md#nope) [b](docs/rules/base-image.md)\n",
+            encoding="utf-8",
+        )
+        err = io.StringIO()
+        with contextlib.redirect_stdout(io.StringIO()):
+            check_rules.main(["--write"], root=self.dir)
+        with contextlib.redirect_stderr(err):
+            code = check_rules.main(["--check"], root=self.dir)
+        self.assertEqual(code, 1)
+        self.assertIn("#nope", err.getvalue())
 
 
 if __name__ == "__main__":
