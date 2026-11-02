@@ -12,7 +12,7 @@ Some Dockerfile choices have no single right answer: reputable sources disagree,
 
 **The cost of digests, and Docker's answer.** Docker notes that looking up and updating digests by hand is tedious, and that you are opting out of automated security fixes. Its suggestion is the Docker Scout policy `No outdated base images`, or GitHub Dependabot with the `docker` ecosystem, which raises pull requests that update base image tags and digests on a schedule; Docker calls that better than a tag that changes the version automatically, because you are in control and have an audit trail.
 
-**What to weigh.** If you can automate digest updates (a bot, or a CI job that fails when the tag has moved), pin and automate. If you cannot, a tag with regular rebuilds (`docker build --pull`) keeps you patched at the price of less repeatability. Keeping the tag next to the digest, as this repository does, means a reader can still tell what the digest is. See [DW-BASE-01](base-image.md) and [DW-SUPPLY-04](supply-chain.md).
+**What to weigh.** If you can automate digest updates (a bot, or a CI job that fails when the tag has moved), pin and automate. If you cannot, a tag with regular rebuilds keeps you patched at the price of less repeatability; use `--pull` to fetch the newest base image and an occasional `--no-cache` build so the layers that install packages are rerun too. Keeping the tag next to the digest, as this repository does, means a reader can still tell what the digest is. See [DW-BASE-01](base-image.md) and [DW-SUPPLY-04](supply-chain.md).
 
 Sources: [Docker: pin base image versions](https://docs.docker.com/build/building/best-practices/#pin-base-image-versions), [Renovate: digest pinning](https://docs.renovatebot.com/docker/), [Kubernetes: images](https://kubernetes.io/docs/concepts/containers/images/).
 
@@ -38,7 +38,7 @@ Sources: [Docker: apt-get and version pinning](https://docs.docker.com/build/bui
 
 **For relying on the base image.** Dockle's DKL-DI-0003 flags `apt-get dist-upgrade`, and its notes refer to Docker's former advice to avoid `upgrade` and `dist-upgrade`, which Dockle shows struck through, so treat it as a linter rule rather than current Docker guidance. The NCSC guidance says updates are typically applied by building a new image rather than updating containers in place; a build-time upgrade also produces a new image, so that advice supports both approaches, and its real warning is that build caching must not stop updates from landing.
 
-**What to weigh.** Whichever you choose, make sure the layer that holds the update is rebuilt: Docker reuses a layer from the build cache while its instruction and inputs are unchanged, so use `--pull`, a periodic build without cache, or a changed digest. See [DW-SUPPLY-04](supply-chain.md).
+**What to weigh.** Whichever you choose, make sure the layer that holds the update is rebuilt: Docker reuses a layer from the build cache while its instruction and inputs are unchanged, and `--pull` only checks for a newer base image, so it does not rerun a package-install layer when the base is unchanged. Use a periodic `--no-cache` build (with `--pull`) or a changed base digest to rerun those layers. See [DW-SUPPLY-04](supply-chain.md).
 
 Sources: [Dockle checkpoints](https://github.com/goodwithtech/dockle/blob/master/CHECKPOINT.md), [NCSC: building container images](https://www.ncsc.gov.uk/collection/using-containerisation/building-container-images), [Docker: optimize cache usage](https://docs.docker.com/build/cache/optimize/).
 

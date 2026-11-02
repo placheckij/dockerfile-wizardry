@@ -80,8 +80,10 @@ last_verified: 2026-11-02
 
 statement:
   Apply security updates by building a new image and replacing the running container, and make
-  sure your build cache does not stop updates from being picked up (for example with `docker build
-  --pull`, a periodic build without cache, or automated base-image digest updates).
+  sure your build cache does not stop updates from being picked up (for example a periodic `docker
+  build --no-cache --pull`: `--pull` fetches a newer base image, but only a build without cache
+  reruns the layers that install packages when the base is unchanged; or automated base-image
+  digest updates).
 
 why:
   The NCSC guidance says security updates are typically applied by building a new image rather
