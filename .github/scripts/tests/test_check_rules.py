@@ -386,9 +386,9 @@ class ReferencesTest(RuleFileTestCase):
 
     def check(self, extra_files, rule_text=RULE):
         self.tree(rule_text, [1], extra_files)
-        check_rules.main(["--write"], root=self.dir)
-        err = io.StringIO()
-        with contextlib.redirect_stderr(err):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            check_rules.main(["--write"], root=self.dir)
             code = check_rules.main(["--check"], root=self.dir)
         return code, err.getvalue()
 
@@ -479,6 +479,10 @@ class ReferencesTest(RuleFileTestCase):
         self.assertIn("#same-2", err)
 
     def test_a_link_title_is_ignored_but_the_target_is_checked(self):
+        code, _ = self.check({"tradeoffs.md": '# T\n\n[x](base-image.md "a title")\n'})
+        self.assertEqual(code, 0)
+
+    def test_a_titled_link_to_a_missing_file_fails(self):
         text = '# T\n\n[x](nowhere.md "a title")\n'
         code, err = self.check({"tradeoffs.md": text})
         self.assertEqual(code, 1)
@@ -491,6 +495,80 @@ class ReferencesTest(RuleFileTestCase):
     def test_a_percent_encoded_path_is_decoded(self):
         code, _ = self.check({"tradeoffs.md": "# T\n\n[x](base%2Dimage.md)\n"})
         self.assertEqual(code, 0)
+
+    def test_links_in_inline_code_and_comments_are_not_checked(self):
+        text = "# T\n\n`[x](nowhere.md)` and <!-- [y](nowhere.md) -->\n"
+        code, _ = self.check({"tradeoffs.md": text})
+        self.assertEqual(code, 0)
+
+    def test_an_id_in_inline_code_is_still_checked(self):
+        code, err = self.check({"tradeoffs.md": "# T\n\nSee `DW-BASE-09`.\n"})
+        self.assertEqual(code, 1)
+        self.assertIn("DW-BASE-09", err)
+
+    def test_a_target_with_parentheses_is_read_whole(self):
+        code, _ = self.check(
+            {"notes_(x).txt": "n", "tradeoffs.md": "# T\n\n[x](notes_(x).txt)\n"}
+        )
+        self.assertEqual(code, 0)
+
+    def test_nested_brackets_in_link_text_do_not_hide_the_link(self):
+        code, err = self.check({"tradeoffs.md": "# T\n\n[a [b] c](nowhere.md)\n"})
+        self.assertEqual(code, 1)
+        self.assertIn("nowhere.md", err)
+
+    def test_a_reference_definition_is_checked(self):
+        text = "# T\n\n[x][r]\n\n[r]: nowhere.md#nope\n"
+        code, err = self.check({"tradeoffs.md": text})
+        self.assertEqual(code, 1)
+        self.assertIn("nowhere.md", err)
+
+    def test_a_valid_reference_definition_passes(self):
+        code, _ = self.check({"tradeoffs.md": "# T\n\n[x][r]\n\n[r]: base-image.md\n"})
+        self.assertEqual(code, 0)
+
+    def test_emphasis_and_link_syntax_in_a_heading_are_not_in_the_anchor(self):
+        text = "# T\n\n## _Foo_ bar\n\n## See [docs](base-image.md)\n\n[a](#foo-bar) [b](#see-docs)\n"
+        code, _ = self.check({"tradeoffs.md": text})
+        self.assertEqual(code, 0)
+
+    def test_an_indented_atx_and_a_setext_heading_are_anchors(self):
+        text = "# T\n\n  ## Indented\n\nSetext one\n==========\n\n[a](#indented) [b](#setext-one)\n"
+        code, _ = self.check({"tradeoffs.md": text})
+        self.assertEqual(code, 0)
+
+    def test_duplicate_headings_follow_the_next_free_suffix(self):
+        text = "# T\n\n## a\n\n## a\n\n## a-1\n\n[x](#a-1-1)\n"
+        code, _ = self.check({"tradeoffs.md": text})
+        self.assertEqual(code, 0)
+
+    def test_an_emoji_heading_slugs_like_github(self):
+        text = "# T\n\n## \U0001f9d9\u200d\u2642\ufe0f Magic\n\n[x](#-magic)\n"
+        code, _ = self.check({"tradeoffs.md": text})
+        self.assertEqual(code, 0)
+
+    def test_a_combining_mark_stays_in_the_anchor(self):
+        text = "# T\n\n## Cafe\u0301\n\n[x](#cafe\u0301)\n"
+        code, _ = self.check({"tradeoffs.md": text})
+        self.assertEqual(code, 0)
+
+    def test_an_encoded_hash_is_not_a_fragment_separator(self):
+        code, err = self.check({"tradeoffs.md": "# T\n\n[x](base-image.md%23frag)\n"})
+        self.assertEqual(code, 1)
+        self.assertIn("missing file", err)
+
+    def test_a_root_relative_link_resolves_from_the_repository_root(self):
+        code, _ = self.check({"tradeoffs.md": "# T\n\n[x](/README.md)\n"})
+        self.assertEqual(code, 0)
+
+    def test_reference_problems_are_reported_with_other_problems(self):
+        self.tree(RULE, [1, 2], {"tradeoffs.md": "# T\n\nSee DW-BASE-09.\n"})
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code = check_rules.main(["--check"], root=self.dir)
+        self.assertEqual(code, 1)
+        self.assertIn("Spell #2", err.getvalue())
+        self.assertIn("DW-BASE-09", err.getvalue())
 
 
 if __name__ == "__main__":

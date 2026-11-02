@@ -113,7 +113,7 @@ USER wizard
 # ═══════════════════════════════════════════════════════════════════════
 # Deleting files in a later layer saves nothing - they stay in the layers below
 # and can still be extracted from the image. Copying the pruned filesystem into
-# a fresh `scratch` image drops them for real (and shrinks the image ~17 MB).
+# a fresh `scratch` image drops them for real (and shrinks the image ~13 MB).
 # scratch starts with no metadata, so ENV, LABEL, USER, ... are declared again.
 FROM scratch AS runtime
 ARG PYTHON_VERSION

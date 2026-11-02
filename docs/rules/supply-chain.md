@@ -42,8 +42,9 @@ statement:
 why:
   Verification checks a signature against an expected identity, so a consumer can reject an image
   that was not signed by it. The tooling itself has had bugs: cosign v3.1.3 resolved
-  GHSA-fx35-mq7g-6g98, a verification bypass using an unexpected public key in a legacy bundle.
-  This repository does not publish images; the README explains what it would take.
+  GHSA-fx35-mq7g-6g98, a verification bypass using an unexpected public key in a legacy bundle. This
+  repository does not publish images; the [README](../../README.md#-deliberately-not-included)
+  explains what it would take.
 
 how_to_check:
   manual
@@ -156,7 +157,8 @@ why:
   it is not set. The Engine 29.9.0 release note refers to "the gRPC server that BuildKit runs for
   frontend containers, such as images referenced by a `# syntax=` directive", so an image named
   there is a frontend you are trusting. Pinning it by digest, as for base images, is our
-  suggestion, not something the sources state.
+  suggestion, not something the sources state; a pin freezes the frontend, so update the digest
+  automatically as DW-BASE-01 and DW-SUPPLY-04 describe.
 
 how_to_check:
   manual

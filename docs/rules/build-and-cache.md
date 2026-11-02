@@ -129,23 +129,25 @@ last_verified: 2026-11-02
 
 statement:
   Give the package manager's cache directory to the build with `RUN
-  --mount=type=cache,target=<dir>` instead of baking downloads into a layer. Use the option
-  `sharing=locked` for apt, which needs exclusive access to its data. The Dockerfile reference's
-  apt example first removes `/etc/apt/apt.conf.d/docker-clean` (a Debian and Ubuntu image setting
-  that clears downloaded packages) and sets `Binary::apt::APT::Keep-Downloaded-Packages "true"`.
-  Do that in a build stage, since it is its own `RUN` and persists into whatever image the stage
-  produces; in the final stage, install runtime packages as usual and clean up in the same layer
-  (DW-DEPS-01). A cache mount is created with `uid` 0 and mode `0755` by default, so when the stage
-  runs as another user, pass `uid=` and `gid=` and point `target` at that user's actual cache
-  directory.
+  --mount=type=cache,target=<dir>` instead of baking downloads into a layer, in a build stage;
+  in the final stage, install runtime packages as usual and clean up in the same layer
+  (DW-DEPS-01). Details for apt, non-root users and apk are in the reasons below.
 
 why:
   A cache mount survives between builds without ending up in the image, so repeated builds skip
   re-downloading what has not changed. Cache mounts live in the builder's local storage: the
   Dockerfile reference says they are not included in exported build cache (`--cache-to`), are not
-  restored by `--cache-from`, and start empty when each build runs on a new builder, such as a
-  fresh CI runner (see DW-BUILD-07). The right directory and options depend on the tool, and the
-  Docker documentation lists them per tool, so read the page for yours.
+  restored by `--cache-from`, and start empty when each build runs on a new builder, such as a fresh
+  CI runner (see DW-BUILD-07). The right directory and options depend on the tool: Docker gives
+  examples for a few tools and says to read your tool's own documentation. For apt, use
+  `sharing=locked`, which gives it exclusive access to its data; the Dockerfile reference's apt
+  example first removes `/etc/apt/apt.conf.d/docker-clean` (a Debian and Ubuntu image setting that
+  clears downloaded packages) and sets `Binary::apt::APT::Keep-Downloaded-Packages "true"`, and as
+  that is its own `RUN` it persists into whatever image the stage produces. For apk, the Alpine wiki
+  says the cache is enabled through `/etc/apk/cache`, so a mount aimed at another directory such as
+  `/var/cache/apk` does nothing unless that path is linked there. A cache mount is created with
+  `uid` 0 and mode `0755` by default, so when the stage runs as another user, pass `uid=` and `gid=`
+  and point `target` at that user's actual cache directory.
 
 how_to_check:
   manual. Hadolint's DL3009, DL3019 and DL3042 understand cache mounts. Dockle reads the image
@@ -155,6 +157,7 @@ how_to_check:
 sources:
 - https://docs.docker.com/build/cache/optimize/
 - https://docs.docker.com/reference/dockerfile/
+- https://wiki.alpinelinux.org/wiki/Local_APK_cache
 
 ## DW-BUILD-06: Mount a large source tree instead of copying it when it only produces an artifact
 
@@ -195,9 +198,10 @@ why:
   CI runners usually start empty, so without an exported cache every run rebuilds everything. A
   larger export can raise the cache hit rate but costs storage and upload time, and Docker says
   `max` caches all layers, even those of intermediate steps, so a build stage's contents (and
-  anything you removed only in a later stage, see DW-BUILD-04) end up in the cache. Give the cache
-  reference at least the access control of the most sensitive build stage, which for a public image
-  usually means keeping the cache private. It does not carry cache mounts (DW-BUILD-05).
+  anything you removed only in a later stage, see DW-BUILD-04) end up in the cache. Our suggestion
+  is to give the cache reference at least the access control of the most sensitive build stage,
+  which for a public image usually means keeping the cache private (this repository uses
+  `type=gha`). It does not carry cache mounts (DW-BUILD-05).
 
 how_to_check:
   manual
@@ -249,8 +253,10 @@ why:
 
 how_to_check:
   manual. Build the image twice with `--no-cache`, so that the second build cannot reuse the first
-  build's layers, and compare the two digests. Provenance attestations record build timestamps, so
-  make the comparison with attestations turned off.
+  build's layers, and compare the two image manifest digests (`containerimage.digest` in the file
+  written by `--metadata-file`). Provenance attestations record build timestamps, so make the
+  comparison with attestations turned off, and use the same BuildKit version for both builds, since
+  BuildKit's `compatibility-version` option exists because assembly changes can change the digest.
 
 sources:
 - https://github.com/moby/buildkit/blob/master/docs/build-repro.md
@@ -264,14 +270,16 @@ last_verified: 2026-11-02
 
 statement:
   Do not include tools such as SSH or RDP, or system package managers, in the image that runs your
-  application unless it genuinely needs them.
+  application unless it genuinely needs them. On a distribution base this is met either by
+  choosing a base without them or by pruning (DW-BUILD-04), which brings that rule's trade-off.
 
 why:
   The UK NCSC guidance on building container images says containers should not normally need
   remote management tools like SSH or RDP, because management happens with container tooling
   outside the container, and should not need package management tools, because the contents are
   not expected to change at runtime. Fewer tools also leaves fewer for an attacker to use. See
-  DW-BUILD-04 for removing them from an existing image. Keep the package database (see DW-BUILD-04).
+  DW-BUILD-04 for removing them from an existing image, and for keeping the package database that
+  scanners read.
 
 how_to_check:
   manual

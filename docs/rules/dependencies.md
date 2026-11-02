@@ -33,9 +33,9 @@ why:
   [updating](tradeoffs.md#3-update-inside-the-image-or-rebuild-from-a-fresh-base).
 
 how_to_check:
-  Hadolint DL3008 (pin apt versions) and DL3018 (pin apk versions) check the pinning side of
-  the trade-off; Dockle CIS-DI-0007 flags an update instruction used alone. Whether to pin is the
-  decision described above.
+  Hadolint DL3008 (pin apt versions) and DL3018 (pin apk versions) check the pinning side of the
+  trade-off; Dockle CIS-DI-0007 flags an `apt-get update` used alone (apt only). Whether to pin is
+  the decision described above.
 
 sources:
 - https://www.cisecurity.org/benchmark/docker
@@ -62,13 +62,15 @@ why:
   builds differ over time. The uv Docker guide shows both ways: a cache mount, and `--no-cache` or
   `UV_NO_CACHE` for when you are not mounting the cache. This repository disables the cache. If you
   mount it instead, the mount is created for `uid` 0 by default, so for a non-root build user pass
-  `uid=` and `gid=` and target that user's cache directory (`uv cache dir` shows it), or the mount
-  goes unused and the cache lands in the layer. With a read-only runtime filesystem Python cannot
-  write its own `.pyc` files, so without install-time compilation it recompiles every module on
-  every start; in this repository that measured 644 ms against 358 ms for dependency imports, for
-  about 8 MB more image. Python writes hash-based `.pyc` files when `SOURCE_DATE_EPOCH` is set,
-  which makes the bytecode reproducible. Turn compilation off if size matters more than start-up
-  time.
+  `uid=` and `gid=` and target that user's cache directory (`uv cache dir` shows it); a wrong
+  `target` leaves the mount unused, so the cache lands in the layer, and a right one the user cannot
+  write to fails the install. With a read-only runtime filesystem Python cannot write its own `.pyc`
+  files, so without install-time compilation it recompiles every installed module on every start
+  (the standard library of the official Python image is not precompiled either, per the uv guide,
+  and needs its own `compileall`); in this repository that measured 644 ms against 358 ms for
+  dependency imports, for about 8 MB more image. Python writes hash-based `.pyc` files when
+  `SOURCE_DATE_EPOCH` is set, which makes the bytecode reproducible. Turn compilation off if size
+  matters more than start-up time.
 
 how_to_check:
   manual
@@ -89,16 +91,17 @@ statement:
   it over HTTPS and check it against an embedded checksum, and against a signature with the
   publisher's full key fingerprint when one is published. Packages that come from a package manager
   are covered by its own verification and, where you have one, a lock file with hashes. `ADD
-  --checksum=<hash> <url>` does the checksum check for you: for HTTP sources it takes a
-  SHA-256 digest (`sha256:<hash>`, the only supported algorithm) and needs Dockerfile syntax 1.6
-  or later; for Git sources it takes the commit SHA (use the full SHA, since the reference also
-  accepts a prefix of one or more characters) and needs syntax 1.16 or later.
+  --checksum=<hash> <url>` does the checksum check for you (details below).
 
 why:
   The Docker Official Images guidelines ask for all three where possible (HTTPS, a signature check
   against a full key fingerprint, an embedded checksum), allow HTTPS plus a checksum when no
   signature is published, and accept a checksum alone only as a last resort when the site has no
   HTTPS and publishes no signature. A download with no verification is not acceptable there.
+  For `ADD --checksum`, HTTP sources take a SHA-256 digest (`sha256:<hash>`, the only supported
+  algorithm) and need Dockerfile syntax 1.6 or later; Git sources take the commit SHA, which should
+  be the full SHA since the reference also accepts a prefix of one or more characters, and need
+  syntax 1.16 or later.
 
 how_to_check:
   manual

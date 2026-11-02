@@ -14,7 +14,7 @@ numbered "spells" in a worked example; the `Spells` column below maps one to the
 - **Statement** and **why**: what to do, and the reason.
 - **How to check**: a linter rule id, a command, or `manual` when no tool covers it.
 - **Sources**: links to the primary documents (a benchmark, a vendor's own docs, a standard).
-  Rules are paraphrased, never copied, so the source is always the place to confirm the wording.
+  Rules are paraphrased, with any short quotation marked as one, so the source is always the place to confirm the wording.
 - **Last verified**: the date someone last read the sources and confirmed the rule still holds.
 
 ## Scope

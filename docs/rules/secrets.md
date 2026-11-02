@@ -10,10 +10,10 @@ strength: MUST
 last_verified: 2026-11-02
 
 statement:
-  Give a build its secrets with `RUN --mount=type=secret` (or an SSH mount), never with `ARG`,
-  `ENV` or files copied into the image. A secret mount defaults to `uid` 0 and mode `0400`, so
-  when the build step runs as another user, pass `uid=`, `gid=` and `mode=` so that user can read
-  it.
+  Give a build its secrets with `RUN --mount=type=secret` (or an SSH mount), never with `ARG`, `ENV`
+  or files copied into the image. A secret mount defaults to `uid` 0 and mode `0400`, so when the
+  build step runs as another user, pass `uid=` (and `gid=` or `mode=` if needed) so that user can
+  read it. A missing secret is skipped unless you add `required=true`.
 
 why:
   Docker's documentation says build arguments and environment variables are inappropriate for
