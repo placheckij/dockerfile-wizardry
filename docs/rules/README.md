@@ -19,7 +19,7 @@ numbered "spells" in a worked example; the `Spells` column below maps one to the
 
 ## Scope
 
-Most rules are about the Dockerfile and the way it is built. A few cover the build pipeline around it (for example pinning GitHub Actions, or keeping BuildKit patched) because they decide what ends up in the image.
+Most rules are about the Dockerfile and the way it is built. A few cover the build pipeline around it (for example pinning GitHub Actions, or keeping BuildKit patched) because the build runs on them.
 
 ## Trade-offs
 

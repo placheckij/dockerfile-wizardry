@@ -77,8 +77,10 @@ why:
   protections of the build container. The advisory's workaround is to use only BuildKit frontends
   from trusted providers. The Dockerfile reference says the `syntax` directive declares which
   Dockerfile syntax version to use, and that BuildKit uses a bundled version of the frontend when
-  it is not set; the Engine release note does not mention `# syntax=` itself, so applying the
-  advice to that directive is our reading.
+  it is not set. The Engine 29.9.0 release note describes the gRPC server that BuildKit runs for
+  frontend containers as serving "images referenced by a `# syntax=` directive", so an image named
+  there is a frontend you are trusting. Pinning it by digest, as for base images, is our
+  suggestion, not something the sources state.
 
 how_to_check:
   manual

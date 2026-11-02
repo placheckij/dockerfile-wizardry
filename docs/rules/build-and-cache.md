@@ -76,8 +76,8 @@ why:
 
 how_to_check:
   Hadolint DL3020 (use `COPY` instead of `ADD` for files and folders); Dockle CIS-DI-0009
-  (use `COPY` instead of `ADD`). Dockle also flags a deliberate `ADD --checksum <url>`, so that
-  needs an exception or a `RUN curl` with a checksum instead.
+  (use `COPY` instead of `ADD`). Dockle also flags a deliberate `ADD --checksum <url>` in the final
+  stage; do it in an earlier stage (see the trade-offs), or use an exception or a `RUN curl`.
 
 sources:
 - https://www.cisecurity.org/benchmark/docker
@@ -132,10 +132,17 @@ statement:
   `sharing=locked` for apt, which needs exclusive access to its data. The Dockerfile reference's
   apt example first removes `/etc/apt/apt.conf.d/docker-clean` (a Debian and Ubuntu image setting
   that clears downloaded packages) and sets `Binary::apt::APT::Keep-Downloaded-Packages "true"`.
+  Do that in a build stage, since it is its own `RUN` and persists into whatever image the stage
+  produces. A cache mount is created with `uid` 0 and mode `0755` by default, so when the stage
+  runs as another user, pass `uid=` and `gid=` and point `target` at that user's actual cache
+  directory.
 
 why:
   A cache mount survives between builds without ending up in the image, so repeated builds skip
-  re-downloading what has not changed. The right directory and options depend on the tool, and the
+  re-downloading what has not changed. Cache mounts live in the builder's local storage: the
+  Dockerfile reference says they are not included in exported build cache (`--cache-to`), are not
+  restored by `--cache-from`, and start empty when each build runs on a new builder, such as a
+  fresh CI runner (see DW-BUILD-07). The right directory and options depend on the tool, and the
   Docker documentation lists them per tool, so read the page for yours.
 
 how_to_check:
@@ -181,8 +188,12 @@ statement:
 
 why:
   CI runners usually start empty, so without an exported cache every run rebuilds everything. A
-  larger export can raise the cache hit rate but costs storage and upload time. If you use the
-  `max` provenance mode as well, remember that it is a separate setting (see DW-SUPPLY-01).
+  larger export can raise the cache hit rate but costs storage and upload time, and Docker says
+  `max` caches all layers, even those of intermediate steps, so a build stage's contents (and
+  anything you removed only in a later stage, see DW-BUILD-04) end up in the cache: give the cache
+  reference the same access control as the image. It does not carry cache mounts (DW-BUILD-05). If
+  you use the `max` provenance mode as well, remember that it is a separate setting (see
+  DW-SUPPLY-01).
 
 how_to_check:
   manual

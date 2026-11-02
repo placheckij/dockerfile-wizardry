@@ -11,7 +11,9 @@ last_verified: 2026-11-02
 
 statement:
   Give a build its secrets with `RUN --mount=type=secret` (or an SSH mount), never with `ARG`,
-  `ENV` or files copied into the image.
+  `ENV` or files copied into the image. A secret mount defaults to `uid` 0 and mode `0400`, so
+  when the build step runs as another user, pass `uid=`, `gid=` and `mode=` so that user can read
+  it.
 
 why:
   Docker's documentation says build arguments and environment variables are inappropriate for
@@ -23,8 +25,9 @@ why:
   build, which must not be stored in the resulting image.
 
 how_to_check:
-  Docker build check SecretsUsedInArgOrEnv (`docker build --check`); Dockle CIS-DI-0010; a secret
-  scanner over the repository.
+  Docker build check SecretsUsedInArgOrEnv (`docker build --check`), which reports `ENV` and `ARG`
+  keys that look sensitive, so it matches names only; Dockle CIS-DI-0010, which checks
+  environment variables and credential files, not `ARG`; a secret scanner over the repository.
 
 sources:
 - https://docs.docker.com/build/building/secrets/

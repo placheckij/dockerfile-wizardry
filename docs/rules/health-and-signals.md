@@ -124,7 +124,9 @@ why:
   Docker's build check `JSONArgsRecommended` flags the shell form for this reason.
 
 how_to_check:
-  Docker build check JSONArgsRecommended (`docker build --check`).
+  Docker build check JSONArgsRecommended (`docker build --check`). It does not look inside a
+  wrapper script, and a `SHELL` instruction suppresses the warning, so the `exec` in a script has
+  to be checked by reading it.
 
 sources:
 - https://hynek.me/articles/docker-signals/

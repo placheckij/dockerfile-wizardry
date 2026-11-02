@@ -36,7 +36,8 @@ last_verified: 2026-11-02
 
 statement:
   Sign images you publish (for example with cosign) and verify the signature, against the identity
-  you expect, in the deployment path rather than trusting a tag. Keep the signing tool current.
+  you expect, in the deployment path rather than trusting a tag. Keep the signing and verification
+  tooling current.
 
 why:
   Verification checks a signature against an expected identity, so a consumer can reject an image
@@ -64,7 +65,11 @@ statement:
 why:
   The Trivy supply chain advisory (GHSA-69fq-xp46-6x23, CVE-2026-33634, March 2026) recommends
   pinning GitHub Actions to full, immutable commit SHA hashes and not using mutable version tags,
-  after malicious releases and action tags were published.
+  after malicious releases and action tags were published. It also shows that pinning the top
+  level is not the whole job: a `trivy-action` pinned to an older commit would itself have been
+  safe but would have run a malicious `setup-trivy` during the exposure window, so check what a
+  pinned action fetches in turn, and the advisory says Trivy images referenced by digest
+  were not affected.
 
 how_to_check:
   manual
@@ -84,7 +89,8 @@ statement:
   `docker build --no-cache --pull`: `--pull` fetches a newer base image when `FROM` names a tag,
   but with a digest-pinned `FROM` (DW-BASE-01) you update the digest instead, and only a build
   without cache reruns the layers that install packages when the base is unchanged. Automated
-  base-image digest updates are the other option.
+  base-image digest updates complement that build; they do not replace it, because a fix to a
+  package you install yourself does not change the base image.
 
 why:
   The NCSC guidance says security updates are typically applied by building a new image rather
@@ -109,17 +115,18 @@ strength: SHOULD
 last_verified: 2026-11-02
 
 statement:
-  Scan the built image's contents for known vulnerabilities, misconfiguration and malware without
-  running it, and confirm that files you removed during the build are not still present in a
-  layer.
+  Scan the built image's contents for known vulnerabilities and misconfiguration without running it
+  (and for malware, if you accept more supply chain risk), and confirm that files you removed during
+  the build are not still present in a layer.
 
 why:
   The NCSC guidance asks for automated scanning to detect malware, known vulnerabilities and
-  misconfiguration, says vulnerability scans should analyse a static image so you should never
-  need to run the container to scan it for vulnerabilities, and says you should be sure that files
-  removed during the build are entirely removed from the final image, which matters most for
-  temporary secrets. See DW-BUILD-04. A scan can only report what it can see: keep the OS package
-  database in the image (DW-BUILD-04), and check that the scanner lists packages.
+  misconfiguration (while noting that malware scanning brings little benefit if you minimise image
+  contents and secure your supply chain), says vulnerability scans should analyse a static image so
+  you should never need to run the container to scan it for vulnerabilities, and says you should be
+  sure that files removed during the build are entirely removed from the final image, which matters
+  most for temporary secrets. See DW-BUILD-04. A scan can only report what it can see: keep the OS
+  package database in the image (DW-BUILD-04), and check that the scanner lists packages.
 
 how_to_check:
   A scanner such as Trivy covers known vulnerabilities, misconfiguration and secrets (this

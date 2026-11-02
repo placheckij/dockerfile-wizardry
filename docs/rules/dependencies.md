@@ -60,11 +60,15 @@ statement:
 why:
   A cache left in a layer adds size that can never be removed, and an unpinned installer makes
   builds differ over time. The uv Docker guide shows both ways: a cache mount, and `--no-cache` or
-  `UV_NO_CACHE` for when you are not mounting the cache. This repository disables the cache. With a read-only runtime filesystem Python cannot write its own `.pyc`
-  files, so without install-time compilation it recompiles every module on every start; in this
-  repository that measured 644 ms against 358 ms for dependency imports, for about 8 MB more
-  image. Python writes hash-based `.pyc` files when `SOURCE_DATE_EPOCH` is set, which makes the
-  bytecode reproducible. Turn compilation off if size matters more than start-up time.
+  `UV_NO_CACHE` for when you are not mounting the cache. This repository disables the cache. If you
+  mount it instead, the mount is created for `uid` 0 by default, so for a non-root build user pass
+  `uid=` and `gid=` and target that user's cache directory (`uv cache dir` shows it), or the mount
+  goes unused and the cache lands in the layer. With a read-only runtime filesystem Python cannot
+  write its own `.pyc` files, so without install-time compilation it recompiles every module on
+  every start; in this repository that measured 644 ms against 358 ms for dependency imports, for
+  about 8 MB more image. Python writes hash-based `.pyc` files when `SOURCE_DATE_EPOCH` is set,
+  which makes the bytecode reproducible. Turn compilation off if size matters more than start-up
+  time.
 
 how_to_check:
   manual
@@ -100,3 +104,4 @@ how_to_check:
 sources:
 - https://github.com/docker-library/official-images/blob/master/README.md
 - https://docs.docker.com/reference/dockerfile/#add
+- https://github.com/moby/buildkit/releases/tag/dockerfile%2F1.16.0
