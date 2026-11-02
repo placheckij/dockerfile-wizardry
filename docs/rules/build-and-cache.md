@@ -112,3 +112,139 @@ sources:
 - https://www.cisecurity.org/benchmark/docker
 - https://docs.docker.com/build/building/multi-stage/
 - https://docs.docker.com/build/building/base-images/#create-a-minimal-base-image-using-scratch
+
+## DW-BUILD-05: Keep package-manager downloads in a cache mount
+
+strength: SHOULD
+
+last_verified: 2026-11-02
+
+statement:
+  Give the package manager's cache directory to the build with `RUN
+  --mount=type=cache,target=<dir>` instead of baking downloads into a layer. Use the option
+  `sharing=locked` for apt, which needs exclusive access to its data.
+
+why:
+  A cache mount survives between builds without ending up in the image, so repeated builds skip
+  re-downloading what has not changed. The right directory and options depend on the tool, and the
+  Docker documentation lists them per tool, so read the page for yours.
+
+how_to_check:
+  manual
+
+sources:
+- https://docs.docker.com/build/cache/optimize/
+
+## DW-BUILD-06: Mount a large source tree instead of copying it when it only produces an artifact
+
+strength: SHOULD
+
+last_verified: 2026-11-02
+
+statement:
+  When a large build context is only needed to produce an artifact, mount it for that one `RUN`
+  with `--mount=type=bind` rather than `COPY`ing it. Write the output outside the mounted path.
+
+why:
+  Docker's documentation says that with a large context used only to generate an artifact you are
+  better off with bind mounts, because `COPY` makes BuildKit include all of those files in the
+  cache even when the final image does not use them. Bind-mounted files exist only for that
+  instruction and are not part of the image.
+
+how_to_check:
+  manual
+
+sources:
+- https://docs.docker.com/build/cache/optimize/
+- https://docs.docker.com/build/building/best-practices/#add-or-copy
+
+## DW-BUILD-07: Export the build cache in CI, and choose its mode on purpose
+
+strength: TRADE-OFF
+
+last_verified: 2026-11-02
+
+statement:
+  In CI, share cache between runs with `--cache-to` and `--cache-from` (for example
+  `type=registry`). The `mode` parameter decides which layers are exported: `min` is the default
+  and `max` exports more. Try both and keep the one that suits your builds.
+
+why:
+  CI runners usually start empty, so without an exported cache every run rebuilds everything. A
+  larger export can raise the cache hit rate but costs storage and upload time. If you use the
+  `max` provenance mode as well, remember that it is a separate setting (see DW-SUPPLY-01).
+
+how_to_check:
+  manual
+
+sources:
+- https://docs.docker.com/build/cache/backends/
+- https://docs.docker.com/build/cache/backends/registry/
+
+## DW-BUILD-08: Cross-compile for other platforms instead of emulating them
+
+strength: SHOULD
+
+last_verified: 2026-11-02
+
+statement:
+  When you build images for several CPU architectures, prefer native builders or cross-compilation
+  (`FROM --platform=$BUILDPLATFORM` with `TARGETOS`/`TARGETARCH`) over running the whole build
+  under QEMU emulation, if your language supports it.
+
+why:
+  Docker's multi-platform documentation notes that emulation can be much slower than a native
+  build, especially for compute-heavy work such as compilation. Cross-compilation needs a
+  toolchain that can target another platform, which is why this is language dependent.
+
+how_to_check:
+  manual
+
+sources:
+- https://docs.docker.com/build/building/multi-platform/
+
+## DW-BUILD-09: Use SOURCE_DATE_EPOCH when you need reproducible output
+
+strength: SHOULD
+
+last_verified: 2026-11-02
+
+statement:
+  Where reproducible builds matter, set `SOURCE_DATE_EPOCH` (Buildx 0.10 and later pass it through
+  from the environment) so build tools use a fixed timestamp, and add `rewrite-timestamp=true` to
+  the image exporter (BuildKit 0.13 and later) so file times inside the layers follow it.
+
+why:
+  Timestamps are a common reason two builds of the same source differ. The BuildKit
+  reproducibility documentation describes the setting and the exporter option; it does not promise
+  a bit-identical image on its own, since the base image, package state and other inputs still
+  have to be pinned too.
+
+how_to_check:
+  manual. Build the image twice and compare digests.
+
+sources:
+- https://github.com/moby/buildkit/blob/master/docs/build-repro.md
+
+## DW-BUILD-10: Leave out remote-management and package-management tools
+
+strength: SHOULD
+
+last_verified: 2026-11-02
+
+statement:
+  Do not include tools such as SSH or RDP, or system package managers, in the image that runs your
+  application unless it genuinely needs them.
+
+why:
+  The UK NCSC guidance on building container images says containers should not normally need
+  remote management tools like SSH or RDP, because management happens with container tooling
+  outside the container, and should not need package management tools, because the contents are
+  not expected to change at runtime. Fewer tools also leaves fewer for an attacker to use. See
+  DW-BUILD-04 for removing them from an existing image.
+
+how_to_check:
+  manual
+
+sources:
+- https://www.ncsc.gov.uk/collection/using-containerisation/building-container-images

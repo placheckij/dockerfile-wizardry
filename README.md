@@ -465,7 +465,7 @@ It is listed here so the gap is a known choice rather than an oversight.
 
 ## 📜 The Rulebook
 
-The spells above are also written as sourced rules in [`docs/rules/`](docs/rules/README.md). Each rule gives its strength (`MUST`, `SHOULD` or `TRADE-OFF`), the reason, how to check it, links to the primary sources and the date it was last verified. Spells keep their numbers; the index maps each one to its rule.
+The spells above are also written as sourced rules in [`docs/rules/`](docs/rules/README.md). Each rule gives its strength (`MUST`, `SHOULD` or `TRADE-OFF`), the reason, how to check it, links to the primary sources and the date it was last verified. Spells keep their numbers; the index maps each one to its rule. Where sources disagree, the [trade-offs page](docs/rules/tradeoffs.md) lays out each side.
 
 ## 📚 References
 

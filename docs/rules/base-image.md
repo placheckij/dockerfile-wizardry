@@ -59,3 +59,27 @@ how_to_check:
 sources:
 - https://github.com/opencontainers/image-spec/blob/main/annotations.md#pre-defined-annotation-keys
 - https://docs.docker.com/reference/dockerfile/#label
+
+## DW-BASE-03: Keep Docker Engine and BuildKit patched, and use only trusted frontends
+
+strength: SHOULD
+
+last_verified: 2026-11-02
+
+statement:
+  Keep the build tooling (Docker Engine, BuildKit, Buildx) up to date, and use BuildKit frontends
+  only from publishers you trust, including any image named in a `# syntax=` line.
+
+why:
+  BuildKit's GHSA-7236-3392-c5c6 (fixed in BuildKit 0.31.1, shipped in Docker Engine 29.6.1)
+  describes a custom frontend that could send a crafted request disabling the Seccomp and AppArmor
+  protections of the build container. The advisory's workaround is to use only BuildKit frontends
+  from trusted providers. The Engine release note does not mention `# syntax=` itself; the link to
+  that directive is an inference from how frontends are selected.
+
+how_to_check:
+  manual
+
+sources:
+- https://github.com/advisories/GHSA-7236-3392-c5c6
+- https://docs.docker.com/engine/release-notes/29/

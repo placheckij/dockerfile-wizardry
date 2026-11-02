@@ -104,3 +104,27 @@ how_to_check:
 sources:
 - https://docs.docker.com/reference/cli/docker/container/run/#init
 - https://github.com/krallin/tini
+
+## DW-HEALTH-05: Use exec form, and exec in wrapper scripts, so signals reach the application
+
+strength: SHOULD
+
+last_verified: 2026-11-02
+
+statement:
+  Write `ENTRYPOINT` and `CMD` in exec (JSON array) form. If the entrypoint is a shell script,
+  finish it with `exec <your-app>` so the application replaces the shell as the process that
+  receives signals.
+
+why:
+  In shell form the executable runs as a child of a shell, which does not pass signals on, so the
+  application may never see `SIGTERM` and is killed after the stop timeout instead of shutting
+  down cleanly. The same happens when a wrapper script starts the application without `exec`.
+  Docker's build check `JSONArgsRecommended` flags the shell form for this reason.
+
+how_to_check:
+  Docker build check JSONArgsRecommended (`docker build --check`).
+
+sources:
+- https://hynek.me/articles/docker-signals/
+- https://docs.docker.com/reference/build-checks/json-args-recommended/

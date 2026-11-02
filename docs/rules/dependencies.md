@@ -67,3 +67,28 @@ sources:
 - https://docs.docker.com/build/building/best-practices/#run
 - https://docs.astral.sh/uv/guides/integration/docker/
 - https://docs.python.org/3/library/py_compile.html
+
+## DW-DEPS-03: Verify what you download during the build
+
+strength: SHOULD
+
+last_verified: 2026-11-02
+
+statement:
+  When a build downloads a file or source archive, fetch it over HTTPS and check it against an
+  embedded checksum, and against a signature with the publisher's full key fingerprint when one is
+  published. `ADD --checksum=sha256:<hash> <url>` does the check for you (it supports SHA-256 only
+  and needs Dockerfile syntax 1.6 or later).
+
+why:
+  The Docker Official Images guidelines ask for all three where possible (HTTPS, a signature check
+  against a full key fingerprint, an embedded checksum), allow HTTPS plus a checksum when no
+  signature is published, and accept a checksum alone only as a last resort. A download with no
+  verification is not acceptable there.
+
+how_to_check:
+  manual
+
+sources:
+- https://github.com/docker-library/official-images/blob/master/README.md
+- https://docs.docker.com/reference/dockerfile/#add
