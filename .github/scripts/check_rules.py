@@ -18,6 +18,8 @@ heading and is followed by `field: value` lines:
     - https://docs.docker.com/...
 
 The script checks every entry, that every "Spell #N" heading in README.md is covered by a rule,
+that every DW id, and every relative link or link definition (with its #anchor), in the prose of
+docs/rules/*.md resolves (inline code and HTML comments are not searched for links),
 and that the generated index in docs/rules/README.md is current.
 
 Usage:
@@ -30,6 +32,7 @@ Runs with the runner's system python3 (no third-party packages).
 import datetime
 import re
 import sys
+import unicodedata
 import urllib.parse
 from dataclasses import dataclass
 from functools import partial
@@ -37,15 +40,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# theme file name (without .md) -> the code used in its rule ids
 # pages in docs/rules/ that hold prose, not rule entries
 NON_THEME_FILES = ("README.md", "tradeoffs.md")
+# theme file name (without .md) -> the code used in its rule ids
 THEMES = {
     "base-image": "BASE",
     "build-and-cache": "BUILD",
     "dependencies": "DEPS",
     "users-and-permissions": "USER",
     "health-and-signals": "HEALTH",
+    "secrets": "SECRET",
+    "supply-chain": "SUPPLY",
 }
 STRENGTHS = ("MUST", "SHOULD", "TRADE-OFF")
 TEXT_FIELDS = ("statement", "why", "how_to_check")
@@ -62,6 +67,9 @@ FIELD_RE = re.compile(r"^([a-z_]+):\s*(.*?)\s*$")
 INDEX_START = "<!-- rules-index:start -->"
 INDEX_END = "<!-- rules-index:end -->"
 SPELL_RE = re.compile(r"^###\s.*Spell #(\d+):", re.MULTILINE)
+RULE_ID_RE = re.compile(r"\bDW-[A-Z]+-\d+\b")
+LINK_RE = re.compile(r"\]\(\s*(<[^>]*>|(?:[^()\s]|\([^()\s]*\))+)[^)]*\)")
+DEFINITION_RE = re.compile(r"^ {0,3}\[[^\]]+\]:\s*(<[^>]*>|\S+)", re.MULTILINE)
 
 
 class RuleError(Exception):
@@ -271,7 +279,92 @@ def collect(root):
             problems.append(str(error))
     if not problems:
         problems.extend(validate(rules, spell_numbers(root / "README.md")))
+        problems.extend(check_references(rules_dir, rules))
     return rules, problems
+
+
+def heading_slug(heading):
+    """The anchor GitHub generates for a heading: link syntax and emphasis removed, lower case,
+    punctuation and symbols dropped, spaces to hyphens. Letters, combining marks, numbers,
+    hyphens and underscores stay."""
+    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", heading)
+    text = re.sub(r"[`*]|(?<!\w)_+|_+(?!\w)", "", text.strip().lower())
+    text = unicodedata.normalize("NFC", text)
+    kept = (
+        c
+        for c in text
+        if c not in "\u200d\ufe0f"
+        and (unicodedata.category(c)[0] in "LMN" or c in "_- ")
+    )
+    return "".join(kept).replace(" ", "-")
+
+
+def anchors(path):
+    """The heading anchors of a Markdown file, numbered like GitHub numbers repeats."""
+    headings, previous = [], ""
+    for line in unfenced_lines(path.read_text(encoding="utf-8")):
+        atx = re.match(r"^ {0,3}#{1,6}\s+(.+?)\s*#*\s*$", line)
+        if atx:
+            headings.append(atx.group(1))
+        elif re.match(r"^ {0,3}(=+|-+)\s*$", line) and previous.strip():
+            headings.append(previous.strip())
+        previous = line
+    found, occurrences = set(), {}
+    for heading in headings:
+        slug = original = heading_slug(heading)
+        while slug in occurrences:
+            occurrences[original] += 1
+            slug = f"{original}-{occurrences[original]}"
+        occurrences[slug] = 0
+        found.add(slug)
+    return found
+
+
+def link_targets(prose):
+    """Relative-link candidates in `prose`: inline `](target)` links and `[ref]: target`
+    definitions. Inline code and HTML comments are not searched."""
+    prose = re.sub(r"<!--.*?-->", "", prose, flags=re.DOTALL)
+    prose = re.sub(r"(`+)(?:(?!\1).)+?\1", "", prose, flags=re.DOTALL)
+    return LINK_RE.findall(prose) + DEFINITION_RE.findall(prose)
+
+
+def check_references(rules_dir, rules):
+    """Problems with DW ids and relative links in the prose of docs/rules/*.md. Ids are checked
+    wherever they appear outside fenced code, inline code included."""
+    problems = []
+    known = {rule.id for rule in rules}
+    root = rules_dir.parents[1]
+    for path in sorted(rules_dir.glob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        if path.name == "README.md":
+            # the generated index is compared with the rules separately, and must be
+            # regenerable when it is stale
+            head, _, rest = text.partition(INDEX_START)
+            text = head + rest.partition(INDEX_END)[2]
+        prose = "\n".join(unfenced_lines(text))
+        for rule_id in dict.fromkeys(RULE_ID_RE.findall(prose)):
+            if rule_id not in known:
+                problems.append(f"{path.name}: {rule_id} is not a rule")
+        for target in link_targets(prose):
+            target = target.strip().strip("<>")
+            if re.match(r"[a-z][a-z0-9+.-]*:", target, re.IGNORECASE):
+                continue
+            file_part, _, fragment = target.partition("#")
+            file_part, fragment = (
+                urllib.parse.unquote(x) for x in (file_part, fragment)
+            )
+            fragment = unicodedata.normalize("NFC", fragment)
+            if file_part.startswith("/"):
+                linked = root / file_part.lstrip("/")
+            else:
+                linked = (path.parent / file_part) if file_part else path
+            if not linked.exists():
+                problems.append(f"{path.name}: link to missing file {file_part}")
+            elif (
+                fragment and linked.suffix == ".md" and fragment not in anchors(linked)
+            ):
+                problems.append(f"{path.name}: link {target} has no matching heading")
+    return problems
 
 
 def render_index(rules):

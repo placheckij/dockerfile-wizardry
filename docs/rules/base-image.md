@@ -19,10 +19,11 @@ statement:
   what the digest is.
 
 why:
-  A tag can be republished, so the same Dockerfile can build on different bytes tomorrow. A
-  digest names exactly one image. The cost is that pinning freezes the base: patches stop
-  arriving on their own, so pair the pin with something that proposes new digests (Dependabot
-  or Renovate) or with a CI job that fails when the tag has moved.
+  A tag can be republished, so the same Dockerfile can build on different bytes tomorrow. A digest
+  names exactly one image. The cost is that pinning freezes the base: patches stop arriving on
+  their own, so pair the pin with something that proposes new digests (Dependabot or Renovate) or
+  with a CI job that fails when the tag has moved. See the trade-offs on [tag or
+  digest](tradeoffs.md#1-tag-or-digest-for-the-base-image).
 
 how_to_check:
   Hadolint DL3006 (tag the image) and DL3007 (do not use `latest`) catch missing or floating

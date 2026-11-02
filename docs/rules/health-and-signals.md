@@ -1,8 +1,7 @@
 # Health and signals
 
-How the image tells the platform it is working, and how it shuts down. Written from
-Spell #11, #12, #13 and
-#14.
+How the image tells the platform it is working, and how it shuts down. The first four rules are
+written from Spell #11, #12, #13 and #14; DW-HEALTH-05 comes from its sources alone.
 
 ## DW-HEALTH-01: Declare the port the application listens on
 
@@ -44,11 +43,12 @@ statement:
   failed check must exit non-zero.
 
 why:
-  CIS 4.5 asks for it: Docker then reports whether the application inside is working
-  (`healthy` or `unhealthy`), not only whether the process is still running. Using the language
-  runtime already in the image avoids shipping `curl` and its libraries just for the check.
-  Whether to rely on it is partly your platform's call, since an orchestrator can use its own
-  probes instead; Hadolint ships its missing-`HEALTHCHECK` rule disabled by default.
+  CIS 4.5 asks for it: Docker then reports whether the application inside is working (`healthy` or
+  `unhealthy`), not only whether the process is still running. Using the language runtime already
+  in the image avoids shipping `curl` and its libraries just for the check. Whether to rely on it
+  is partly your platform's call, since an orchestrator can use its own probes instead; Hadolint
+  ships its missing-`HEALTHCHECK` rule disabled by default. See the
+  [trade-offs](tradeoffs.md#4-a-healthcheck-in-the-image-or-probes-in-the-platform).
 
 how_to_check:
   Hadolint DL3057 (missing `HEALTHCHECK`; ignored by default, so enable it); Dockle CIS-DI-0006.
@@ -104,3 +104,29 @@ how_to_check:
 sources:
 - https://docs.docker.com/reference/cli/docker/container/run/#init
 - https://github.com/krallin/tini
+
+## DW-HEALTH-05: Use exec form, and exec in wrapper scripts, so signals reach the application
+
+strength: SHOULD
+
+last_verified: 2026-11-02
+
+statement:
+  Write `ENTRYPOINT` and `CMD` in exec (JSON array) form. If the entrypoint is a shell script,
+  finish it with `exec <your-app>` so the application replaces the shell as the process that
+  receives signals.
+
+why:
+  In shell form the executable runs as a child of a shell, which does not pass signals on, so the
+  application may never see `SIGTERM` and is killed after the stop timeout instead of shutting
+  down cleanly. The same happens when a wrapper script starts the application without `exec`.
+  Docker's build check `JSONArgsRecommended` flags the shell form for this reason.
+
+how_to_check:
+  Docker build check JSONArgsRecommended (`docker build --check`). It does not look inside a
+  wrapper script, and a `SHELL` instruction suppresses the warning, so the `exec` in a script has
+  to be checked by reading it.
+
+sources:
+- https://hynek.me/articles/docker-signals/
+- https://docs.docker.com/reference/build-checks/json-args-recommended/
