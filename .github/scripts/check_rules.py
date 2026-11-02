@@ -41,7 +41,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 # pages in docs/rules/ that hold prose, not rule entries
-NON_THEME_FILES = ("README.md", "tradeoffs.md")
+NON_THEME_FILES = ("README.md", "sources.md", "tradeoffs.md")
 # theme file name (without .md) -> the code used in its rule ids
 THEMES = {
     "base-image": "BASE",
@@ -66,6 +66,8 @@ DW_HEADING_RE = re.compile(r"^#{1,6}\s+DW-")
 FIELD_RE = re.compile(r"^([a-z_]+):\s*(.*?)\s*$")
 INDEX_START = "<!-- rules-index:start -->"
 INDEX_END = "<!-- rules-index:end -->"
+SOURCES_START = "<!-- sources-index:start -->"
+SOURCES_END = "<!-- sources-index:end -->"
 SPELL_RE = re.compile(r"^###\s.*Spell #(\d+):", re.MULTILINE)
 RULE_ID_RE = re.compile(r"\bDW-[A-Z]+-\d+\b")
 LINK_RE = re.compile(r"\]\(\s*(<[^>]*>|(?:[^()\s]|\([^()\s]*\))+)[^)]*\)")
@@ -336,11 +338,15 @@ def check_references(rules_dir, rules):
     root = rules_dir.parents[1]
     for path in sorted(rules_dir.glob("*.md")):
         text = path.read_text(encoding="utf-8")
-        if path.name == "README.md":
-            # the generated index is compared with the rules separately, and must be
-            # regenerable when it is stale
-            head, _, rest = text.partition(INDEX_START)
-            text = head + rest.partition(INDEX_END)[2]
+        for page, start, end in (
+            ("README.md", INDEX_START, INDEX_END),
+            ("sources.md", SOURCES_START, SOURCES_END),
+        ):
+            if path.name == page:
+                # a generated block is compared with the rules separately, and must be
+                # regenerable when it is stale
+                head, _, rest = text.partition(start)
+                text = head + rest.partition(end)[2]
         prose = "\n".join(unfenced_lines(text))
         for rule_id in dict.fromkeys(RULE_ID_RE.findall(prose)):
             if rule_id not in known:
@@ -381,19 +387,51 @@ def render_index(rules):
     return "\n".join(lines)
 
 
-def with_index(text, rules):
-    """`text` with the block between the index markers replaced by the current index."""
+def render_sources(rules):
+    """Markdown listing every cited source under its host, with the rules that cite it."""
+    cited = {}
+    for rule in rules:
+        for source in rule.sources:
+            cited.setdefault(source, []).append(rule.id)
+    by_host = {}
+    for source in cited:
+        by_host.setdefault(urllib.parse.urlsplit(source).hostname, []).append(source)
+    lines = []
+    for host in sorted(by_host):
+        lines += [f"### {host}", ""]
+        for source in sorted(by_host[host]):
+            label = source.removeprefix("https://")
+            ids = ", ".join(sorted(cited[source]))
+            lines.append(f"- [{label}]({source}) - {ids}")
+        lines.append("")
+    return "\n".join(lines).rstrip("\n")
+
+
+def with_block(text, start, end, body):
+    """`text` with the block between the `start` and `end` markers replaced by `body`."""
     if (
-        text.count(INDEX_START) != 1
-        or text.count(INDEX_END) != 1
-        or text.index(INDEX_START) > text.index(INDEX_END)
+        text.count(start) != 1
+        or text.count(end) != 1
+        or text.index(start) > text.index(end)
     ):
-        raise ValueError(
-            f"must contain exactly one {INDEX_START} ... {INDEX_END} block"
-        )
-    head, rest = text.split(INDEX_START, 1)
-    _, tail = rest.split(INDEX_END, 1)
-    return head + INDEX_START + "\n" + render_index(rules) + "\n" + INDEX_END + tail
+        raise ValueError(f"must contain exactly one {start} ... {end} block")
+    head, rest = text.split(start, 1)
+    _, tail = rest.split(end, 1)
+    return head + start + "\n" + body + "\n" + end + tail
+
+
+def generated_pages(rules):
+    """(file name, label, start marker, end marker, body) of each generated block."""
+    return (
+        ("README.md", "rule index", INDEX_START, INDEX_END, render_index(rules)),
+        (
+            "sources.md",
+            "sources index",
+            SOURCES_START,
+            SOURCES_END,
+            render_sources(rules),
+        ),
+    )
 
 
 def main(argv, root=ROOT):
@@ -401,31 +439,41 @@ def main(argv, root=ROOT):
         print("usage: check_rules.py --check | --write", file=sys.stderr)
         return 2
     rules, problems = collect(root)
-    index = root / "docs" / "rules" / "README.md"
-    new = None
+    rules_dir = root / "docs" / "rules"
+    updates = []  # (path, label, current text, new text)
     if not problems:
-        try:
-            new = with_index(index.read_text(encoding="utf-8"), rules)
-        except (OSError, ValueError) as error:
-            problems.append(f"docs/rules/README.md: {error}")
+        for name, label, start, end, body in generated_pages(rules):
+            path = rules_dir / name
+            try:
+                current = path.read_text(encoding="utf-8")
+                updates.append(
+                    (path, label, current, with_block(current, start, end, body))
+                )
+            except (OSError, ValueError) as error:
+                problems.append(f"docs/rules/{name}: {error}")
     if problems:
         print("The rulebook has problems:", file=sys.stderr)
         for problem in problems:
             print(f"  - {problem}", file=sys.stderr)
         return 1
+    stale = [(path, label) for path, label, current, new in updates if current != new]
     if "--write" in argv:
-        if new != index.read_text(encoding="utf-8"):
-            index.write_text(new, encoding="utf-8")
-            print("docs/rules/README.md: index updated.")
+        for path, label, current, new in updates:
+            if current != new:
+                path.write_text(new, encoding="utf-8")
+                print(f"docs/rules/{path.name}: {label} updated.")
         return 0
-    if new != index.read_text(encoding="utf-8"):
+    if stale:
+        for path, label in stale:
+            print(
+                f"docs/rules/{path.name}: the {label} is out of date.", file=sys.stderr
+            )
         print(
-            "docs/rules/README.md: the rule index is out of date.\n"
             "Run:  python3 .github/scripts/check_rules.py --write   and commit the result.",
             file=sys.stderr,
         )
         return 1
-    print("The rulebook is valid and its index is current.")
+    print("The rulebook is valid and its indexes are current.")
     return 0
 
 

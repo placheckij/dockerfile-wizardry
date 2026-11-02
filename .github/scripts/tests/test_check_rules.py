@@ -294,6 +294,13 @@ INDEX_README = """\
 <!-- rules-index:end -->
 """
 
+SOURCES_PAGE = """\
+# Sources
+
+<!-- sources-index:start -->
+<!-- sources-index:end -->
+"""
+
 USER_RULE = RULE.replace("DW-BASE-01", "DW-USER-01").replace("Pin the base", "Run as")
 
 
@@ -305,6 +312,7 @@ class MainTest(RuleFileTestCase):
         for name, text in (extra_files or {}).items():
             (rules / name).write_text(text, encoding="utf-8")
         (rules / "README.md").write_text(INDEX_README, encoding="utf-8")
+        (rules / "sources.md").write_text(SOURCES_PAGE, encoding="utf-8")
         readme = "\n".join(f"### 🛡️ Spell #{n}: Name" for n in spell_headings)
         (self.dir / "README.md").write_text(readme + "\n", encoding="utf-8")
 
@@ -569,6 +577,90 @@ class ReferencesTest(RuleFileTestCase):
         self.assertEqual(code, 1)
         self.assertIn("Spell #2", err.getvalue())
         self.assertIn("DW-BASE-09", err.getvalue())
+
+
+class SourcesIndexTest(RuleFileTestCase):
+    """docs/rules/sources.md lists every cited source with the rules that cite it."""
+
+    tree = MainTest.tree
+
+    def sources_text(self):
+        return (self.dir / "docs" / "rules" / "sources.md").read_text(encoding="utf-8")
+
+    def write_and_read(self, rule_text, spells=(1, 2)):
+        self.tree(rule_text, list(spells))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(check_rules.main(["--write"], root=self.dir), 0)
+        return self.sources_text()
+
+    def test_write_lists_each_source_under_its_host_with_the_citing_rules(self):
+        second = RULE.replace("DW-BASE-01", "DW-BASE-02").replace("- 1\n", "- 2\n")
+        extra = second.replace(
+            "https://docs.docker.com/build/building/best-practices/#pin-base-image-versions",
+            "https://example.org/a",
+        )
+        text = self.write_and_read(RULE + "\n" + extra)
+        self.assertIn("### docs.docker.com", text)
+        self.assertIn("### example.org", text)
+        self.assertIn(
+            "[docs.docker.com/build/building/best-practices/#pin-base-image-versions]"
+            "(https://docs.docker.com/build/building/best-practices/#pin-base-image-versions)"
+            " - DW-BASE-01",
+            text,
+        )
+        self.assertIn("(https://example.org/a) - DW-BASE-02", text)
+
+    def test_a_source_cited_twice_lists_both_rules_once(self):
+        both = RULE + "\n" + RULE.replace("DW-BASE-01", "DW-BASE-02")
+        text = self.write_and_read(both, spells=(1,))
+        self.assertEqual(text.count("pin-base-image-versions)"), 1)
+        self.assertIn("- DW-BASE-01, DW-BASE-02", text)
+
+    def test_check_fails_when_the_sources_page_is_stale(self):
+        self.tree(RULE, [1])
+        with contextlib.redirect_stdout(io.StringIO()):
+            check_rules.main(["--write"], root=self.dir)
+        page = self.dir / "docs" / "rules" / "sources.md"
+        page.write_text(page.read_text(encoding="utf-8") + "extra\n", encoding="utf-8")
+        page.write_text(
+            page.read_text(encoding="utf-8").replace("DW-BASE-01", "DW-BASE-99"),
+            encoding="utf-8",
+        )
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(check_rules.main(["--check"], root=self.dir), 1)
+        self.assertIn("sources.md", err.getvalue())
+
+    def test_check_fails_when_the_sources_markers_are_missing(self):
+        self.tree(RULE, [1])
+        (self.dir / "docs" / "rules" / "sources.md").write_text(
+            "# S\n", encoding="utf-8"
+        )
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(check_rules.main(["--check"], root=self.dir), 1)
+        self.assertIn("sources.md", err.getvalue())
+
+    def test_sources_page_is_not_a_theme_file(self):
+        self.tree(RULE, [1])
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(check_rules.main(["--write"], root=self.dir), 0)
+        self.assertEqual(check_rules.main(["--check"], root=self.dir), 0)
+
+    def test_a_stale_sources_block_can_be_regenerated_after_a_rule_is_removed(self):
+        self.tree(RULE, [1])
+        page = self.dir / "docs" / "rules" / "sources.md"
+        page.write_text(
+            page.read_text(encoding="utf-8").replace(
+                check_rules.SOURCES_START,
+                check_rules.SOURCES_START + "\n- [x](https://a.example) - DW-BASE-09",
+            ),
+            encoding="utf-8",
+        )
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(check_rules.main(["--write"], root=self.dir), 0)
+            self.assertEqual(check_rules.main(["--check"], root=self.dir), 0)
 
 
 if __name__ == "__main__":
