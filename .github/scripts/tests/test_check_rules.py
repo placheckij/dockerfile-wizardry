@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import check_rules  # noqa: E402
+import check_rules
 
 RULE = """\
 ## DW-BASE-01: Pin the base image by digest

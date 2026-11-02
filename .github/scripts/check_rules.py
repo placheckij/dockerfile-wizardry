@@ -31,6 +31,7 @@ import datetime
 import re
 import sys
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -138,7 +139,7 @@ def parse_rule_file(path):
         raise RuleError(path, None, f"unknown theme (expected one of {sorted(THEMES)})")
     rules = []
     for rule_id, code, title, body in _entries(path):
-        fail = lambda message, rule_id=rule_id: RuleError(path, rule_id, message)  # noqa: E731
+        fail = partial(RuleError, path, rule_id)
         if code != THEMES[theme]:
             raise fail(f"id must start with DW-{THEMES[theme]}- in {path.name}")
         fields = _fields(body)
@@ -186,7 +187,9 @@ def validate(rules, spell_numbers):
         seen.add(rule.id)
         for number in rule.spells:
             if number not in spell_numbers:
-                problems.append(f"{rule.id} names Spell #{number}, which does not exist")
+                problems.append(
+                    f"{rule.id} names Spell #{number}, which does not exist"
+                )
     covered = {number for rule in rules for number in rule.spells}
     for number in sorted(spell_numbers - covered):
         problems.append(f"Spell #{number} has no rule in docs/rules/")
