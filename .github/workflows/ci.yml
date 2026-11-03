@@ -50,7 +50,8 @@ jobs:
       - name: Check the README table of contents is up to date
         run: python3 .github/scripts/readme_toc.py --check
 
-      # docs/rules/ holds the sourced rulebook; its rule index and sources page are generated
+      # docs/rules/ holds the sourced rulebook; its rule index and sources page are generated,
+      # and so is the skill's references folder (skills/dockerfile-wizardry/references/)
       # (fix: python3 .github/scripts/check_rules.py --write)
       - name: Check the rulebook entries, links and generated pages
         run: python3 .github/scripts/check_rules.py --check
