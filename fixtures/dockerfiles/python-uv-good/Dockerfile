@@ -24,6 +24,16 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-install-project
 
 FROM python:${PYTHON_VERSION}-slim-${DEBIAN_RELEASE}@sha256:930e1abba7c4e8f96ed93e8012c35d174d7732752731bbd5e8e757d7ec6f3966 AS runtime
+# example values: this fixture stands for an imaginary service, not a published image
+LABEL org.opencontainers.image.title="example-python-service" \
+      org.opencontainers.image.description="Example Python web service" \
+      org.opencontainers.image.version="1.0.0" \
+      org.opencontainers.image.authors="Example Team <team@example.com>" \
+      org.opencontainers.image.source="https://example.com/example-python-service" \
+      org.opencontainers.image.licenses="MIT"
+# The slim base keeps apt and dpkg in this stage: a deliberate choice, not an
+# oversight. Removing them (DW-BUILD-10) means pruning and flattening, the DW-BUILD-04
+# trade-off, or another base (trade-offs §6); see expected-findings.txt
 RUN groupadd --system --gid 10001 app \
     && useradd --system --uid 10001 --gid app --no-create-home app
 WORKDIR /app

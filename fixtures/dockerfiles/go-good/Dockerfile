@@ -25,6 +25,13 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go build -trimpath -o /out/app ./cmd/app
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:25ac8f0c3b2334a9eb05452266bd4697864a8c8ef0ef71e5e6480d7f92868329 AS runtime
+# example values: this fixture stands for an imaginary service, not a published image
+LABEL org.opencontainers.image.title="example-go-service" \
+      org.opencontainers.image.description="Example Go web service" \
+      org.opencontainers.image.version="1.0.0" \
+      org.opencontainers.image.authors="Example Team <team@example.com>" \
+      org.opencontainers.image.source="https://example.com/example-go-service" \
+      org.opencontainers.image.licenses="MIT"
 COPY --from=build /out/app /app
 # 65532 is the `nonroot` user distroless images define
 USER 65532:65532

@@ -17,6 +17,16 @@ RUN --mount=type=cache,target=/root/.npm \
     npm ci --omit=dev
 
 FROM node:${NODE_VERSION}-${NODE_VARIANT}@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS runtime
+# example values: this fixture stands for an imaginary service, not a published image
+LABEL org.opencontainers.image.title="example-node-service" \
+      org.opencontainers.image.description="Example Node.js web service" \
+      org.opencontainers.image.version="1.0.0" \
+      org.opencontainers.image.authors="Example Team <team@example.com>" \
+      org.opencontainers.image.source="https://example.com/example-node-service" \
+      org.opencontainers.image.licenses="MIT"
+# The slim base keeps apt, dpkg, npm and corepack in this stage: a deliberate choice, not
+# an oversight. Removing them (DW-BUILD-10) means pruning and flattening, the DW-BUILD-04
+# trade-off, or another base (trade-offs §6); see expected-findings.txt
 ENV NODE_ENV=production
 WORKDIR /app
 # root owns the code and dependencies; the app user can read but not change them
