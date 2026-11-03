@@ -270,7 +270,7 @@ Sources:
 
 ## DW-DEPS-01: Install only the packages you need, in one layer
 
-Strength: TRADE-OFF. Last verified: 2026-11-02.
+Strength: TRADE-OFF. Last verified: 2026-11-03.
 
 Install only what the running container needs, run the package index update and the install in
 the same `RUN`, and remove package caches in that same layer, unless you keep them in a cache
@@ -290,17 +290,20 @@ the instruction or the base digest changes, so patches only arrive when the cach
 [updating](https://github.com/placheckij/dockerfile-wizardry/blob/main/docs/rules/tradeoffs.md#3-update-inside-the-image-or-rebuild-from-a-fresh-base).
 
 How to check: Hadolint DL3008 (pin apt versions) and DL3018 (pin apk versions) check the pinning side of the
-trade-off; Dockle CIS-DI-0007 flags an `apt-get update` used alone (apt only). Whether to pin is
-the decision described above.
+trade-off. Hadolint DL3015 (apt without `--no-install-recommends`) checks for extra packages, and
+DL3009 (apt lists not deleted) and DL3019 (apk without `--no-cache`) check the cache cleanup;
+Dockle CIS-DI-0007 flags an `apt-get update` used alone (apt only). Whether to pin is the
+decision described above.
 
 Sources:
 - https://www.cisecurity.org/benchmark/docker
 - https://docs.docker.com/build/building/best-practices/#run
 - https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-9-integrate-container-scanning-tools-into-your-cicd-pipeline
+- https://github.com/hadolint/hadolint
 
 ## DW-DEPS-02: Install language tooling pinned, with its cache out of the layer
 
-Strength: SHOULD. Last verified: 2026-11-02.
+Strength: SHOULD. Last verified: 2026-11-03.
 
 Keep the installer's download cache out of the layer, either by disabling it or by keeping it
 in a cache mount (DW-BUILD-05); configure the installer to use the interpreter already in the
@@ -321,12 +324,14 @@ dependency imports, for about 8 MB more image. Python writes hash-based `.pyc` f
 `SOURCE_DATE_EPOCH` is set, which makes the bytecode reproducible. Turn compilation off if size
 matters more than start-up time.
 
-How to check: manual
+How to check: manual. Hadolint DL3042 reports a `pip install` that keeps pip's download cache in the layer; it
+checks pip only, and not whether the installer is pinned.
 
 Sources:
 - https://docs.docker.com/build/building/best-practices/#run
 - https://docs.astral.sh/uv/guides/integration/docker/
 - https://docs.python.org/3/library/py_compile.html
+- https://github.com/hadolint/hadolint
 
 ## DW-DEPS-03: Verify what you download during the build
 
@@ -428,7 +433,7 @@ Sources:
 
 ## DW-HEALTH-05: Use exec form, and exec in wrapper scripts, so signals reach the application
 
-Strength: SHOULD. Last verified: 2026-11-02.
+Strength: SHOULD. Last verified: 2026-11-03.
 
 Write `ENTRYPOINT` and `CMD` in exec (JSON array) form. If the entrypoint is a shell script,
 finish it with `exec <your-app>` so the application replaces the shell as the process that
@@ -439,17 +444,19 @@ application may never see `SIGTERM` and is killed after the stop timeout instead
 down cleanly. The same happens when a wrapper script starts the application without `exec`.
 Docker's build check `JSONArgsRecommended` flags the shell form for this reason.
 
-How to check: Docker build check JSONArgsRecommended (`docker build --check`). It does not look inside a
-wrapper script, and a `SHELL` instruction suppresses the warning, so the `exec` in a script has
-to be checked by reading it.
+How to check: Docker build check JSONArgsRecommended (`docker build --check`) and Hadolint DL3025 (JSON
+notation for `CMD` and `ENTRYPOINT`). Neither looks inside a wrapper script, and a `SHELL`
+instruction suppresses the build check's warning, so the `exec` in a script has to be checked by
+reading it.
 
 Sources:
 - https://hynek.me/articles/docker-signals/
 - https://docs.docker.com/reference/build-checks/json-args-recommended/
+- https://github.com/hadolint/hadolint
 
 ## DW-SECRET-01: Never pass secrets through ARG, ENV or COPY; mount them
 
-Strength: MUST. Last verified: 2026-11-02.
+Strength: MUST. Last verified: 2026-11-03.
 
 Give a build its secrets with `RUN --mount=type=secret` (or an SSH mount), never with `ARG`, `ENV`
 or files copied into the image. A secret mount defaults to `uid` 0 and mode `0400`, so when the
@@ -464,11 +471,11 @@ Docker lists the identities of secrets among the details that `min` mode leaves 
 image becomes part of it, and the NCSC guidance singles out temporary secrets used during the
 build, which must not be stored in the resulting image.
 
-How to check: Docker build check SecretsUsedInArgOrEnv (`docker build --check`), which reports `ENV` and `ARG`
-keys that look sensitive, so it matches names only; Dockle CIS-DI-0010, which checks
-environment variables and credential files, and in practice also flags sensitive-looking
-`KEY=value` words in the final image's history, which is where a build argument used by a `RUN`
-shows up; a secret scanner over the repository.
+How to check: Docker build check SecretsUsedInArgOrEnv (`docker build --check`) and Hadolint DL3064, which
+report `ENV` and `ARG` keys that look sensitive, so they match names only; Dockle CIS-DI-0010,
+which checks environment variables and credential files, and in practice also flags
+sensitive-looking `KEY=value` words in the final image's history, which is where a build argument
+used by a `RUN` shows up; a secret scanner over the repository.
 
 Sources:
 - https://docs.docker.com/build/building/secrets/
@@ -477,6 +484,7 @@ Sources:
 - https://github.com/goodwithtech/dockle/blob/master/CHECKPOINT.md
 - https://www.ncsc.gov.uk/collection/using-containerisation/building-container-images
 - https://www.cisecurity.org/benchmark/docker
+- https://github.com/hadolint/hadolint
 
 ## DW-SUPPLY-01: Attach an SBOM and provenance to the images you publish
 
@@ -615,7 +623,7 @@ Sources:
 
 ## DW-USER-01: Run as a non-root user
 
-Strength: MUST. Last verified: 2026-11-02.
+Strength: MUST. Last verified: 2026-11-03.
 
 Create a dedicated user and group with explicit numeric IDs and switch to it with `USER`
 before the final `CMD`/`ENTRYPOINT`. Never leave the container running as root.
@@ -623,11 +631,13 @@ before the final `CMD`/`ENTRYPOINT`. Never leave the container running as root.
 Why: Code execution inside the container then starts with the privileges of an unprivileged user,
 not root, which limits what a compromise can reach (CIS 4.1, OWASP Rule 2).
 
-How to check: Hadolint DL3002 (last user should not be root); Dockle CIS-DI-0001 (a user has been created).
+How to check: Hadolint DL3002 (last user should not be root) and DL3066 (a non-numeric user id, which the host
+may not resolve); Dockle CIS-DI-0001 (a user has been created).
 
 Sources:
 - https://www.cisecurity.org/benchmark/docker
 - https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-2-set-a-user
+- https://github.com/hadolint/hadolint
 
 ## DW-USER-02: The runtime user must not own or be able to change what it runs
 
