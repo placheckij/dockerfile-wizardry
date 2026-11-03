@@ -23,7 +23,9 @@ REFERENCES = Path("skills") / "dockerfile-wizardry" / "references"
 EXAMPLES = ("compose.yaml", "pod.yaml")
 HEADER = (
     f"This file is generated from [docs/rules/]({REPO_BLOB}docs/rules/) and must not be edited "
-    "by hand: change the rulebook, then run `python3 .github/scripts/check_rules.py --write`."
+    "by hand: change the rulebook, then run `python3 .github/scripts/check_rules.py --write`. "
+    '"This repository" below means placheckij/dockerfile-wizardry, where the rulebook lives, '
+    "not the project the skill is used on."
 )
 # fenced code blocks and inline code spans, which are left alone
 CODE_RE = re.compile(

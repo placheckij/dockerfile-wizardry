@@ -1,4 +1,4 @@
-This file is generated from [docs/rules/](https://github.com/placheckij/dockerfile-wizardry/blob/main/docs/rules/) and must not be edited by hand: change the rulebook, then run `python3 .github/scripts/check_rules.py --write`.
+This file is generated from [docs/rules/](https://github.com/placheckij/dockerfile-wizardry/blob/main/docs/rules/) and must not be edited by hand: change the rulebook, then run `python3 .github/scripts/check_rules.py --write`. "This repository" below means placheckij/dockerfile-wizardry, where the rulebook lives, not the project the skill is used on.
 
 # Dockerfile rules
 
