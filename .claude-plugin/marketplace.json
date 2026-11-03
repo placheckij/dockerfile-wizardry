@@ -1,0 +1,14 @@
+{
+  "name": "dockerfile-wizardry",
+  "owner": {
+    "name": "Jakub Płachecki"
+  },
+  "description": "The dockerfile-wizardry plugin: a skill that creates and audits Dockerfiles against a sourced rulebook.",
+  "plugins": [
+    {
+      "name": "dockerfile-wizardry",
+      "source": "./",
+      "description": "Create and audit Dockerfiles against a sourced rulebook of build, security and supply-chain rules."
+    }
+  ]
+}
