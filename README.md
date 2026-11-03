@@ -295,6 +295,9 @@ dockerfile-wizardry/
 │   ├── pod.yaml
 │   └── networkpolicy.yaml #    only role=frontend pods may reach the app
 ├── docs/rules/            # 📜 The rulebook, trade-offs and sources index
+├── skills/dockerfile-wizardry/  # 🧰 Claude Code skill; references/ is generated from docs/rules/
+├── .claude-plugin/        # 🔌 Plugin and marketplace manifests for installing the skill
+├── fixtures/dockerfiles/  # 🏷️ Labelled good and bad Dockerfiles, linted in CI, never built
 ├── pyproject.toml         # 📦 Python dependencies
 ├── uv.lock                # 🔒 Locked versions
 └── spellbook/
