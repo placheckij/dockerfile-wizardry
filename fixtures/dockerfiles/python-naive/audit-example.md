@@ -212,7 +212,8 @@ choice (the fixture declares no version), and it says so and asks for confirmati
 other version or checksum is claimed.
 
 **Trade-offs.** DW-BUILD-04 is shown as a decision with both sides and is not counted as a
-violation. DW-DEPS-01 does not apply to the original file (no OS packages).
+violation. DW-DEPS-01 does not apply to the original file (no OS packages); the
+rewrite's `tini` install is covered below.
 
 **Wording.** No "secure" claim. "Passes the listed checks" is used only for DW-HEALTH-01,
 which does pass, and the close names the three open must-fix findings.
@@ -229,9 +230,23 @@ which does pass, and the close names the three open must-fix findings.
   same layer.
 - `useradd --uid 10001` gives no explicit group id; it relies on Debian creating a group
   with the same number. DW-USER-01 asks for explicit numeric ids for both.
+- Neither diff applies as written. `git apply --check` on a copy of the fixture rejects
+  both as corrupt: the `.dockerignore` hunk declares `+1,15` but adds 14 lines, and the
+  rewrite declares `+1,54` but adds 53.
+- It says the slim multi-stage rewrite addresses DW-BUILD-10, but the `python:3.13-slim`
+  runtime stage still has `apt-get`, `dpkg` and `pip`. Only pruning (DW-BUILD-04) or a
+  base without them would meet the rule.
+- The rewrite installs `tini` with apt, unpinned, under `# hadolint ignore=DL3008`. That
+  is the skill's no-pin default for DW-DEPS-01, but the summary never names it as a
+  choice, as the skill's defaults ask.
+- The rewrite does not comment sparingly: almost every instruction has a `# DW-...` line
+  above it, and two of those lines carry two ids (`DW-BUILD-05, DW-DEPS-02` and
+  `DW-HEALTH-04/05`), where the skill asks for one id per line.
 
 **Changes to SKILL.md from earlier runs.** Earlier runs of this fixture guessed why a
 digest lookup failed ("no network") when it had been denied or not run, wrote comments at
 the end of Dockerfile lines (which a Dockerfile does not support), proposed
 `ENTRYPOINT ["tini", "--"]` without installing `tini`, and wrote hunks without line
-numbers. SKILL.md now covers each of these, and this run shows none of them.
+numbers. SKILL.md now covers each of these. This run has no guessed failure reasons, no
+end-of-line comments and installs `tini`, and its hunks carry line numbers, but the
+numbers are wrong (see above), so the diffs still do not apply.

@@ -184,6 +184,13 @@ names the open must-fix finding.
   the skill's defaults ask for when versions stay unpinned.
 - Its DW-USER-01 diff only sets `USER 10001:10001`. That runs, but the rule says to create
   a dedicated user and group with those ids.
+- Three of its four diffs do not apply as written (checked with `git apply --check` on a
+  copy of the fixture). The DW-BASE-02 hunk declares `+3,8` but has 7 lines, and the
+  DW-DEPS-01 hunk declares `-4,3 +4,4` but has 2 and 3, so both are rejected as corrupt.
+  The DW-BASE-01 hunk has context only before the change, so `git apply` and `patch`
+  anchor it at the end of the file and reject it. DW-BASE-01 and DW-BASE-02 also both
+  change line 3, where the skill asks for one combined diff. Only the DW-USER-01 diff
+  applies.
 - Hadolint is not installed on this machine, so DL3066 (`USER` by name rather than numeric
   id), which no rule names, was not reported, not even as "not from the rulebook".
 - The `LABEL` values in the DW-BASE-02 diff (this repository's URL, MIT) are guesses; the
