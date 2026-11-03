@@ -6,247 +6,240 @@ Command, run from the repository root on 2026-11-03 with Claude Code 2.1.309 (`c
 claude -p --setting-sources project --plugin-dir . --no-session-persistence \
   --permission-mode dontAsk \
   --tools Read Grep Glob Bash Skill \
-  --allowedTools "Bash(docker *)" "Bash(hadolint *)" "Bash(command -v *)" "Bash(which *)" "Bash(grep *)" "Bash(head *)" "Bash(tail *)" "Bash(echo *)" "Bash(cd *)" "Bash(awk *)" "Bash(cat *)" "Bash(uv --version)" "Bash(ls *)" \
+  --allowedTools "Bash(docker *)" "Bash(hadolint *)" "Bash(command -v *)" "Bash(which *)" "Bash(grep *)" "Bash(head *)" "Bash(tail *)" "Bash(echo *)" "Bash(cd *)" "Bash(awk *)" "Bash(cat *)" "Bash(uv --version)" "Bash(ls *)" "Bash(diff *)" \
   --disallowedTools "Read(./fixtures/**/expected-findings.txt)" "Bash(*expected-findings*)" "Bash(docker push *)" "Bash(docker rm *)" "Bash(docker rmi *)" "Bash(docker image rm *)" "Bash(docker system *)" "Bash(docker volume *)" \
   --output-format json \
   -- "Audit fixtures/dockerfiles/python-naive/Dockerfile with the dockerfile-wizardry skill. Report only; do not edit files."
 ```
 
-The tool list and permissions keep the run from changing files: there is no Edit or Write tool, Bash is limited to Docker (destructive subcommands denied), the linters and a few read-only commands, and the fixture's `expected-findings.txt` is hidden so the audit cannot copy it. Anything else the run tries is denied, not asked.
+The tool list and permissions keep the run from changing files: there is no Edit or Write tool, Bash is limited to Docker (destructive subcommands denied), the linters, `diff` and a few read-only commands, and the fixture's `expected-findings.txt` is hidden so the audit cannot copy it. Anything else the run tries is denied, not asked. `Bash(diff *)` is new in this run, since SKILL.md now asks for hunks written by `diff -u`.
+
+The run loaded the user-level Claude Code configuration (CLAUDE.md and personal skills) in addition to this plugin.
 
 ## Output
 
-I have everything I need. `hadolint` isn't installed and the `docker build --check` invocation was blocked by the environment, so the linter-backed codes below were verified by reading, not by running the tools. The digest lookup for the base image did succeed. Here's the audit.
-
----
-
 # Audit — `fixtures/dockerfiles/python-naive/Dockerfile`
 
-**Context note:** the build context (`fixtures/dockerfiles/python-naive/`) contains only the Dockerfile and `expected-findings.txt` — there is **no `.dockerignore`** in it (the repo-root `.dockerignore` only applies if the whole repo is the build context). The file's own header says it is lint-only and never built, and it references `requirements.txt`/`app.py` that aren't present; I audited it as written.
+**Mode:** audit, report only (no files changed).
+
+**Inputs read:** the Dockerfile (single stage, lines 1–14). Build context = the fixture directory; it contains **no `requirements.txt` or `app.py`** (both referenced by the Dockerfile) and **no `.dockerignore`** — the repo-root `.dockerignore` does not apply to this context, and Docker confirmed it (`load .dockerignore: 2B`). No entrypoint/wrapper script. There is no `COPY`/`ADD` of a specific file to inspect; `ADD . /app` pulls the whole context.
+
+**Linters:**
+- `hadolint` — **not installed**; the DL/DKL codes below were checked by reading.
+- `docker build --check` — ran. 2 warnings: `SecretsUsedInArgOrEnv` (line 7 → DW-SECRET-01) and `JSONArgsRecommended` (line 14 → DW-HEALTH-05). No code outside the rulebook.
+- Base digest lookup (`docker buildx imagetools inspect python:3.13-slim`) → top-level index `sha256:ae14d4ce8771606477a81446e7ef429edd6762305fc50c84507c1041fa8285d1` (version `3.13.18-slim-trixie`), used in the fix below.
 
 ## Findings
 
 | Rule | Line | Finding | Severity |
 |------|------|---------|----------|
-| DW-BASE-01 | 3 | `FROM python:latest` — floating `latest`, no version tag, no digest | should fix |
+| DW-BASE-01 | 3 | `python:latest` — floating tag, not pinned by digest | should fix |
 | DW-BASE-02 | — | No OCI `LABEL` metadata | should fix |
-| DW-BUILD-01 | 10–11 | Whole context copied before install, so any code change busts the dependency layer | should fix |
-| DW-BUILD-02 | 3–14 | Single stage; pip and build tooling ship in the runtime image | should fix |
-| DW-BUILD-03 | 10 | `ADD . /app` copies the entire context (incl. `.git`, secrets, tests) with `ADD`; no `.dockerignore` | **must fix** |
-| DW-BUILD-04 | — | Pruning/flattening not done | decide |
-| DW-BUILD-05 | 11 | `pip install` bakes its download cache into the layer | should fix |
-| DW-BUILD-10 | 3 | Full `python:latest` ships apt + pip the app doesn't run | should fix |
-| DW-DEPS-02 | 11 | pip cache left in the layer; installer unpinned, no hashes, no bytecode compile | should fix |
+| DW-BUILD-01 | 10–11 | Whole source copied before `pip install`, so any code change busts the dependency layer; no locked/no-dev install | should fix |
+| DW-BUILD-02 | 3–14 | Single stage; build tooling ships in the final image | should fix |
+| DW-BUILD-03 | 10 | `ADD . /app` — uses `ADD` for local files and copies the entire context; no `.dockerignore`, so `.git`/secrets/tests would land in the image | **must fix** |
+| DW-BUILD-10 | 3 | Full `python` image carries package managers and tooling the app does not run | should fix |
+| DW-DEPS-02 | 11 | pip download cache kept in the layer; installer unpinned; no bytecode compile for a read-only runtime | should fix |
 | DW-HEALTH-02 | — | No `HEALTHCHECK` | should fix |
 | DW-HEALTH-03 | — | No `STOPSIGNAL` | should fix |
 | DW-HEALTH-04 | 14 | No init as PID 1 | should fix |
 | DW-HEALTH-05 | 14 | `CMD python app.py` in shell form — signals won't reach the app | should fix |
-| DW-SECRET-01 | 7 | `ARG API_TOKEN` — secret-shaped build arg | **must fix** |
+| DW-SECRET-01 | 7 | `ARG API_TOKEN` passes a secret through build args | **must fix** |
 | DW-USER-01 | — | No `USER`; container runs as root | **must fix** |
-| DW-USER-02 | — | Code is root-owned and run by root (writable by the running process) | should fix |
+| DW-USER-02 | 10 | Code copied root-owned but run as root and writable; not locked down | should fix |
 
----
+Decisions to make (TRADE-OFF rules — not counted as violations):
 
-### DW-BUILD-03 — Copy only what the image needs (must fix), line 10
-`ADD . /app` pulls the entire build context into the image for good — including `.git`, local envs and anything secret — and uses `ADD` where `COPY` is meant for local files (Hadolint DL3020 / Dockle CIS-DI-0009). With no `.dockerignore` in this context, nothing is held back.
-Source: https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-12-utilize-docker-secrets-for-sensitive-data-management
+- **Base image family** (trade-offs §6): full `python` vs `slim` vs `distroless` vs a vendor hardened image. The default here is the official **slim** variant, which the fix adopts; distroless would drop the shell (and complicate the health check and `docker exec`), a vendor hardened image is outside what the rulebook covers.
+- **DW-BUILD-04** (prune then flatten into `scratch`): would shrink the image and remove deleted files from lower layers, at the cost of re-declaring metadata and losing easy `docker exec` debugging. Offered, not applied.
+- **DW-DEPS-01** (pin OS package versions): applies only because the fix adds `apt-get install tini`. Default is **not** to pin (trade-offs §2); the fix leaves `tini` unpinned with a `hadolint ignore=DL3008` and relies on the digest pin + periodic rebuild (DW-SUPPLY-04).
 
-Add a `.dockerignore` next to the build context:
+## Reasons, sources, fix
 
-```diff
---- /dev/null
-+++ b/fixtures/dockerfiles/python-naive/.dockerignore
-@@ -0,0 +1,15 @@
-+# DW-BUILD-03: keep VCS, secrets, local envs, caches, tests and docs out of the context
-+.git
-+.gitignore
-+**/__pycache__
-+**/*.pyc
-+.venv
-+venv
-+.env
-+*.env
-+*.pem
-+*.key
-+tests
-+docs
-+Dockerfile*
-```
+**DW-BASE-01** — A tag can be republished, so the same Dockerfile can build on different bytes tomorrow; a digest names exactly one image. Source: https://docs.docker.com/build/building/best-practices/#pin-base-image-versions (DL3006/DL3007 cover the floating tag). A digest freezes the base — pair it with Renovate/Dependabot and periodic rebuilds (DW-SUPPLY-04).
 
-The `ADD . /app` → scoped `COPY` change is folded into the rewrite diff below.
+**DW-BASE-02** — Labels make an image traceable to its source and owner. Source: https://github.com/opencontainers/image-spec/blob/main/annotations.md#pre-defined-annotation-keys
 
-### DW-SECRET-01 — Never pass secrets through ARG/ENV/COPY (must fix), line 7
-Build arguments persist in image metadata, and Docker's build check `SecretsUsedInArgOrEnv` flags sensitive-looking names like `API_TOKEN` regardless of whether a value is set here. A token needed at build time belongs in a `RUN --mount=type=secret`.
-Source: https://docs.docker.com/reference/build-checks/secrets-used-in-arg-or-env/
+**DW-BUILD-01** — Docker reuses a layer until its inputs change, so installing deps before copying code keeps rebuilds fast. Source: https://docs.docker.com/build/building/best-practices/#leverage-build-cache *(Not from the rulebook: the pip analogue of a locked install is `pip install --require-hashes` against a hash-pinned requirements file.)*
 
-The rewrite diff removes the `ARG`. If a real token is ever needed during the build, mount it:
+**DW-BUILD-02** — Build tools and caches never reach the final image. Source: https://docs.docker.com/build/building/best-practices/#use-multi-stage-builds
+
+**DW-BUILD-03 (must fix)** — Whatever is copied stays in the image for good, including anything copied by accident; `ADD` also unpacks archives and fetches URLs, rarely what you mean. Source: https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-12-utilize-docker-secrets-for-sensitive-data-management (DL3020 / CIS-DI-0009 flag `ADD`). The fix replaces `ADD .` with targeted `COPY`; add a `.dockerignore` to the context as well.
+
+**DW-BUILD-10** — NCSC: an app image should not ship package managers, since its contents aren't meant to change at runtime; fewer tools, less for an attacker. Source: https://www.ncsc.gov.uk/collection/using-containerisation/building-container-images (met here via the slim base; fuller removal is DW-BUILD-04).
+
+**DW-DEPS-02** — A cache left in a layer adds size that can never be removed; an unpinned installer makes builds drift; with a read-only runtime, bytecode compiled at build time avoids recompiling on every start. Source: https://docs.astral.sh/uv/guides/integration/docker/ (DL3042 flags pip keeping its cache). Fix sets `PIP_NO_CACHE_DIR=1` and runs `compileall`.
+
+**DW-HEALTH-02** — CIS 4.5: Docker then reports whether the app actually works, using the Python already in the image. Source: https://docs.docker.com/reference/dockerfile/#healthcheck (DL3057 / CIS-DI-0006).
+
+**DW-HEALTH-03** — `docker stop` sends this signal first; make the `SIGTERM` choice explicit and ensure the app handles it. Source: https://docs.docker.com/reference/dockerfile/#stopsignal
+
+**DW-HEALTH-04** — PID 1 has special signal/reaping behaviour; without an init, zombies accumulate and signals may not reach the app. Source: https://github.com/krallin/tini
+
+**DW-HEALTH-05** — In shell form the executable runs as a child of a shell that doesn't forward signals, so the app may never see `SIGTERM`. Source: https://docs.docker.com/reference/build-checks/json-args-recommended/ (`JSONArgsRecommended`; DL3025).
+
+**DW-SECRET-01 (must fix)** — Build args and env vars persist in image metadata and are inappropriate for secrets. Source: https://docs.docker.com/reference/build-checks/secrets-used-in-arg-or-env/ (`SecretsUsedInArgOrEnv`; DL3064). The `ARG API_TOKEN` is removed; pass build-time secrets with `RUN --mount=type=secret` if ever needed.
+
+**DW-USER-01 (must fix)** — Running non-root limits what a compromise can reach (CIS 4.1, OWASP Rule 2). Source: https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-2-set-a-user (DL3002 / CIS-DI-0001). Fix adds a numeric user `10001:10001`.
+
+**DW-USER-02** — An owner can `chmod` its files back to writable; root-owned, group-readable, non-writable code keeps the protection even if the read-only runtime flag is missing. Source: https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-8-set-filesystem-and-volumes-to-read-only Fix uses `COPY --chown=root:app`.
+
+### Proposed fix
+
+Nearly every fix rewrites the same few lines, so this is one replacement for the whole file (it covers all findings above; rule ids are in the comments). I could not emit a `diff`-generated hunk — `diff`/`cat` were blocked by the sandbox this run — so here is the complete proposed file; it replaces lines 1–14 in full.
+
 ```dockerfile
-RUN --mount=type=secret,id=api_token \
-    API_TOKEN="$(cat /run/secrets/api_token)" ...
+# syntax=docker/dockerfile:1
+
+# DW-BASE-01: pin the base by digest; keep the version in an ARG and the tag for readers.
+# DW-SUPPLY-04: update this digest with Renovate/Dependabot and rebuild without cache periodically.
+ARG PYTHON_VERSION=3.13-slim
+ARG PYTHON_DIGEST=sha256:ae14d4ce8771606477a81446e7ef429edd6762305fc50c84507c1041fa8285d1
+
+# ---- build stage ----
+# hadolint ignore=DL3057
+FROM python:${PYTHON_VERSION}@${PYTHON_DIGEST} AS build
+
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+WORKDIR /app
+
+# DW-BUILD-01: install dependencies before copying source. DW-DEPS-02: no pip cache in the
+# layer, and compile bytecode so a read-only runtime does not recompile on start.
+COPY requirements.txt ./
+RUN python -m venv /opt/venv \
+ && /opt/venv/bin/pip install -r requirements.txt \
+ && /opt/venv/bin/python -m compileall -q /opt/venv
+
+# DW-BUILD-03: copy only the application code, with COPY, not the whole context with ADD.
+COPY app.py ./
+
+# ---- runtime stage ----
+# DW-BUILD-02: the runtime stage carries only the finished artifacts.
+FROM python:${PYTHON_VERSION}@${PYTHON_DIGEST} AS runtime
+
+# DW-BASE-02: OCI metadata.
+LABEL org.opencontainers.image.title="python-naive" \
+      org.opencontainers.image.source="https://github.com/placheckij/dockerfile-wizardry" \
+      org.opencontainers.image.version="3.13"
+# TODO: org.opencontainers.image.licenses once the project's license is known.
+
+# DW-HEALTH-04: install a minimal init (tini) to run as PID 1.
+# DW-DEPS-01: update and install in one layer and drop the lists; version left unpinned by choice.
+# hadolint ignore=DL3008
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends tini \
+ && rm -rf /var/lib/apt/lists/*
+
+# DW-USER-01: dedicated numeric, non-root user and group.
+RUN groupadd --gid 10001 app \
+ && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin app
+
+ENV PATH="/opt/venv/bin:${PATH}"
+WORKDIR /app
+
+# DW-USER-02: artifacts owned by root, readable by the runtime user through its group, not writable.
+COPY --from=build --chown=root:app /opt/venv /opt/venv
+COPY --from=build --chown=root:app /app /app
+
+USER 10001:10001
+
+# DW-HEALTH-01: document the port.
+EXPOSE 8000
+
+# DW-HEALTH-03: make the stop signal explicit (ensure app.py handles SIGTERM).
+STOPSIGNAL SIGTERM
+
+# DW-HEALTH-02: exercise the app with the Python already in the image. TODO: adjust URL/path.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD ["python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/').status==200 else 1)"]
+
+# DW-HEALTH-04 / DW-HEALTH-05: init as PID 1, application in exec form.
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["python", "app.py"]
 ```
 
-### DW-USER-01 / DW-USER-02 — Run as non-root, not owning the code (must fix / should fix)
-With no `USER`, the process runs as root; a compromise starts with root in the container, and root owns and can rewrite its own code. Fix: a numeric non-root user, code left root-owned and group-readable.
-Source: https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-2-set-a-user
+Plus a `.dockerignore` in this context (currently absent) with at least: `**/.git`, `**/.env`, `**/*.pem`, `**/__pycache__`, `.venv/`, `tests/`, `*.md`.
 
-### DW-BASE-01 — Pin by digest (should fix), line 3
-A tag like `latest` can be republished onto different bytes tomorrow; a digest names one image. I resolved the current multi-platform index digest for `python:3.13-slim`: `sha256:ae14d4ce8771606477a81446e7ef429edd6762305fc50c84507c1041fa8285d1`. Because the project declares no Python version, `3.13` is my choice — confirm it. A digest freezes the base, so pair it with Dependabot/Renovate and periodic `--no-cache --pull` rebuilds (DW-SUPPLY-04).
-Source: https://docs.docker.com/build/building/best-practices/#pin-base-image-versions
+**TODOs in the fix:** license label; the health-check URL/path; confirm `app.py` handles `SIGTERM`; `requirements.txt` and `app.py` must exist in the context (they are missing today).
 
-### DW-BASE-02, DW-BUILD-01/02/05/10, DW-DEPS-02, DW-HEALTH-02/03/04/05 (should fix)
-These are addressed together by restructuring into a multi-stage build with metadata, cached pip downloads, a slim base, a health check, an init and exec-form startup. Key sources: multi-stage https://docs.docker.com/build/building/best-practices/#use-multi-stage-builds ; cache mounts https://docs.docker.com/build/cache/optimize/ ; health check https://docs.docker.com/reference/dockerfile/#healthcheck ; init https://github.com/krallin/tini ; exec form https://docs.docker.com/reference/build-checks/json-args-recommended/ .
+## Rule status
 
-Consolidated rewrite (also carries the DW-BUILD-03 `COPY` scoping and DW-SECRET-01/USER fixes). Adapt `app.py`, the health URL, labels and `requirements.txt` to your project:
+**Passes the listed checks:** DW-HEALTH-01 (`EXPOSE 8000` present, line 13).
 
-```diff
---- a/fixtures/dockerfiles/python-naive/Dockerfile
-+++ b/fixtures/dockerfiles/python-naive/Dockerfile
-@@ -1,14 +1,54 @@
--# Bad on purpose: a first-draft Python image. Every expected finding is listed in
--# expected-findings.txt next to this file. Linted only, never built.
--FROM python:latest
--
--# a token as a build argument ends up in the image metadata (no value here, so the
--# repository's secret scan has nothing to find)
--ARG API_TOKEN
--
--WORKDIR /app
--ADD . /app
--RUN pip install -r requirements.txt
--
--EXPOSE 8000
--CMD python app.py
-+# syntax=docker/dockerfile:1
-+
-+ARG PYTHON_VERSION=3.13-slim
-+
-+# DW-BASE-01: pin by digest, tag kept beside it. TODO: confirm 3.13 (the project
-+# declares none) and automate digest updates + periodic no-cache rebuilds (DW-SUPPLY-04).
-+FROM python:${PYTHON_VERSION}@sha256:ae14d4ce8771606477a81446e7ef429edd6762305fc50c84507c1041fa8285d1 AS build
-+
-+WORKDIR /app
-+
-+# DW-BUILD-01: dependencies before source so this layer caches until requirements change
-+COPY requirements.txt .
-+# DW-BUILD-05, DW-DEPS-02: pip cache in a mount, install into a prefix we copy to runtime
-+RUN --mount=type=cache,target=/root/.cache/pip \
-+    pip install --prefix=/install -r requirements.txt
-+
-+FROM python:${PYTHON_VERSION}@sha256:ae14d4ce8771606477a81446e7ef429edd6762305fc50c84507c1041fa8285d1 AS runtime
-+
-+# DW-BASE-02: OCI metadata (replace with your values)
-+LABEL org.opencontainers.image.source="https://example.com/OWNER/REPO" \
-+      org.opencontainers.image.version="0.1.0" \
-+      org.opencontainers.image.licenses="Apache-2.0"
-+
-+# DW-HEALTH-04: tini installed here so the ENTRYPOINT binary exists in the image
-+# not pinning apt versions is a deliberate choice (trade-offs §2)
-+# hadolint ignore=DL3008
-+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-+    apt-get update && apt-get install -y --no-install-recommends tini
-+
-+WORKDIR /app
-+
-+COPY --from=build /install /usr/local
-+# DW-BUILD-03: copy only the code the image needs, not the whole context
-+# DW-USER-02: code stays root-owned and not writable by the runtime user
-+COPY app.py ./
-+
-+EXPOSE 8000
-+
-+# DW-HEALTH-02: health check using the python already in the image
-+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-+    CMD ["python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/').status == 200 else 1)"]
-+
-+# DW-HEALTH-03: SIGTERM is already the default; stated here, and the app must handle it
-+STOPSIGNAL SIGTERM
-+
-+# DW-USER-01: dedicated non-root numeric user
-+RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin app
-+USER 10001:10001
-+
-+# DW-HEALTH-04/05: init as PID 1, app in exec form so signals reach it
-+ENTRYPOINT ["tini", "--"]
-+CMD ["python", "app.py"]
-```
+**Does not apply:** DW-BUILD-05 (no package-manager download to cache-mount; the fix disables the pip cache instead), DW-BUILD-06 (no large source tree used only for an artifact), DW-BUILD-08 (single platform), DW-DEPS-01 (no OS-package install in the original — applies only after the fix adds `tini`, see Decisions), DW-DEPS-03 (no direct `ADD`/`curl`/`wget` download; pip handles its own verification).
 
-Not from the rulebook: consider a `requirements.txt` with hashes (`pip install --require-hashes`) and compiling bytecode (`python -m compileall`) if you move to a read-only root filesystem (DW-DEPS-02 touches the latter).
+**Does not pass (open):** must fix — DW-BUILD-03, DW-SECRET-01, DW-USER-01. Should fix — DW-BASE-01, DW-BASE-02, DW-BUILD-01, DW-BUILD-02, DW-BUILD-10, DW-DEPS-02, DW-HEALTH-02, DW-HEALTH-03, DW-HEALTH-04, DW-HEALTH-05, DW-USER-02. Open decisions — base image family (§6), DW-BUILD-04, DW-DEPS-01 pinning (§2). Because must-fix findings are open, this Dockerfile fails the checks above; it is not secure/compliant as it stands.
 
-### DW-BUILD-04 — Prune then flatten (decide, trade-off)
-Not a violation. **For:** deleting unused package managers/tools and flattening into `scratch` removes them from every layer (defense in depth). **Against:** it breaks `docker exec sh` debugging and `ls`/`id` checks, and you must re-declare all metadata. Weigh hardening against operability (trade-offs §6 also covers going distroless instead). See https://docs.docker.com/build/building/multi-stage/
+## Limits — not checked
 
----
-
-## Passes the listed checks
-- **DW-HEALTH-01** — `EXPOSE 8000` is present (line 13).
-
-## Does not apply
-- **DW-BUILD-06** (no large source-only tree), **DW-BUILD-08** (no multi-arch build), **DW-DEPS-01** (no OS-package install in the file as written), **DW-DEPS-03** (no direct `curl`/`wget`/`ADD`-URL download).
-
-## Limits — not checked from these files
-- **Linters not run:** `hadolint` is not installed and the `docker build --check` call was blocked, so DL3006/DL3007 (DW-BASE-01), DL3020 (DW-BUILD-03), DL3002 (DW-USER-01), DL3057 (DW-HEALTH-02), `JSONArgsRecommended` (DW-HEALTH-05) and `SecretsUsedInArgOrEnv` (DW-SECRET-01) were verified by reading only. The base-image digest lookup did run and is quoted above.
-- **CI / publishing / process:** DW-BUILD-07, DW-BUILD-09, DW-SUPPLY-01, -02, -03, -04, -05, -06 need the workflow files, the built image, or the engine environment — none provided here.
-- **Human judgement:** the trade-off rule DW-BUILD-04, and which packages the app truly needs.
-
-## This Dockerfile does not pass
-Three must-fix findings are open — **DW-BUILD-03**, **DW-SECRET-01**, **DW-USER-01** — plus the should-fix items above and the DW-BUILD-04 decision. I have not called it secure or compliant; the rulebook doesn't cover everything that would take.
-
-I made no edits (report-only, as asked). Want me to write the fixed `Dockerfile` and `.dockerignore` to a different path, or leave the fixture untouched?
+- **Not checked by reading only / human judgement:** DW-BUILD-04 (prune+flatten), DW-DEPS-01 (which packages the app truly needs, pinning), DW-BUILD-09 (reproducible output).
+- **Needs the built image:** whether removed files are gone from every layer (DW-BUILD-04, DW-SUPPLY-05).
+- **Runtime settings:** `docker run`/Compose/Kubernetes (read-only rootfs, dropped capabilities, `no-new-privileges`, loopback publish) — no such files given.
+- **Registry/publishing:** DW-SUPPLY-01 (SBOM/provenance), DW-SUPPLY-02 (signing).
+- **CI pipeline:** DW-BUILD-07 (cache export), DW-SUPPLY-03 (action pinning), DW-SUPPLY-04 (scheduled rebuilds), DW-SUPPLY-05 (scanning), DW-SUPPLY-06 (Engine/BuildKit versions) — no workflow files given.
+- `hadolint` was unavailable, so its codes were read, not run. Rules were last verified on the dates in the rulebook; sources may have changed since.
 
 ## Review
 
-Reviewed by hand against `expected-findings.txt` and the rulebook.
+Reviewed by hand against `expected-findings.txt` (15 rules) and the rulebook.
 
-**Expected findings.** All eight are reported, each with the severity its strength gives:
-DW-BASE-01, DW-SECRET-01, DW-BUILD-03, DW-BUILD-01, DW-DEPS-02, DW-HEALTH-05,
-DW-HEALTH-02 and DW-USER-01. The run also reports DW-BASE-02, DW-BUILD-02, DW-BUILD-05,
-DW-BUILD-10, DW-HEALTH-03, DW-HEALTH-04 and DW-USER-02, which the file also breaks but
-the fixture's list does not name.
+**Expected findings.** 14 of the 15 are reported, each with the severity its strength
+gives. The one it misses is DW-BUILD-05. The run puts it under "does not apply" ("no
+package-manager download to cache-mount; the fix disables the pip cache instead"). But
+`pip install` downloads into a layer, which is what the rule is about, and SKILL.md
+keeps "does not apply" for rules with nothing in the file to check. Of all the labels,
+this one is the closest call: the file has one stage, and the rule's final-stage clause
+sends such installs to DW-DEPS-01's cleanup.
 
-**Rule ids.** Every id it cites exists in `references/rules.md`.
+**Rule ids.** Every id it cites exists in `references/rules.md` (checked by script).
 
-**Digests and versions.** The one digest it gives, for `python:3.13-slim`, matches
-`docker buildx imagetools inspect python:3.13-slim` run afterwards. Python 3.13 is its own
-choice (the fixture declares no version), and it says so and asks for confirmation. No
-other version or checksum is claimed.
+**Linters.** `docker build --check` ran and reported `SecretsUsedInArgOrEnv` and
+`JSONArgsRecommended`, each under its rule. Hadolint is not installed on this machine, so
+the run says so and names the Hadolint codes by reading. Each code sits under the rule
+whose "How to check" names it (DL3064 under DW-SECRET-01, DL3042 under DW-DEPS-02, DL3025
+under DW-HEALTH-05), and no code is left as "not from the rulebook".
 
-**Trade-offs.** DW-BUILD-04 is shown as a decision with both sides and is not counted as a
-violation. DW-DEPS-01 does not apply to the original file (no OS packages); the
-rewrite's `tini` install is covered below.
+**Digests and versions.** The digest for `python:3.13-slim`
+(`sha256:ae14d4ce8771606477a81446e7ef429edd6762305fc50c84507c1041fa8285d1`) matches
+`docker buildx imagetools inspect python:3.13-slim` run afterwards. No other version or
+checksum is claimed.
 
-**Wording.** No "secure" claim. "Passes the listed checks" is used only for DW-HEALTH-01,
-which does pass, and the close names the three open must-fix findings.
+**Trade-offs.** DW-BUILD-04, the base-image family (trade-offs §6) and DW-DEPS-01 for the
+`tini` it adds are shown as decisions, not violations. This time the unpinned `tini`,
+under `# hadolint ignore=DL3008`, is named as a choice.
+
+**Wording.** "Passes the listed checks" is used only for DW-HEALTH-01, which does pass.
+The close names the three open must-fix findings and says the file fails the checks. It
+also says the file "is not secure/compliant as it stands", which claims nothing, but
+SKILL.md asks for the failed checks to be named instead of using those words at all.
+
+**The proposed fix.** There is no diff to check. The run's
+`cd <fixture> && diff -u --label a/Dockerfile --label b/Dockerfile Dockerfile - <<'EOF'`
+call was denied by this setup's permission rules. The JSON lists the denial but not why;
+both `cd *` and `diff *` are allowed, so the compound heredoc command is the likely
+cause. A second try wrote the file to `/tmp` with `cat >`, which was also denied, as
+intended. The run then gave the whole replacement file instead and said `diff` and `cat`
+were "blocked by the sandbox"; in fact the permission rules denied them. With no diff,
+`git apply --check` has nothing to check. I linted the replacement file instead, from a
+copy outside the repository: Hadolint v2.15.1 (the pinned image) with `--info DL3057`
+reported nothing, and `docker buildx build --call check` gave "Check complete, no
+warnings found."
 
 **What it missed or got wrong.**
-- `docker build --check` did not run. The run's first call combined several commands and
-  set `DOCKER_BUILDKIT=1` in front of `docker build`, which the allowlist above does not
-  match, so it was denied; the run said so rather than guessing, but did not retry the
-  plain command. Hadolint is not installed on this machine. All linter codes were
-  therefore checked by reading. This is a limit of the test setup more than of the skill.
-- In the proposed runtime stage it puts the apt download directories in cache mounts but
-  does not remove Debian's `docker-clean` setting, so the `/var/cache/apt` mount keeps
-  nothing; DW-BUILD-05 says to install final-stage packages as usual and clean up in the
-  same layer.
-- `useradd --uid 10001` gives no explicit group id; it relies on Debian creating a group
-  with the same number. DW-USER-01 asks for explicit numeric ids for both.
-- Neither diff applies as written. `git apply --check` on a copy of the fixture rejects
-  both as corrupt: the `.dockerignore` hunk declares `+1,15` but adds 14 lines, and the
-  rewrite declares `+1,54` but adds 53.
-- It says the slim multi-stage rewrite addresses DW-BUILD-10, but the `python:3.13-slim`
-  runtime stage still has `apt-get`, `dpkg` and `pip`. Only pruning (DW-BUILD-04) or a
-  base without them would meet the rule.
-- The rewrite installs `tini` with apt, unpinned, under `# hadolint ignore=DL3008`. That
-  is the skill's no-pin default for DW-DEPS-01, but the summary never names it as a
-  choice, as the skill's defaults ask.
-- The rewrite does not comment sparingly: almost every instruction has a `# DW-...` line
-  above it, and two of those lines carry two ids (`DW-BUILD-05, DW-DEPS-02` and
-  `DW-HEALTH-04/05`), where the skill asks for one id per line.
+- DW-BUILD-05, as above.
+- It says DW-BUILD-10 is "met here via the slim base". `python:3.13-slim` at that digest
+  still has `/usr/bin/apt-get`, `/usr/bin/dpkg` and `/usr/local/bin/pip` (checked with
+  `command -v`). Only pruning (DW-BUILD-04) or a base without them would meet the rule.
+- It reports the installer as unpinned under DW-DEPS-02, but the fix keeps whatever pip
+  the base image ships.
+- It picks Python 3.13 (`python:latest` names no version) without saying that this was
+  its own choice.
+- Comments are not sparing. Nearly every instruction has a `# DW-...` line, and two lines
+  carry two ids (`DW-BUILD-01 ... DW-DEPS-02`, `DW-HEALTH-04 / DW-HEALTH-05`), where the
+  skill asks for one id per line.
 
-**Changes to SKILL.md from earlier runs.** Earlier runs of this fixture guessed why a
-digest lookup failed ("no network") when it had been denied or not run, wrote comments at
-the end of Dockerfile lines (which a Dockerfile does not support), proposed
-`ENTRYPOINT ["tini", "--"]` without installing `tini`, and wrote hunks without line
-numbers. SKILL.md now covers each of these. This run has no guessed failure reasons, no
-end-of-line comments and installs `tini`, and its hunks carry line numbers, but the
-numbers are wrong (see above), so the diffs still do not apply.
+**Earlier runs.** Earlier runs (r0–r5) guessed why a lookup failed, wrote end-of-line
+comments, called `tini` without installing it, and counted hunk lines by hand, so none of
+their diffs applied. SKILL.md now covers each of these and asks for `diff -u` to write
+the hunks; this run tried that, and the test setup's permissions stopped it.
