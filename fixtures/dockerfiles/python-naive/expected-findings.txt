@@ -1,4 +1,6 @@
-# Bad on purpose. Each line: the rule the Dockerfile breaks, then the linter codes that catch it.
+# Bad on purpose. Each line: a rule the Dockerfile breaks, then the linter codes that catch it.
+# A line without codes is a rule no linter checks here; it was decided by reading the file
+# against the rulebook. DW-BUILD-04 is a TRADE-OFF (a decision, not a fault) and is not listed.
 DW-BASE-01    DL3007                                  # FROM python:latest, and no digest
 DW-SECRET-01  DL3064 SecretsUsedInArgOrEnv            # ARG API_TOKEN
 DW-BUILD-03   DL3020                                  # ADD . /app copies the whole context
@@ -7,3 +9,10 @@ DW-DEPS-02    DL3042                                  # pip keeps its download c
 DW-HEALTH-05  DL3025 JSONArgsRecommended              # shell-form CMD
 DW-HEALTH-02  DL3057                                  # no HEALTHCHECK
 DW-USER-01                                            # no USER, so it runs as root; DL3002 fires only on an explicit USER root
+DW-BASE-02                                            # no LABEL
+DW-BUILD-02                                           # one stage: pip installs into the image that runs the app
+DW-BUILD-05                                           # pip's downloads go into a layer, not a cache mount
+DW-BUILD-10                                           # the full python image keeps apt and dpkg in the runtime image
+DW-HEALTH-03                                          # no STOPSIGNAL
+DW-HEALTH-04                                          # no init as PID 1
+DW-USER-02                                            # the runtime user (root) owns, and can change, the code in /app

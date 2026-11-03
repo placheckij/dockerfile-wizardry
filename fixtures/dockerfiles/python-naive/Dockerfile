@@ -1,4 +1,4 @@
-# Bad on purpose: a first-draft Python image. Every expected finding is listed in
+# Bad on purpose: a first-draft Python image. The rules it breaks are listed in
 # expected-findings.txt next to this file. Linted only, never built.
 FROM python:latest
 

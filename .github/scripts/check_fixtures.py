@@ -2,7 +2,8 @@
 
 Each fixture is a directory fixtures/dockerfiles/<name>/ holding a `Dockerfile` and an
 `expected-findings.txt`. The file lists, per line, a rulebook id and the linter codes that
-Dockerfile is expected to trigger for it; a good fixture lists no codes:
+Dockerfile is expected to trigger for it; a good fixture lists only accepted findings, each
+with a reason:
 
     # comments start with a hash
     DW-BASE-01  DL3007
