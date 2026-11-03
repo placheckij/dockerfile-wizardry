@@ -11,8 +11,9 @@ ARG DEBIAN_RELEASE=trixie
 FROM python:${PYTHON_VERSION}-slim-${DEBIAN_RELEASE}@sha256:930e1abba7c4e8f96ed93e8012c35d174d7732752731bbd5e8e757d7ec6f3966 AS build
 # uv is copied from its own image, pinned like the base
 COPY --from=ghcr.io/astral-sh/uv:0.13.6@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 /uv /usr/local/bin/uv
-# use the base image's Python, compile .pyc files now (the runtime filesystem can be
-# read-only), and copy from the cache mount instead of hardlinking into it
+# use the base image's Python, compile the installed dependencies to .pyc now (the runtime
+# filesystem can be read-only; the application code copied later is not compiled), and copy
+# from the cache mount instead of hardlinking into it
 ENV UV_PYTHON_DOWNLOADS=never \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy
