@@ -14,6 +14,10 @@ The linters are Hadolint (pinned image, run through Docker) and `docker buildx b
 check`. The union of the codes they report must equal the union of the listed codes, and every
 rule id must exist in docs/rules/.
 
+The fixtures are never built, but the check needs network access: Docker pulls the Hadolint
+image, and `--call check` loads each base image's metadata from its registry, so the digests
+pinned in the fixtures must stay pullable.
+
 Usage:
     python3 .github/scripts/check_fixtures.py
 
