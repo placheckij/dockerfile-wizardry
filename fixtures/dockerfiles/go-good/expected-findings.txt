@@ -1,0 +1,5 @@
+# Good. The one expected finding is accepted, not a fault:
+# distroless static has no shell, curl or other program to run a HEALTHCHECK with, and the
+# application is not known to have a health-check mode of its own, so the image leaves health
+# checking to the platform's probes (see the DW-HEALTH-02 trade-off).
+DW-HEALTH-02  DL3057

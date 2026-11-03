@@ -1,0 +1,9 @@
+# Bad on purpose. Each line: the rule the Dockerfile breaks, then the linter codes that catch it.
+DW-BASE-01    DL3007                                  # FROM python:latest, and no digest
+DW-SECRET-01  DL3064 SecretsUsedInArgOrEnv            # ARG API_TOKEN
+DW-BUILD-03   DL3020                                  # ADD . /app copies the whole context
+DW-BUILD-01                                           # the code is copied before the install, so every edit reinstalls
+DW-DEPS-02    DL3042                                  # pip keeps its download cache in the layer
+DW-HEALTH-05  DL3025 JSONArgsRecommended              # shell-form CMD
+DW-HEALTH-02  DL3057                                  # no HEALTHCHECK
+DW-USER-01                                            # no USER, so it runs as root; DL3002 fires only on an explicit USER root
