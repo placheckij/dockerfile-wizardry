@@ -34,7 +34,8 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    `ADD`s (look for secrets, tests, `.git`, local environments), and any entrypoint or
    wrapper script it runs (DW-HEALTH-05 needs the `exec` in it checked by reading).
 2. **Run the linters if they are installed.** Do not install anything without asking.
-   - `hadolint <Dockerfile>`
+   - `hadolint --info DL3057 <Dockerfile>` (DL3057, a missing `HEALTHCHECK`, is off by
+     default; this turns it on for DW-HEALTH-02)
    - `docker build --check -f <Dockerfile> <context>` (or
      `docker buildx build --call check -f <Dockerfile> <context>`); this runs Docker's
      build checks without building the image.
@@ -45,7 +46,10 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    "not from the rulebook". If a linter is not available, say so and check by reading.
 3. **Go rule by rule** through `references/rules.md` in order. For each rule decide:
    finding, passes, does not apply (say why), or cannot be checked from these files
-   (it goes under Limits).
+   (it goes under Limits). "Does not apply" means the Dockerfile has nothing the rule is
+   about (no `COPY` or `ADD` for DW-BUILD-03, no download for DW-DEPS-03). If you think
+   a rule matters less for this image, for example a health check for a one-shot
+   command, report the finding and add that note; do not leave it out.
 4. **Report.** Start with a table, one row per finding, in rule order:
 
    | Rule | Line | Finding | Severity |
@@ -60,7 +64,11 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
      do not count it as a violation.
 
    Then, for each finding: the reason (a sentence or two from the rule's "Why"), one
-   source link from the rule's "Sources", and a unified diff against the user's file:
+   source link from the rule's "Sources", and a unified diff against the user's file
+   as it is now, with file headers and line numbers, so that each diff applies on its
+   own. Where fixes change the same lines, give one diff and name the rules it covers.
+   Place comments as in create mode (section 3, step 4). A diff must not call a binary
+   the image lacks: if it adds `tini` as the entrypoint, it also installs `tini`.
 
    ```diff
    --- a/Dockerfile
@@ -118,13 +126,22 @@ Use this when the user wants a new Dockerfile for a project.
    labels (DW-BASE-02). Pass build secrets only as secret mounts (DW-SECRET-01). The
    `.dockerignore` keeps out at least `.git`, environment and key files, local
    dependency and build directories, and tests and docs the build does not need.
-   Pruning and flattening (DW-BUILD-04) is a TRADE-OFF: offer it, do not apply it
-   unasked.
+   Its patterns match from the root of the context, so a name meant at any depth needs
+   `**/` (`**/__pycache__`, not `__pycache__/`). Pruning and flattening (DW-BUILD-04)
+   is a TRADE-OFF: offer it, do not apply it unasked.
 4. **Comment sparingly.** Put a rule id in a Dockerfile comment only on lines whose
    purpose is not obvious, one id per line, for example
-   `# DW-USER-02: code is root-owned, readable through the group`.
+   `# DW-USER-02: code is root-owned, readable through the group`. Where comments go:
+   - on their own line above the instruction: a Dockerfile has no end-of-line
+     comments, so a `#` after an instruction becomes one of its arguments;
+   - a `# syntax=` directive, if you use one, is the first line of the file, since
+     anything above it, a comment included, turns it into an ordinary comment;
+   - a `# hadolint ignore=...` line goes directly above the instruction it is for,
+     with its reason on the line above it; Hadolint applies it to the next line only.
 5. **Check your own output.** Run the linters as in audit mode, then go through the
-   rules once and fix or report what remains.
+   rules once and fix or report what remains. Hadolint asks every stage for a
+   `HEALTHCHECK` (DL3057), but a build stage never runs as a container, so put
+   `# hadolint ignore=DL3057` above its `FROM` with that reason.
 6. **Offer a runtime example.** Offer a hardened Compose service or Kubernetes Pod spec,
    adapted from `references/examples/compose.yaml` or `references/examples/pod.yaml`:
    change the image name, port, user and group IDs and health check notes to fit, and
@@ -145,15 +162,18 @@ reverse, so name it in the summary.
 - **Pin base images by digest** (DW-BASE-01): `FROM <image>:<tag>@sha256:<digest>`, with
   the version in an `ARG`. Resolve the digest with
   `docker buildx imagetools inspect <image>:<tag>` and use the top-level `Digest:` it
-  prints (the multi-platform index). Never invent a digest, version or checksum. If the
-  digest cannot be resolved (no Docker, no network), keep the tag and add a comment
-  `# TODO: pin by digest`. The same goes for tool versions and download checksums
-  (DW-DEPS-02, DW-DEPS-03): use a value you have verified, or leave a `TODO`. A digest
-  freezes the base, so mention automated updates (Dependabot or Renovate) and periodic
-  rebuilds (DW-SUPPLY-04, trade-offs §1).
+  prints (the multi-platform index). Run the lookup in audit mode too, before proposing
+  a pinned `FROM`. Never invent a digest, version or checksum. If the digest cannot be
+  resolved, keep the tag and add a comment `# TODO: pin by digest`, and quote the
+  lookup's error rather than guessing its cause; if you did not run the lookup, say so.
+  The same goes for tool versions and download checksums (DW-DEPS-02, DW-DEPS-03): use
+  a value you have verified, or leave a `TODO`. A digest freezes the base, so mention
+  automated updates (Dependabot or Renovate) and periodic rebuilds (DW-SUPPLY-04,
+  trade-offs §1).
 - **Do not pin apt or apk package versions** (DW-DEPS-01, trade-offs §2). Hadolint will
-  report DL3008 (apt) or DL3018 (apk); add `# hadolint ignore=DL3008` (or `DL3018`) with
-  a one-line reason above that `RUN`, and say in the summary that this was a choice.
+  report DL3008 (apt) or DL3018 (apk); add `# hadolint ignore=DL3008` (or `DL3018`)
+  directly above that `RUN`, with a one-line reason above the ignore line, and say in
+  the summary that this was a choice.
 - **Base image family** (slim, default, distroless, or a vendor's hardened image) is a
   decision to put to the user with trade-offs §6. When the user has no preference, use
   the language's official slim variant (for a compiled binary, a slim distribution image
