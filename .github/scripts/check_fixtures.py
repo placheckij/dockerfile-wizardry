@@ -61,7 +61,8 @@ def parse_expected(text):
 
 
 def run_docker(args, stdin=None):
-    """Stdout of a docker command; a non-zero exit is normal when a linter finds something."""
+    """(stdout, stderr) of a docker command. A non-zero exit is normal when a linter finds
+    something, so the caller judges the output; stderr is kept to explain a failure."""
     try:
         result = subprocess.run(
             ["docker", *args],
@@ -72,7 +73,7 @@ def run_docker(args, stdin=None):
         )
     except FileNotFoundError as error:
         raise DockerUnavailable("the docker command was not found") from error
-    return result.stdout
+    return result.stdout, result.stderr
 
 
 def ensure_docker():
@@ -88,46 +89,57 @@ def ensure_docker():
         raise DockerUnavailable(f"`docker info` failed: {detail[0]}")
 
 
-def load_json(output, linter):
+def load_json(output, linter, stderr=""):
+    """The JSON a linter printed; empty or unreadable output is a LinterError with stderr."""
+    detail = f": {stderr.strip()[-500:]}" if stderr.strip() else ""
+    if not output.strip():
+        raise LinterError(f"{linter} printed nothing{detail}")
     try:
         return json.loads(output)
     except json.JSONDecodeError as error:
-        raise LinterError(f"{linter} did not print valid JSON: {error}") from error
+        raise LinterError(
+            f"{linter} did not print valid JSON ({error}){detail}"
+        ) from error
 
 
-def parse_hadolint(output):
-    findings = load_json(output, "Hadolint")
+def parse_hadolint(output, stderr=""):
+    findings = load_json(output, "Hadolint", stderr)
     if not isinstance(findings, list):
         raise LinterError("Hadolint JSON is not a list")
     return {finding["code"] for finding in findings if "code" in finding}
 
 
-def parse_buildcheck(output):
-    result = load_json(output, "docker build check")
+def parse_buildcheck(output, stderr=""):
+    result = load_json(output, "docker build check", stderr)
     if not isinstance(result, dict):
         raise LinterError("docker build check JSON is not an object")
-    # the key is absent when there are no warnings
+    # a Dockerfile buildx cannot parse prints "warnings": null and a "buildError" object
+    failure = result.get("buildError") or result.get("error")
+    if failure:
+        message = failure.get("message") if isinstance(failure, dict) else failure
+        raise LinterError(f"docker build check failed: {message}")
+    # the key is absent or null when there are no warnings
     return {warning["ruleName"] for warning in result.get("warnings") or []}
 
 
 def hadolint_codes(dockerfile):
     """Hadolint codes for a Dockerfile. DL3057 (missing HEALTHCHECK) is ignored by default."""
-    output = run_docker(
+    output, stderr = run_docker(
         [
             "run", "--rm", "-i", HADOLINT_IMAGE,
             "hadolint", "--format", "json", "--info", "DL3057", "-",
         ],
         stdin=dockerfile.read_text(encoding="utf-8"),
     )  # fmt: skip
-    return parse_hadolint(output)
+    return parse_hadolint(output, stderr)
 
 
 def buildcheck_codes(fixture_dir):
     """Rule names reported by `docker buildx build --call check` for a fixture directory."""
-    output = run_docker(
+    output, stderr = run_docker(
         ["buildx", "build", "--call", "check,format=json", str(fixture_dir)]
     )
-    return parse_buildcheck(output)
+    return parse_buildcheck(output, stderr)
 
 
 def compare(expected, reported, rule_ids):

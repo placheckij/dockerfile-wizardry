@@ -160,6 +160,29 @@ class ParseJsonTest(unittest.TestCase):
             check_fixtures.parse_buildcheck(out), {"SecretsUsedInArgOrEnv"}
         )
 
+    def test_buildcheck_build_error_is_a_linter_error(self):
+        # what buildx 0.36 prints, with exit 1, for a Dockerfile it cannot parse
+        out = (
+            '{"warnings": null, "sources": [], "buildError": {"message": '
+            '"dockerfile parse error on line 1: FROM requires either one or three '
+            'arguments"}}'
+        )
+        with self.assertRaisesRegex(check_fixtures.LinterError, "FROM requires"):
+            check_fixtures.parse_buildcheck(out)
+
+    def test_buildcheck_null_warnings_is_clean(self):
+        self.assertEqual(check_fixtures.parse_buildcheck('{"warnings": null}'), set())
+
+    def test_empty_output_includes_stderr(self):
+        with self.assertRaisesRegex(check_fixtures.LinterError, "pull access denied"):
+            check_fixtures.parse_hadolint("", "pull access denied")
+        with self.assertRaisesRegex(check_fixtures.LinterError, "daemon gone"):
+            check_fixtures.parse_buildcheck("", "daemon gone")
+
+    def test_unparseable_output_includes_stderr(self):
+        with self.assertRaisesRegex(check_fixtures.LinterError, "out of memory"):
+            check_fixtures.parse_hadolint("oops", "out of memory")
+
     def test_invalid_json_is_a_linter_error(self):
         with self.assertRaises(check_fixtures.LinterError):
             check_fixtures.parse_hadolint("oops")
