@@ -8,7 +8,11 @@ PLUGIN = ROOT / ".claude-plugin" / "plugin.json"
 MARKETPLACE = ROOT / ".claude-plugin" / "marketplace.json"
 SKILL_DIR = ROOT / "skills" / "dockerfile-wizardry"
 SKILL = SKILL_DIR / "SKILL.md"
+RULES = SKILL_DIR / "references" / "rules.md"
 NAME = "dockerfile-wizardry"
+RULE_ID = re.compile(r"DW-[A-Z]+-\d+")
+# the Limits section names the TRADE-OFF rules: "the `TRADE-OFF` rules (DW-..., DW-...)"
+TRADE_OFF_LIST = re.compile(r"the `TRADE-OFF` rules \(([^)]*)\)")
 
 
 def front_matter(text):
@@ -24,6 +28,22 @@ def front_matter(text):
         if sep and not line.startswith((" ", "\t")):
             fields[key.strip()] = value.strip()
     raise ValueError("SKILL.md front matter is not closed with ---")
+
+
+def rule_strengths(text):
+    """{rule id: strength} from the `## <id>: ...` headings of references/rules.md."""
+    strengths = {}
+    current = None
+    for line in text.splitlines():
+        heading = re.match(r"## (DW-[A-Z]+-\d+):", line)
+        if heading:
+            current = heading.group(1)
+            strengths[current] = None
+            continue
+        strength = re.match(r"Strength: ([A-Z-]+)\.", line)
+        if strength and current and strengths[current] is None:
+            strengths[current] = strength.group(1)
+    return strengths
 
 
 class PluginManifestTest(unittest.TestCase):
@@ -50,6 +70,25 @@ class PluginManifestTest(unittest.TestCase):
                     list(SKILL_DIR.glob(path)),
                     f"SKILL.md names {path}, which is not under {SKILL_DIR}",
                 )
+
+    def test_skill_cites_only_existing_rules(self):
+        cited = set(RULE_ID.findall(SKILL.read_text(encoding="utf-8")))
+        known = rule_strengths(RULES.read_text(encoding="utf-8"))
+        self.assertTrue(cited, "SKILL.md cites no rule ids")
+        self.assertEqual(
+            sorted(cited - set(known)), [], "SKILL.md cites ids rules.md does not have"
+        )
+
+    def test_skill_trade_off_list_matches_rules(self):
+        lists = TRADE_OFF_LIST.findall(SKILL.read_text(encoding="utf-8"))
+        self.assertEqual(len(lists), 1, "SKILL.md should list the TRADE-OFF rules once")
+        stated = set(RULE_ID.findall(lists[0]))
+        known = rule_strengths(RULES.read_text(encoding="utf-8"))
+        trade_offs = {
+            rule for rule, strength in known.items() if strength == "TRADE-OFF"
+        }
+        self.assertTrue(trade_offs, "rules.md has no TRADE-OFF rules")
+        self.assertEqual(sorted(stated), sorted(trade_offs))
 
 
 if __name__ == "__main__":
