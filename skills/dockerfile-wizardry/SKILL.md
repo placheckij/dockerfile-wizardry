@@ -69,11 +69,20 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    own. Where fixes change the same lines, give one diff and name the rules it covers.
    Place comments as in create mode (section 3, step 4). A diff must not call a binary
    the image lacks: if it adds `tini` as the entrypoint, it also installs `tini`.
+   Do not count hunk lines by hand; if you can run commands, let `diff` write the hunk
+   from the fixed file, without writing it to disk (`diff` exits 1 when the files
+   differ, which is expected here):
+
+   ```sh
+   diff -u --label a/Dockerfile --label b/Dockerfile Dockerfile - <<'EOF'
+   <the whole fixed Dockerfile>
+   EOF
+   ```
 
    ```diff
    --- a/Dockerfile
    +++ b/Dockerfile
-   @@ -30,3 +30,4 @@
+   @@ -30,2 +30,3 @@
     COPY --from=build /app /app
    +USER 10001:10001
     CMD ["/app/server"]
