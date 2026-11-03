@@ -114,6 +114,25 @@ class MainTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("bad-latest", message)
 
+    def test_main_fails_when_there_are_no_fixtures(self):
+        (self.fixture / "Dockerfile").unlink()
+        self.fixture.rmdir()
+        code, message = self.run_main()
+        self.assertEqual(code, 1)
+        self.assertIn("no fixtures", message)
+
+    def test_main_reports_expected_file_without_dockerfile(self):
+        (self.fixture / "expected-findings.txt").write_text(
+            "DW-BASE-01  DL3007\n", encoding="utf-8"
+        )
+        orphan = self.fixture.parent / "no-dockerfile"
+        orphan.mkdir()
+        (orphan / "expected-findings.txt").write_text("DW-BASE-01\n", encoding="utf-8")
+        code, message = self.run_main(hadolint={"DL3007"})
+        self.assertEqual(code, 1)
+        self.assertIn("no-dockerfile", message)
+        self.assertIn("Dockerfile is missing", message)
+
     def test_main_exits_2_when_docker_is_unavailable(self):
         (self.fixture / "expected-findings.txt").write_text("", encoding="utf-8")
         stderr = io.StringIO()

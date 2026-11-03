@@ -17,7 +17,8 @@ rule id must exist in docs/rules/.
 Usage:
     python3 .github/scripts/check_fixtures.py
 
-Exits 1 on any problem and 2 when Docker is unavailable. Runs with the runner's system python3
+Exits 1 on any problem (including no fixtures at all, or a fixture directory without a
+`Dockerfile`) and 2 when Docker is unavailable. Runs with the runner's system python3
 (no third-party packages).
 """
 
@@ -160,6 +161,8 @@ def compare(expected, reported, rule_ids):
 
 def fixture_problems(fixture, rule_ids):
     """The problems of one fixture directory."""
+    if not (fixture / "Dockerfile").is_file():
+        return ["Dockerfile is missing"]
     expected_path = fixture / "expected-findings.txt"
     if not expected_path.is_file():
         return ["expected-findings.txt is missing"]
@@ -185,13 +188,20 @@ def main(argv, root=ROOT):
             print(f"  - {problem}", file=sys.stderr)
         return 1
     rule_ids = {rule.id for rule in rules}
+    # a directory with either file is a fixture, so one missing its Dockerfile is reported
     fixtures = sorted(
-        path.parent for path in (root / "fixtures" / "dockerfiles").glob("*/Dockerfile")
+        {
+            path.parent
+            for name in ("Dockerfile", "expected-findings.txt")
+            for path in (root / "fixtures" / "dockerfiles").glob(f"*/{name}")
+        }
     )
+    if not fixtures:
+        print("There are no fixtures in fixtures/dockerfiles/.", file=sys.stderr)
+        return 1
     found = []
     try:
-        if fixtures:
-            ensure_docker()
+        ensure_docker()
         for fixture in fixtures:
             found.extend(
                 (fixture.name, problem)
