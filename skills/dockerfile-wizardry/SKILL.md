@@ -74,9 +74,13 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    After the findings, list the rules that pass and the rules that do not apply, by id.
 5. **Ask which fixes to apply.** Apply only the ones the user chooses. Re-run the linters
    afterwards if they were available, and show what changed.
-6. **Close** by saying the Dockerfile "passes the listed checks", naming the rules that
-   still have findings and the ones left as decisions. Never call a Dockerfile secure,
-   safe or compliant; the rulebook does not cover everything that would take.
+6. **Close** with two lists. First, the rules the Dockerfile passes now, under the words
+   "passes the listed checks". Use those words only for rules that actually pass. Second,
+   the rules that do not pass: every must-fix or should-fix finding still open, including
+   any the user chose not to apply, and every decision still open. If even one must-fix
+   finding is open, do not say the Dockerfile passes; say which checks it fails. Never
+   call a Dockerfile secure, safe or compliant; the rulebook does not cover everything
+   that would take.
 
 ## 3. Create mode
 
