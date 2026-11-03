@@ -182,7 +182,8 @@ reverse, so name it in the summary.
 - **Do not pin apt or apk package versions** (DW-DEPS-01, trade-offs §2). Hadolint will
   report DL3008 (apt) or DL3018 (apk); add `# hadolint ignore=DL3008` (or `DL3018`)
   directly above that `RUN`, with a one-line reason above the ignore line, and say in
-  the summary that this was a choice.
+  the summary that this was a choice. In audit mode, a version pin the file already has
+  is reported as a **decide** item and never removed by a diff.
 - **Base image family** (slim, default, distroless, or a vendor's hardened image) is a
   decision to put to the user with trade-offs §6. When the user has no preference, use
   the language's official slim variant (for a compiled binary, a slim distribution image
