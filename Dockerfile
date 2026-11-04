@@ -19,7 +19,8 @@ LABEL maintainer="placheckij" \
       description="Dockerfile Wizardry - Best Practices Example" \
       org.opencontainers.image.source="https://github.com/placheckij/dockerfile-wizardry"
 
-USER root
+# root, by uid: Hadolint v2.15.1 reports DL3066 on every USER given by name
+USER 0
 # 🛡️ Spell #3: Minimal Packages & Non-Root User (CIS 4.3, 4.6)
 # (only tini - no curl, the health check below uses Python)
 # Packages are deliberately NOT version-pinned (hadolint DL3018, OWASP Rule 9 lists pinning):
@@ -36,7 +37,7 @@ RUN apk -U upgrade && \
 ENV PYTHONUNBUFFERED=true
 
 # 🔐 Spell #4: Non-Root User (CIS 4.1, OWASP)
-USER wizard
+USER 1337:1337
 WORKDIR /spellbook
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -85,7 +86,7 @@ COPY --chown=wizard:wizards ./pyproject.toml ./
 # back to writable, and a writable directory lets entries be renamed or replaced.
 # So everything under /spellbook - code, dependencies and the directory itself - is
 # root-owned and reachable by the app user only through the read-only `wizards` group.
-USER root
+USER 0
 RUN chown -R root:wizards /spellbook && \
     chmod -R g-w,o-rwx /spellbook && \
     chmod -R 550 /spellbook/spells /spellbook/potions /spellbook/enchantments && \
@@ -106,7 +107,7 @@ RUN /usr/local/bin/python -m pip uninstall -y pip && \
     rm -f /usr/bin/wget /usr/bin/nc /usr/bin/telnet /usr/bin/ftpget /usr/bin/ftpput \
           /usr/bin/tftp /usr/bin/ssl_client /bin/wget /bin/nc /bin/telnet /bin/ssl_client && \
     rm -rf /sbin/apk /lib/libapk* /var/cache/apk /etc/apk
-USER wizard
+USER 1337:1337
 
 # ═══════════════════════════════════════════════════════════════════════
 # 🪶 Stage 4: Flatten into the Final Image
@@ -127,7 +128,7 @@ LABEL maintainer="placheckij" \
       version="1.0.0" \
       description="Dockerfile Wizardry - Best Practices Example" \
       org.opencontainers.image.source="https://github.com/placheckij/dockerfile-wizardry"
-USER wizard
+USER 1337:1337
 WORKDIR /spellbook
 
 # 📢 Spell #11: Explicit Port Declaration

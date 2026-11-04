@@ -43,16 +43,21 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    Each rule's "How to check" line names the linter codes that belong to it (for example
    DL3002 under DW-USER-01, SecretsUsedInArgOrEnv under DW-SECRET-01). Report every code
    under its matching rule; where a line says a code is reported under another rule
-   (DW-BUILD-05 does this for DL3009, DL3019 and DL3042), use that rule; where it calls a
-   code advisory (DL3066 under DW-USER-01), report it as a note, not a finding. A code
+   (DW-BUILD-05 does this for DL3009, DL3019 and DL3042), use that rule. A code
    that no rule names is reported separately, marked "not from the rulebook". DL3057 on a
    build stage's `FROM` is not a DW-HEALTH-02 finding: Hadolint asks every stage for a
    `HEALTHCHECK`, but only the final stage runs as a container. At most, suggest a
-   `# hadolint ignore=DL3057` above that `FROM`, as in create mode (step 5).
+   `# hadolint ignore=DL3057` above that `FROM`, as in create mode (step 5). Likewise,
+   DL3002 and DL3066 are DW-USER-01 findings only on the `USER` the container runs as:
+   the final stage's last `USER`, or, if the final stage sets none, the last `USER`
+   along the chain of stages it is built `FROM`. On any other `USER` they are not
+   findings, though the rule names them: at most, add a note, suggesting for DL3066 that
+   the `USER` be written by number, and for DL3002 a `# hadolint ignore=DL3002` above
+   that `USER` with the reason that the stage never runs as a container.
 
    If a linter is not available, say so and check by reading; then name a code only
-   where you can tell it would fire on this file (DL3002 needs an explicit `USER root`,
-   not a missing `USER`), and say the codes were not run.
+   where you can tell it would fire on this file (DL3002 needs an explicit root `USER`,
+   such as `USER root` or `USER 0`, not a missing `USER`), and say the codes were not run.
 3. **Go rule by rule** through `references/rules.md` in order. For each rule decide:
    finding, passes, does not apply (say why), or cannot be checked from these files
    (it goes under Limits). "Does not apply" means the Dockerfile has nothing the rule is
@@ -171,7 +176,11 @@ Use this when the user wants a new Dockerfile for a project.
 5. **Check your own output.** Run the linters as in audit mode, then go through the
    rules once and fix or report what remains. Hadolint asks every stage for a
    `HEALTHCHECK` (DL3057), but a build stage never runs as a container, so put
-   `# hadolint ignore=DL3057` above its `FROM` with that reason.
+   `# hadolint ignore=DL3057` above its `FROM` with that reason. Write every `USER` by
+   number, a build-time root as `USER 0`: Hadolint v2.15.1 reports DL3066 on every
+   `USER` given by name. A build stage that ends as `USER 0` still gets DL3002, which is
+   not a finding there; put `# hadolint ignore=DL3002` above that `USER` with the
+   reason that a build stage never runs as a container.
 6. **Offer a runtime example.** Offer a hardened Compose service or Kubernetes Pod spec,
    adapted from `references/examples/compose.yaml` or `references/examples/pod.yaml`:
    change the image name, port, user and group IDs and health check notes to fit, and

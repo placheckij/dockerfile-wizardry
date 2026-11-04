@@ -6,7 +6,7 @@
 # the pinning side, which the skill does not default to; it is listed because Hadolint
 # reports it here.
 DW-DEPS-01    DL3015 DL3009 DL3008                    # recommended packages and apt lists kept
-DW-USER-01    DL3002 DL3066                           # USER root is last (DL3066 fires on the name too)
+DW-USER-01    DL3002 DL3066                           # USER root is last, and by name, not a numeric id
 DW-HEALTH-02  DL3057                                  # no HEALTHCHECK
 DW-BASE-01                                            # debian:trixie-slim has no digest
 DW-BASE-02                                            # no LABEL
