@@ -42,10 +42,12 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
 
    Each rule's "How to check" line names the linter codes that belong to it (for example
    DL3002 under DW-USER-01, SecretsUsedInArgOrEnv under DW-SECRET-01). Report every code
-   under its matching rule. A code that no rule names is reported separately, marked
-   "not from the rulebook". If a linter is not available, say so and check by reading;
-   then name a code only where you can tell it would fire on this file (DL3002 needs an
-   explicit `USER root`, not a missing `USER`), and say the codes were not run.
+   under its matching rule; where a line says a code is reported under another rule
+   (DW-BUILD-05 does this for DL3009, DL3019 and DL3042), use that rule. A code that no
+   rule names is reported separately, marked "not from the rulebook". If a linter is not
+   available, say so and check by reading; then name a code only where you can tell it
+   would fire on this file (DL3002 needs an explicit `USER root`, not a missing `USER`),
+   and say the codes were not run.
 3. **Go rule by rule** through `references/rules.md` in order. For each rule decide:
    finding, passes, does not apply (say why), or cannot be checked from these files
    (it goes under Limits). "Does not apply" means the Dockerfile has nothing the rule is
@@ -225,4 +227,6 @@ changed since.
 A worked example that follows the rulebook, with a comment for each choice:
 https://github.com/placheckij/dockerfile-wizardry/blob/main/Dockerfile. It uses Alpine
 and prunes and flattens into `scratch`, which are trade-off choices, not this skill's
-defaults.
+defaults. It also disables the pip and uv caches instead of mounting them: DW-DEPS-02
+allows that, but DW-BUILD-05 asks for a cache mount in a build stage, so that file does
+not meet DW-BUILD-05.
