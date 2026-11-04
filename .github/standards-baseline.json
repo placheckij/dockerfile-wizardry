@@ -3,10 +3,16 @@
   "cis_docker_benchmark": {
     "verified_version": "1.9.0",
     "verified_on": "2026-10-30",
-    "note": "Control numbers cited in README.md, Dockerfile and RUNTIME_SECURITY.md were checked against the CIS Docker Benchmark v1.9.0 PDF (dated 2026-09-30). The numbering changes between versions - re-check every cited number when bumping."
+    "note": "Control numbers cited in README.md, Dockerfile and RUNTIME_SECURITY.md were checked against the CIS Docker Benchmark v1.9.0 PDF (dated 2026-09-30). The numbering changes between versions - re-check every cited number when bumping.",
+    "rule_sources": [
+      "https://www.cisecurity.org/benchmark/docker"
+    ]
   },
   "owasp_docker_cheat_sheet": {
     "reviewed_commit": "66226906bbe7f4086ad8450435c2a72b5b8fbb8d",
-    "reviewed_on": "2026-10-30"
+    "reviewed_on": "2026-10-30",
+    "rule_sources": [
+      "https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html"
+    ]
   }
 }

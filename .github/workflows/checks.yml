@@ -1,8 +1,9 @@
 name: 📖 Static Checks
 
 # Checks that read files without building or running the image: the Dockerfiles and examples
-# (Hadolint, Trivy's configuration scan), the rulebook and its generated pages, the README table
-# of contents, the labelled fixtures, the workflow scripts and the Python code (ruff).
+# (Hadolint, Trivy's configuration scan), the rulebook, its generated pages and its dates against
+# the standards baseline, the README table of contents, the labelled fixtures, the workflow
+# scripts and the Python code (ruff).
 #
 # Runs on changes to those files, and weekly, so a new Trivy misconfiguration rule or a fixture
 # base image that can no longer be pulled is noticed. A red scheduled run emails the last editor
@@ -26,6 +27,8 @@ on:
       - 'examples/**'
       - 'fixtures/**'
       - '.github/scripts/**'
+      # stale_rules.py compares the rules with the recorded source changes
+      - '.github/standards-baseline.json'
       # ruff lints and format-checks every Python file; its version and settings come from these
       - '**/*.py'
       - 'pyproject.toml'
@@ -77,6 +80,11 @@ jobs:
       # (fix: python3 .github/scripts/check_rules.py --write)
       - name: Check the rulebook entries, links and generated pages
         run: python3 .github/scripts/check_rules.py --check
+
+      # A rule citing a source whose recorded change in .github/standards-baseline.json is newer
+      # than the rule's last_verified date must be re-read and re-dated
+      - name: Check no rule is older than a recorded change to its sources
+        run: python3 .github/scripts/stale_rules.py
 
       - name: Test the rulebook checker
         run: python3 -m unittest discover -s .github/scripts/tests

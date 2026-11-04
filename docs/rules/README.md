@@ -16,6 +16,9 @@ numbered "spells" in a worked example; the `Spells` column below maps one to the
 - **Sources**: links to the primary documents (a benchmark, a vendor's own docs, a standard).
   Rules are paraphrased, with any short quotation marked as one, so the source is always the place to confirm the wording.
 - **Last verified**: the date someone last read the sources and confirmed the rule still holds.
+  A monthly check watches the main sources (see `.github/standards-baseline.json`). When one
+  changes and the baseline records the change, CI fails until every rule that cites that source
+  has been re-read and given a new date.
 
 ## Scope
 
