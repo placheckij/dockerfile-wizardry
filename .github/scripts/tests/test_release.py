@@ -173,12 +173,35 @@ class CheckTest(unittest.TestCase):
         self.commit()
         code, output = self.check("check", "--base", self.base)
         self.assertEqual(code, 1)
-        self.assertIn("add an entry", output)
+        self.assertIn("add an entry there", output)
         self.write(
             release.CHANGELOG, CHANGELOG.replace("(#17)\n", "(#17)\n- More. (#18)\n")
         )
         self.commit()
         self.assertEqual(self.check("check", "--base", self.base)[0], 0)
+
+    def test_entry_outside_unreleased_does_not_count(self):
+        self.write("skills/SKILL.md", "two\n")
+        self.write(release.CHANGELOG, CHANGELOG.replace("Intro.", "Intro, reworded."))
+        self.commit()
+        self.assertEqual(self.check("check", "--base", self.base)[0], 1)
+        self.write(
+            release.CHANGELOG,
+            CHANGELOG.replace(
+                "- The skill. (#15)\n", "- The skill. (#15)\n- More. (#18)\n"
+            ),
+        )
+        self.commit()
+        self.assertEqual(self.check("check", "--base", self.base)[0], 1)
+
+    def test_first_changelog_needs_no_unreleased_entry(self):
+        self.git("rm", "-q", release.CHANGELOG)
+        self.commit()
+        base = self.git("rev-parse", "HEAD").strip()
+        self.write(release.CHANGELOG, CHANGELOG)
+        self.write("skills/SKILL.md", "two\n")
+        self.commit()
+        self.assertEqual(self.check("check", "--base", base)[0], 0)
 
     def test_other_changes_need_no_entry(self):
         self.write("README.md", "readme\n")
@@ -235,6 +258,8 @@ class CheckTest(unittest.TestCase):
             ["check", "--days", "1"],
             ["prepare", "huge"],
             ["pending", "--days", "x"],
+            # a digit int() does not take
+            ["pending", "--days", "\u00b2"],
         ):
             with self.subTest(argv=argv):
                 self.assertEqual(self.check(*argv)[0], 2)

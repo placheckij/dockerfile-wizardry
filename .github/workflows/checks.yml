@@ -88,8 +88,9 @@ jobs:
       - name: Check no rule is older than a recorded change to its sources
         run: python3 .github/scripts/stale_rules.py
 
-      # A pull request that changes the plugin (skills/, .claude-plugin/) must add a line to
-      # CHANGELOG.md, and the newest version there must be plugin.json's (see release.py)
+      # A pull request that changes the plugin (skills/, .claude-plugin/) must add a line under
+      # Unreleased in CHANGELOG.md, and the newest version there must be plugin.json's (see
+      # release.py)
       - name: Check the changelog and the plugin version
         env:
           EVENT_NAME: ${{ github.event_name }}

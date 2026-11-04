@@ -9,8 +9,8 @@ first.
 Usage:
     python3 .github/scripts/release.py check [--base REF]
         Fail when CHANGELOG.md is malformed or its newest version is not plugin.json's. With
-        --base, also fail when the changes since REF touch the plugin but not CHANGELOG.md, or
-        lower the version.
+        --base, also fail when the changes since REF touch the plugin but add no entry under
+        Unreleased (a release, which raises the version, is exempt), or lower the version.
     python3 .github/scripts/release.py prepare patch|minor|major
         Bump plugin.json and move the Unreleased entries into a section for the new version,
         dated today. Commit the result and open it as a pull request.
@@ -215,6 +215,22 @@ def read(root, name):
         raise ReleaseError(f"{name}: {error}") from error
 
 
+def unreleased_body(text):
+    found = sections(text)
+    return found[0].body.strip() if found and found[0].name == UNRELEASED else ""
+
+
+def adds_unreleased_entries(root, base, changelog):
+    """True when the Unreleased section has entries and differs from the one at `base`, or
+    when `base` has no changelog yet."""
+    if CHANGELOG not in git(root, "ls-tree", "--name-only", base).splitlines():
+        return True
+    now = unreleased_body(changelog)
+    return has_entries(now) and now != unreleased_body(
+        git(root, "show", f"{base}:{CHANGELOG}")
+    )
+
+
 def run_check(root, base):
     changelog = read(root, CHANGELOG)
     problems = validate(changelog)
@@ -226,12 +242,18 @@ def run_check(root, base):
         )
     if base is not None:
         changed = git(root, "diff", "--name-only", base, "HEAD").splitlines()
-        if touches_plugin(changed) and CHANGELOG not in changed:
-            problems.append(
-                f"this changes the plugin ({', '.join(SHIPPED)}) but not {CHANGELOG}: add an "
-                f"entry under ## [{UNRELEASED}]"
-            )
         before = plugin_version(git(root, "show", f"{base}:{PLUGIN}"))
+        # a release moves the entries out of Unreleased, and the pull request that adds the
+        # changelog has nothing to compare with
+        if (
+            touches_plugin(changed)
+            and version == before
+            and not adds_unreleased_entries(root, base, changelog)
+        ):
+            problems.append(
+                f"this changes the plugin ({', '.join(SHIPPED)}) but adds nothing under "
+                f"## [{UNRELEASED}] in {CHANGELOG}: add an entry there"
+            )
         if parse_version(version) < parse_version(before):
             problems.append(f"{PLUGIN} lowers the version from {before} to {version}")
     if problems:
@@ -320,7 +342,7 @@ def main(argv, root=ROOT):
             print(notes(read(root, CHANGELOG), rest[0]), end="")
             return 0
         if command == "pending" and (
-            not rest or rest[0] == "--days" and len(rest) == 2 and rest[1].isdigit()
+            not rest or rest[0] == "--days" and len(rest) == 2 and rest[1].isdecimal()
         ):
             return run_pending(root, int(rest[1]) if rest else 14)
     except ReleaseError as error:
