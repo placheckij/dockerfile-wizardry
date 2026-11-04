@@ -1,5 +1,5 @@
 {
-  "_comment": "What this repo's security references were last checked against. The monthly 'Standards watch' workflow fails (and GitHub emails the failure) when upstream has moved past this. After re-checking the README/Dockerfile citations, update the values below in a PR. For OWASP the failure message includes a compare link and this cheat sheet's own diff since the reviewed commit.",
+  "_comment": "What this repo's sources were last checked against. The monthly 'Standards watch' workflow fails (and GitHub emails the failure) when upstream has moved past a value below; the failure names the rules that cite that source (through the entry's rule_sources URL prefixes). To update: review the change, set the new value and its reviewed/verified date, and set changed_on to the same date. Then re-read every rule the failure named and set its last_verified date: until then Static Checks (stale_rules.py) fails for each rule that cites the source and is older than changed_on. For OWASP the failure includes a compare link and the cheat sheet's own diff.",
   "cis_docker_benchmark": {
     "verified_version": "1.9.0",
     "verified_on": "2026-10-30",
@@ -13,6 +13,133 @@
     "reviewed_on": "2026-10-30",
     "rule_sources": [
       "https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html"
+    ]
+  },
+  "dockerfile_frontend": {
+    "reviewed_version": "1.28.0",
+    "reviewed_on": "2026-11-04",
+    "rule_sources": [
+      "https://github.com/moby/buildkit/releases/tag/dockerfile",
+      "https://docs.docker.com/reference/dockerfile/#syntax"
+    ]
+  },
+  "build_checks": {
+    "reviewed_checks": [
+      "consistent-instruction-casing",
+      "copy-ignored-file",
+      "duplicate-stage-name",
+      "expose-invalid-format",
+      "expose-proto-casing",
+      "from-as-casing",
+      "from-platform-flag-const-disallowed",
+      "invalid-default-arg-in-from",
+      "invalid-definition-description",
+      "json-args-recommended",
+      "legacy-key-value-format",
+      "maintainer-deprecated",
+      "multiple-instructions-disallowed",
+      "no-empty-continuation",
+      "redundant-target-platform",
+      "reserved-stage-name",
+      "secrets-used-in-arg-or-env",
+      "stage-name-casing",
+      "undefined-arg-in-from",
+      "undefined-var",
+      "workdir-relative-path"
+    ],
+    "reviewed_on": "2026-11-04",
+    "rule_sources": [
+      "https://docs.docker.com/reference/build-checks/"
+    ]
+  },
+  "hadolint": {
+    "reviewed_release": "v2.15.1",
+    "reviewed_rules": [
+      "DL1001",
+      "DL3000",
+      "DL3001",
+      "DL3002",
+      "DL3003",
+      "DL3004",
+      "DL3006",
+      "DL3007",
+      "DL3008",
+      "DL3009",
+      "DL3010",
+      "DL3011",
+      "DL3012",
+      "DL3013",
+      "DL3014",
+      "DL3015",
+      "DL3016",
+      "DL3018",
+      "DL3019",
+      "DL3020",
+      "DL3021",
+      "DL3022",
+      "DL3023",
+      "DL3024",
+      "DL3025",
+      "DL3026",
+      "DL3027",
+      "DL3028",
+      "DL3029",
+      "DL3030",
+      "DL3032",
+      "DL3033",
+      "DL3034",
+      "DL3035",
+      "DL3036",
+      "DL3037",
+      "DL3038",
+      "DL3040",
+      "DL3041",
+      "DL3042",
+      "DL3043",
+      "DL3044",
+      "DL3045",
+      "DL3046",
+      "DL3047",
+      "DL3048",
+      "DL3049",
+      "DL3050",
+      "DL3051",
+      "DL3052",
+      "DL3053",
+      "DL3054",
+      "DL3055",
+      "DL3056",
+      "DL3057",
+      "DL3058",
+      "DL3059",
+      "DL3060",
+      "DL3061",
+      "DL3062",
+      "DL3063",
+      "DL3064",
+      "DL3065",
+      "DL3066",
+      "DL3067",
+      "DL3068",
+      "DL4000",
+      "DL4001",
+      "DL4003",
+      "DL4004",
+      "DL4005",
+      "DL4006"
+    ],
+    "reviewed_on": "2026-11-04",
+    "rule_sources": [
+      "https://github.com/hadolint/hadolint"
+    ]
+  },
+  "distroless": {
+    "reviewed_debian_versions": [
+      "13"
+    ],
+    "reviewed_on": "2026-11-04",
+    "rule_sources": [
+      "https://github.com/GoogleContainerTools/distroless"
     ]
   }
 }

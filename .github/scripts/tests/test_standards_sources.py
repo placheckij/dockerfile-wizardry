@@ -103,6 +103,17 @@ class WatchTest(unittest.TestCase):
         self.assertIn("v2.16.0", watch.problem)
         self.assertIn("reviewed_release", watch.problem)
 
+    def test_watch_hadolint_release_and_rules_form_one_bullet(self):
+        readme = HADOLINT_README + "| [DL3062](x) | Warning | New. |\n"
+        with gh("v2.16.0\n", readme):
+            watch = s.watch_hadolint(self.hadolint_entry())
+        lines = watch.problem.splitlines()
+        self.assertTrue(lines[0].startswith("Hadolint: newest release is v2.16.0"))
+        self.assertTrue(all(line.startswith("  ") for line in lines[1:]), lines)
+        self.assertTrue(
+            lines[3].startswith("  Hadolint rules: the list changed"), lines
+        )
+
     def test_watch_hadolint_bad_tag_is_check_error(self):
         with (
             gh("v2.16.0::set-output\n", HADOLINT_README),

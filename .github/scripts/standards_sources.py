@@ -19,6 +19,7 @@ Imported by check_standards.py. Runs with the runner's system python3 (no third-
 
 import re
 import subprocess
+import textwrap
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
@@ -160,7 +161,9 @@ def watch_dockerfile_frontend(entry):
     return watch
 
 
-def _set_watch(key, label, reviewed, current, field_name, link, status_prefix=""):
+def _set_watch(
+    key, label, reviewed, current, field_name, link, status_prefix="", list_name=None
+):
     diff = set_diff(reviewed, current)
     watch = Watch(
         key,
@@ -170,7 +173,7 @@ def _set_watch(key, label, reviewed, current, field_name, link, status_prefix=""
     )
     if diff:
         watch.problem = (
-            f"{label}: the list changed ({len(diff)} added or removed, shown below).\n"
+            f"{list_name or label}: the list changed ({len(diff)} added or removed, shown below).\n"
             f"  Look at {link}\n"
             f"  Re-check the rules below, then {_update_hint(key, field_name)}."
         )
@@ -209,6 +212,7 @@ def watch_hadolint(entry):
         "reviewed_rules",
         "https://github.com/hadolint/hadolint#rules",
         status_prefix=f"newest {tag}, reviewed {reviewed_release}; rules: ",
+        list_name="Hadolint rules",
     )
     if version_key(tag[1:]) > version_key(reviewed_release[1:]):
         release = (
@@ -217,7 +221,11 @@ def watch_hadolint(entry):
             f"  Release notes: https://github.com/hadolint/hadolint/releases/tag/{tag}\n"
             f"  Re-check the rules below, then {_update_hint(key, 'reviewed_release')}."
         )
-        watch.problem = release + ("\n" + watch.problem if watch.problem else "")
+        if (
+            watch.problem
+        ):  # one bullet: indent the rule-list part under the release part
+            release += "\n" + textwrap.indent(watch.problem, "  ")
+        watch.problem = release
     return watch
 
 

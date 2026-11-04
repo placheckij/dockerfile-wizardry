@@ -1,10 +1,13 @@
 name: 📚 Standards Watch
 
-# Fails when the CIS Docker Benchmark or the OWASP Docker Security Cheat Sheet
-# has moved past what this repo was last checked against (see
-# .github/standards-baseline.json). GitHub emails failed scheduled runs, so a
-# red run is the notification. After re-checking the citations, update the
-# baseline file in a PR to turn it green again.
+# Fails when a source the rules rely on has moved past what this repo was last
+# checked against (see .github/standards-baseline.json): the CIS Docker
+# Benchmark, the OWASP Docker Security Cheat Sheet, the Dockerfile frontend
+# release, Docker's Build Checks list, Hadolint's release and rules, and the
+# Debian versions distroless builds on. The failure names the rules that cite
+# the source. GitHub emails failed scheduled runs, so a red run is the
+# notification. After re-checking those rules, update the baseline file (and
+# the rules' last_verified dates) in a PR to turn it green again.
 
 on:
   schedule:
@@ -14,6 +17,9 @@ on:
     paths:
       - '.github/standards-baseline.json'
       - '.github/scripts/check_standards.py'
+      - '.github/scripts/standards_sources.py'
+      - '.github/scripts/stale_rules.py'
+      - '.github/scripts/check_rules.py'
       - '.github/workflows/standards-watch.yml'
 
 permissions:
@@ -21,7 +27,7 @@ permissions:
 
 jobs:
   check:
-    name: 🔎 Check CIS and OWASP versions
+    name: 🔎 Check watched sources
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

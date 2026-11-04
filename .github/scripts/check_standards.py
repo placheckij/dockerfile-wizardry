@@ -1,9 +1,14 @@
-"""Fail when the security references this repo cites have moved on.
+"""Fail when the sources this repo's rules rely on have moved on.
 
 Compares upstream state with .github/standards-baseline.json:
   * CIS Docker Benchmark: newest version listed on cisecurity.org
   * OWASP Docker Security Cheat Sheet: newest commit to the source file
   * every OWASP anchor cited in the docs must still exist on the live page
+  * Dockerfile frontend, Build Checks list, Hadolint release and rules, distroless Debian
+    versions (see standards_sources.py)
+
+Each problem names the rules (and trade-off sections) that cite the source, through the
+baseline entry's `rule_sources` prefixes, so the reviewer knows what to re-read.
 
 Exit codes: 0 = up to date, 1 = outdated (or a cited anchor is broken),
 2 = could not check (page layout changed, network error, ...). Any non-zero
@@ -29,6 +34,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 BASELINE = ROOT / ".github" / "standards-baseline.json"
+# the helper modules sit next to this file; `python3 -I` does not put the script's directory on
+# the path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import check_rules
+import stale_rules
+import standards_sources
+from standards_sources import BASELINE_NAME, CheckError
+
+CIS_KEY = "cis_docker_benchmark"
+OWASP_KEY = "owasp_docker_cheat_sheet"
 
 CIS_URL = "https://www.cisecurity.org/benchmark/docker"
 OWASP_PAGE = (
@@ -72,10 +87,6 @@ def commands_disabled():
         yield
     finally:
         print(f"::{token}::", file=sys.stderr, flush=True)
-
-
-class CheckError(Exception):
-    """The check itself could not run (exit code 2)."""
 
 
 def fetch(url):
@@ -198,35 +209,58 @@ def broken_owasp_anchors():
 
 
 def load_baseline():
+    """The parsed baseline. The CIS and OWASP values and every entry's rule_sources are checked
+    here; each watcher in standards_sources.py checks its own fields before fetching."""
     try:
         baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
-        cis = baseline["cis_docker_benchmark"]["verified_version"]
-        owasp = baseline["owasp_docker_cheat_sheet"]["reviewed_commit"]
+        cis = baseline[CIS_KEY]["verified_version"]
+        owasp = baseline[OWASP_KEY]["reviewed_commit"]
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise CheckError(
-            f"baseline file {BASELINE.relative_to(ROOT)} is missing or malformed: {error!r}"
+            f"baseline file {BASELINE_NAME} is missing or malformed: {error!r}"
         ) from error
     if not re.fullmatch(r"\d+\.\d+\.\d+", str(cis)) or not SHA_RE.match(str(owasp)):
         raise CheckError(
-            f"baseline file {BASELINE.relative_to(ROOT)} has an invalid version or commit"
+            f"baseline file {BASELINE_NAME} has an invalid version or commit"
         )
-    return cis, owasp
+    for key in standards_sources.WATCHERS:
+        if not isinstance(baseline.get(key), dict):
+            raise CheckError(f"baseline file {BASELINE_NAME} has no {key} entry")
+    try:
+        stale_rules.load_watched(baseline)
+    except stale_rules.BaselineError as error:
+        raise CheckError(f"baseline file {BASELINE_NAME}: {error}") from error
+    return baseline
+
+
+def recheck_line(baseline, key, rules, tradeoffs):
+    """`  Re-check: DW-…, tradeoffs.md: …` for the rules citing a baseline entry, or ""."""
+    cited = stale_rules.cited_by(baseline[key]["rule_sources"], rules, tradeoffs)
+    return f"\n  Re-check: {', '.join(cited)}" if cited else ""
 
 
 def main():
     report_only = "--report-only" in sys.argv[1:]
-    cis_verified, owasp_reviewed = load_baseline()
+    baseline = load_baseline()
+    cis_verified = baseline[CIS_KEY]["verified_version"]
+    owasp_reviewed = baseline[OWASP_KEY]["reviewed_commit"]
 
     cis_latest = latest_cis_version()
     sha, date, message = latest_owasp_commit()
     broken, cited = broken_owasp_anchors()
+    watches = [
+        watch(baseline[key]) for key, watch in standards_sources.WATCHERS.items()
+    ]
 
+    rules, _ = check_rules.collect(ROOT)
+    tradeoffs = check_rules.tradeoff_sources(ROOT / "docs" / "rules" / "tradeoffs.md")
     problems = []
     if version_key(cis_latest) > version_key(cis_verified):
         problems.append(
             f"CIS Docker Benchmark: newest is v{cis_latest}, this repo was checked against v{cis_verified}.\n"
             f"  Re-check the control numbers cited in README.md and the Dockerfile, then set "
-            f"cis_docker_benchmark.verified_version in {BASELINE.relative_to(ROOT)}."
+            f"cis_docker_benchmark.verified_version in {BASELINE_NAME}."
+            + recheck_line(baseline, CIS_KEY, rules, tradeoffs)
         )
     diff_text = None
     if sha != owasp_reviewed:
@@ -235,7 +269,8 @@ def main():
             f"OWASP Docker Security Cheat Sheet changed: latest commit {sha[:9]} ({date}): {message}\n"
             f"  Compare: https://github.com/{OWASP_REPO}/compare/{owasp_reviewed}...{sha}\n"
             f"  (that view lists every file changed in the range; this cheat sheet's own diff is shown below)\n"
-            f"  Review it, then set owasp_docker_cheat_sheet.reviewed_commit in {BASELINE.relative_to(ROOT)}."
+            f"  Review it, then set owasp_docker_cheat_sheet.reviewed_commit in {BASELINE_NAME}."
+            + recheck_line(baseline, OWASP_KEY, rules, tradeoffs)
         )
     if broken:
         problems.append(
@@ -243,10 +278,23 @@ def main():
             + ", ".join(broken)
         )
 
+    for watch in watches:
+        if watch.problem:
+            problems.append(
+                watch.problem + recheck_line(baseline, watch.key, rules, tradeoffs)
+            )
+    # list changes are made of values that passed strict patterns; defang them anyway
+    set_diffs = [
+        (watch.key, [defang(line) for line in watch.diff])
+        for watch in watches
+        if watch.diff
+    ]
+
     lines = [
         f"CIS Docker Benchmark : newest v{cis_latest}, verified v{cis_verified}",
         f"OWASP cheat sheet    : latest {sha[:9]} ({date}), reviewed {owasp_reviewed[:9]}",
         f"OWASP anchors        : {len(cited)} cited, {len(broken)} broken",
+        *(watch.status for watch in watches),
     ]
     print("\n".join(lines))
 
@@ -263,9 +311,20 @@ def main():
                     "\n**What changed in the OWASP cheat sheet since the reviewed commit:**\n\n"
                     "```diff\n" + diff_text + "\n```\n"
                 )
+            handle.writelines(
+                f"\n**What changed in {key}:**\n\n```diff\n"
+                + "\n".join(diff)
+                + "\n```\n"
+                for key, diff in set_diffs
+            )
 
     if problems:
         print("\nOUTDATED:\n" + "\n".join(f"- {p}" for p in problems), file=sys.stderr)
+        for key, diff in set_diffs:
+            print(
+                f"\nWhat changed in {key}:\n" + "\n".join(f"| {line}" for line in diff),
+                file=sys.stderr,
+            )
         if diff_text:
             # The diff is untrusted text. Three layers keep it from acting as workflow commands
             # in the job log: (1) every line is prefixed, so none starts with "::"; (2) the
