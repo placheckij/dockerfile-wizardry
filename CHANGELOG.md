@@ -14,13 +14,14 @@ Each pull request that changes `skills/` or `.claude-plugin/` adds a line under 
 
 ## [Unreleased]
 
-### Changed
-
-- DW-USER-01 now requires the runtime user as numbers, `USER <uid>:<gid>`: a name is resolved only inside the container, and Kubernetes' `runAsNonRoot` refuses to start an image that names its user. Dockerfiles that switch to a non-root user by name, or give no numeric group, now fail it. (#17)
-
 ## [0.1.0] - 2026-11-04
 
 ### Added
 
 - The `dockerfile-wizardry` skill, with an audit mode and a create mode, reading a `references/` copy of the rulebook generated from `docs/rules/`. (#15)
 - Plugin and marketplace manifests, so the skill installs with `/plugin marketplace add placheckij/dockerfile-wizardry`. (#15)
+- An argument hint, so `/dockerfile-wizardry:dockerfile-wizardry` offers `[audit|create] [path]` as you type. (#21)
+
+### Changed
+
+- DW-USER-01 now requires the runtime user as numbers, `USER <uid>:<gid>`: a name is resolved only inside the container, and Kubernetes' `runAsNonRoot` refuses to start an image that names its user. Dockerfiles that switch to a non-root user by name, or give no numeric group, now fail it. (#17)

@@ -454,6 +454,8 @@ If you use Claude Code, the [`dockerfile-wizardry` skill](skills/dockerfile-wiza
 
 or, from a shell, `claude plugin install dockerfile-wizardry --marketplace placheckij/dockerfile-wizardry`.
 
+Claude loads the skill when you ask it to write or review a Dockerfile, or you can run it yourself: `/dockerfile-wizardry:dockerfile-wizardry audit path/to/Dockerfile` when installed as a plugin, `/dockerfile-wizardry` when copied into a skills folder. `create` and a project directory write a new one.
+
 An installed plugin changes only when a new version is released. Unless you have turned on auto-update for the marketplace, fetch it with `/plugin marketplace update dockerfile-wizardry`. [CHANGELOG.md](CHANGELOG.md) lists what changed in each version and which rules to re-check.
 
 ## 💬 Support & Contact

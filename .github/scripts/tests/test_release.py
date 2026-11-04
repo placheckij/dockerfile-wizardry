@@ -219,6 +219,16 @@ class CheckTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("1 unreleased commit(s)", output)
 
+    def test_pending_counts_from_the_release_tag(self):
+        self.write("skills/SKILL.md", "two\n")
+        self.commit()
+        self.git("tag", "v0.1.0")
+        self.write("skills/SKILL.md", "three\n")
+        self.commit()
+        code, output = self.check("pending")
+        self.assertEqual(code, 0)
+        self.assertIn("1 unreleased commit(s)", output)
+
     def test_bad_usage(self):
         for argv in (
             [],

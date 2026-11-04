@@ -1,5 +1,6 @@
 ---
 name: dockerfile-wizardry
+argument-hint: "[audit|create] [path]"
 description: Use when writing a new Dockerfile or reviewing an existing one. Create mode generates a Dockerfile and .dockerignore for a project; audit mode checks an existing Dockerfile rule by rule and proposes fixes as diffs. Use it whenever the user writes, creates, reviews, audits, hardens or optimizes a Dockerfile or a .dockerignore. Every finding and choice cites a rule id (DW-...) from a sourced rulebook of build, security and supply-chain rules.
 ---
 

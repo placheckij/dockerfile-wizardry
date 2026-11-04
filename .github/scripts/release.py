@@ -20,10 +20,10 @@ Usage:
         Print the CHANGELOG.md entries for VERSION (the GitHub Release's notes).
     python3 .github/scripts/release.py pending [--days N]
         Fail when a commit older than N days (default 14) changed the plugin after the last
-        version change.
+        release: the tag vX.Y.Z of plugin.json's version, or else the last version change.
 
 Exits 0 on success, 1 when a check fails and 2 on bad usage or unreadable files. `bumped`,
-`--base` and `pending` need the git history back to REF or to the last version change. Runs with
+`--base` and `pending` need the git history back to REF or to the last release. Runs with
 the runner's system python3 (no third-party packages).
 """
 
@@ -267,18 +267,30 @@ def run_bumped(root, base):
     return 0
 
 
-def run_pending(root, days):
-    # the commit that last set the version: the last release, or the plugin's first commit
+def last_release(root, version):
+    """The commit tagged v`version`, or else the commit that last set the version in
+    plugin.json (a release whose tag is not made yet, or the plugin's first commit)."""
+    try:
+        return git(
+            root, "rev-parse", "--verify", "--quiet", f"refs/tags/v{version}^{{commit}}"
+        ).strip()
+    except ReleaseError:
+        pass
     last = git(
         root, "log", "-1", "--format=%H", "-G", '"version"', "--", PLUGIN
     ).strip()
     if not last:
         raise ReleaseError(f"no commit sets the version in {PLUGIN}")
+    return last
+
+
+def run_pending(root, days):
+    version = plugin_version(read(root, PLUGIN))
+    last = last_release(root, version)
     dates = git(
         root, "log", "--format=%cs", f"{last}..HEAD", "--", *SHIPPED
     ).splitlines()
     oldest = overdue(dates, datetime.date.today(), days)
-    version = plugin_version(read(root, PLUGIN))
     if oldest is not None:
         print(
             f"{len(dates)} commit(s) since {version} changed the plugin, the oldest on {oldest} "
