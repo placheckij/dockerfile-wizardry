@@ -14,6 +14,8 @@ Each pull request that changes `skills/` or `.claude-plugin/` adds a line under 
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-04
+
 ### Changed
 
 - Audit mode lists a rule as passing only when every part of it was checked, and puts the unchecked part under Limits instead: what a pinned action fetches in turn for DW-SUPPLY-03, and whether removed files are gone from every layer for DW-SUPPLY-05. A `manual` rule checked in full by reading still passes.
