@@ -1,0 +1,71 @@
+name: 🏷️ Release
+
+# A release is a pull request that bumps the version in .claude-plugin/plugin.json, made with
+# `python3 .github/scripts/release.py prepare patch|minor|major` once main has been tested (see
+# CONTRIBUTING.md). When it lands on main, this tags the commit vX.Y.Z and publishes a GitHub
+# Release whose notes are that version's CHANGELOG.md section. Claude Code gives existing users
+# the new plugin only once the version changes.
+#
+# Weekly it also fails (and GitHub emails the failure) when commits changed the plugin more than
+# 14 days ago and no version has been released since. A red scheduled run emails the last editor
+# of the cron line.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '.claude-plugin/plugin.json'
+  schedule:
+    - cron: '30 6 * * 1'   # Mondays 06:30 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: 📦 Tag and publish the release
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # `bumped` compares with main before this push
+          fetch-depth: 0
+
+      - name: Check the changelog matches the plugin version
+        run: python3 -I .github/scripts/release.py check
+
+      # A change to plugin.json that leaves the version alone publishes nothing
+      - name: Publish the release if the version changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          version=$(python3 -I .github/scripts/release.py bumped "$BEFORE")
+          if [ -z "$version" ]; then
+            echo "The version in .claude-plugin/plugin.json did not change; nothing to release."
+            exit 0
+          fi
+          python3 -I .github/scripts/release.py notes "$version" > "$RUNNER_TEMP/notes.md"
+          gh release create "v$version" --target "$GITHUB_SHA" --title "v$version" \
+            --notes-file "$RUNNER_TEMP/notes.md"
+
+  reminder:
+    name: ⏰ Check for unreleased plugin changes
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # `pending` looks back to the last version change
+          fetch-depth: 0
+
+      - name: Fail if plugin changes have waited more than 14 days
+        run: python3 -I .github/scripts/release.py pending --days 14

@@ -91,6 +91,8 @@ If you use Claude Code, the [`dockerfile-wizardry` skill](skills/dockerfile-wiza
 
 or, from a shell, `claude plugin install dockerfile-wizardry --marketplace placheckij/dockerfile-wizardry`.
 
+Plugin updates reach existing installs when a new version is released; [CHANGELOG.md](CHANGELOG.md) lists what changed in each, and which rules to re-check.
+
 ## 🔐 The Fourteen Security Spells
 
 The Dockerfile in this repository applies 14 of the practices, numbered as "spells" in its comments. CIS control numbers refer to the **CIS Docker Benchmark v1.9.0** (the numbering changed between versions, so older articles may differ); a monthly CI job warns when a newer version or an updated OWASP cheat sheet appears.
@@ -301,6 +303,7 @@ dockerfile-wizardry/
 ├── docs/rules/            # 📜 The rulebook, trade-offs and sources index
 ├── skills/dockerfile-wizardry/  # 🧰 Claude Code skill; references/ is generated from docs/rules/
 ├── .claude-plugin/        # 🔌 Plugin and marketplace manifests for installing the skill
+├── CHANGELOG.md           # 📝 What changed in each plugin version
 ├── fixtures/dockerfiles/  # 🏷️ Labelled good and bad Dockerfiles, linted in CI, never built
 ├── pyproject.toml         # 📦 Python dependencies
 ├── uv.lock                # 🔒 Locked versions
