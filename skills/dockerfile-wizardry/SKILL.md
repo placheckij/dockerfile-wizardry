@@ -34,6 +34,14 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    precedence; note if there is neither), every file or directory it `COPY`s or
    `ADD`s (look for secrets, tests, `.git`, local environments), and any entrypoint or
    wrapper script it runs (DW-HEALTH-05 needs the `exec` in it checked by reading).
+   Open the copied files, not only their names: a secret sits inside a config file
+   whose name gives nothing away. If there are too many to read, say which you did not
+   open and list them under Limits.
+   Also read the files that settle rules beyond the Dockerfile when they are in the
+   repository, whether or not the user named them: CI workflows (`.github/workflows/`,
+   `.gitlab-ci.yml` and the like) and build scripts for the CI pipeline rules listed under
+   Limits, and Compose or Kubernetes files for the runtime notes. A file you can read is
+   a file you were given.
 2. **Run the linters if they are installed.** Do not install anything without asking.
    - `hadolint --info DL3057 <Dockerfile>` (DL3057, a missing `HEALTHCHECK`, is off by
      default; this turns it on for DW-HEALTH-02)
@@ -65,6 +73,16 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    about (no `COPY` or `ADD` for DW-BUILD-03, no download for DW-DEPS-03). If you think
    a rule matters less for this image, for example a health check for a one-shot
    command, report the finding and add that note; do not leave it out.
+   - **A gap that causes no harm yet is still a finding**, at the rule's strength: a
+     `.dockerignore` pattern without `**/` breaks DW-BUILD-03 even if no matching file
+     exists today. Say in the Finding column that nothing is affected yet.
+   - **A rule split between the Dockerfile and the build command** (DW-BUILD-09: the
+     `ARG` is in the file, the exporter option is on the command line) is checked for
+     the part the file holds; the rest goes under Limits unless a CI workflow or build
+     script you read shows it.
+   - **Do not assume facts the files do not show.** Whether the image is published
+     decides DW-SUPPLY-01 and DW-SUPPLY-02; if the user has not said, ask, or leave both
+     under Limits.
 4. **Report.** Start with a table, one row per finding, in rule order:
 
    | Rule | Line | Finding | Severity |
@@ -79,12 +97,17 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
      do not count it as a violation. Where the statement names only one part as the
      trade-off, the other parts are not in dispute: DW-DEPS-01 calls only pinning a
      trade-off, so a missing cache cleanup, a separate index update or an unneeded
-     package is **should fix**, and only pinning is **decide**.
+     package is **should fix**, and only pinning is **decide**. A trade-off the file
+     has already settled (it pins package versions, or prunes into `scratch`) is still
+     a **decide** row: say which side the file took, give both sides, and offer no diff
+     unless the user asks to change it.
 
    Then, for each finding: the reason (a sentence or two from the rule's "Why"), one
    source link from the rule's "Sources", and a unified diff against the user's file
    as it is now, with file headers and line numbers, so that each diff applies on its
-   own. Where fixes change the same lines, give one diff and name the rules it covers.
+   own. Where fixes change the same lines, or lines within three of each other (a hunk
+   carries three lines of context, so a nearby change breaks the other diff), give one
+   diff and name the rules it covers.
    Place comments as in create mode (section 3, step 4). A diff must not call a binary
    the image lacks: if it adds `tini` as the entrypoint, it also installs `tini`.
    Do not count hunk lines by hand; if you can run commands, let `diff` write the hunk
@@ -116,7 +139,9 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    if not, the same diff also creates them, as DW-USER-01 asks.
 
    After the findings, list the rules that pass and the rules that do not apply, by id.
-5. **Ask which fixes to apply.** Apply only the ones the user chooses. Re-run the linters
+5. **Ask which fixes to apply.** Apply only the ones the user chooses, by editing the
+   file, not by applying the diffs one after another: each diff was made against the
+   original, so after the first one the others may no longer match. Re-run the linters
    afterwards if they were available, and show what changed.
 6. **Close** with two lists. First, the rules the Dockerfile passes now, under the words
    "passes the listed checks". Use those words only for rules that actually pass. Second,
@@ -226,12 +251,15 @@ reverse, so name it in the summary.
 
 End every report or summary with what was not checked:
 
-- **Runtime settings**: `docker run` flags, Compose and Kubernetes settings, unless the
-  user gave you those files.
-- **Registry and publishing**: SBOM, provenance and signing (DW-SUPPLY-01, DW-SUPPLY-02).
+- **Runtime settings**: `docker run` flags, Compose and Kubernetes settings, unless
+  those files are in the repository or the user gave them to you.
+- **Registry and publishing**: SBOM, provenance and signing (DW-SUPPLY-01, DW-SUPPLY-02),
+  unless the user said whether and how the image is published.
 - **CI pipeline rules**: build cache export (DW-BUILD-07), action pinning (DW-SUPPLY-03),
   scheduled rebuilds (DW-SUPPLY-04), image scanning (DW-SUPPLY-05), Docker Engine and
-  BuildKit versions (DW-SUPPLY-06), unless the user gave you the workflow files.
+  BuildKit versions (DW-SUPPLY-06), unless the workflow files are in the repository or
+  the user gave them to you; then check these rules against them.
+- **Files not opened**: any copied file you did not read (step 1).
 - **The built image**: whether removed files are gone from every layer (DW-BUILD-04,
   DW-SUPPLY-05) needs the image, not the Dockerfile.
 - **Human judgement**: the `TRADE-OFF` rules (DW-BUILD-04, DW-BUILD-07, DW-DEPS-01), which
