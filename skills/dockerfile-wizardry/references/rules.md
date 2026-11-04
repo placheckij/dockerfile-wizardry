@@ -631,7 +631,7 @@ Sources:
 
 ## DW-USER-01: Run as a non-root user
 
-Strength: MUST. Last verified: 2026-11-03.
+Strength: MUST. Last verified: 2026-11-04.
 
 Create a dedicated user and group with explicit numeric IDs and switch to it with `USER`
 before the final `CMD`/`ENTRYPOINT`. Never leave the container running as root.
@@ -639,8 +639,9 @@ before the final `CMD`/`ENTRYPOINT`. Never leave the container running as root.
 Why: Code execution inside the container then starts with the privileges of an unprivileged user,
 not root, which limits what a compromise can reach (CIS 4.1, OWASP Rule 2).
 
-How to check: Hadolint DL3002 (last user should not be root) and DL3066 (a non-numeric user id, which the host
-may not resolve); Dockle CIS-DI-0001 (a user has been created).
+How to check: Hadolint DL3002 (last user should not be root); Dockle CIS-DI-0001 (a user has been created).
+Hadolint DL3066 (a non-numeric user id, which the host may not resolve) is advisory: a `USER`
+given by name meets this rule when that user was created with explicit numeric IDs.
 
 Sources:
 - https://www.cisecurity.org/benchmark/docker
