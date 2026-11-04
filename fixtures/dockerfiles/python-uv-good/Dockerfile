@@ -32,7 +32,7 @@ LABEL org.opencontainers.image.title="example-python-service" \
       org.opencontainers.image.authors="Example Team <team@example.com>" \
       org.opencontainers.image.source="https://example.com/example-python-service" \
       org.opencontainers.image.licenses="MIT"
-# The slim base keeps apt and dpkg in this stage: a deliberate choice, not an
+# The slim base keeps apt, dpkg and pip in this stage: a deliberate choice, not an
 # oversight. Removing them (DW-BUILD-10) means pruning and flattening, the DW-BUILD-04
 # trade-off, or another base (trade-offs §6); see expected-findings.txt
 # root owns the code and dependencies; the app user reads them through its group and
