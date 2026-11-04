@@ -79,14 +79,16 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    differ, which is expected here):
 
    ```sh
-   diff -u --label a/<path> --label b/<path> <path> - <<'EOF'
+   diff -u --label a/<path> --label b/<path> <path> - <<'DW_FIXED_DOCKERFILE'
    <the whole fixed Dockerfile>
-   EOF
+   DW_FIXED_DOCKERFILE
    ```
 
    `<path>` is the Dockerfile's path from the directory the user works in (for example
    `services/api/Dockerfile`), so the headers name that file and `git apply` finds it.
-   In the example below the file is `./Dockerfile`.
+   In the example below the file is `./Dockerfile`. The delimiter must not appear as a
+   line in the file: Dockerfile heredocs often end in `EOF`, which would cut the input
+   short. Any exit status other than 0 or 1 means the run failed, not that it made a diff.
 
    ```diff
    --- a/Dockerfile
