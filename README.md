@@ -50,6 +50,7 @@ A sourced guide to writing Dockerfiles, with a worked example. The [rulebook](do
 - [🎓 Advanced Wizardry](#-advanced-wizardry)
   - [Inspect the Build Layers](#inspect-the-build-layers)
   - [Measure the Impact](#measure-the-impact)
+- [🧰 Claude Code Skill](#-claude-code-skill)
 - [💬 Support & Contact](#-support--contact)
 - [📄 License](#-license)
   - [Third-Party Components](#third-party-components)
@@ -82,16 +83,7 @@ The rules live in [`docs/rules/`](docs/rules/README.md), one page per theme:
 
 Each rule is `MUST`, `SHOULD` or `TRADE-OFF`, and a `TRADE-OFF` rule lays out each side instead of choosing for you; the larger recurring choices have their own section on the [trade-offs page](docs/rules/tradeoffs.md). Every rule links to its sources and carries the date it was last checked against them. The [sources page](docs/rules/sources.md) lists all of them by site. Each spell below maps to a rule in the [rulebook index](docs/rules/README.md#index).
 
-If you use Claude Code, the [`dockerfile-wizardry` skill](skills/dockerfile-wizardry/SKILL.md) applies these rules: it audits an existing Dockerfile rule by rule or writes a new one, citing a rule id for each finding and choice and naming trade-offs instead of deciding them silently. It reads the same rulebook, from a `references/` folder generated from `docs/rules/`; the rules stand on their own without it. To install it, copy `skills/dockerfile-wizardry` into a project's `.claude/skills/` (or your own `~/.claude/skills/`), or install it as a plugin from this repository:
-
-```
-/plugin marketplace add placheckij/dockerfile-wizardry
-/plugin install dockerfile-wizardry@dockerfile-wizardry
-```
-
-or, from a shell, `claude plugin install dockerfile-wizardry --marketplace placheckij/dockerfile-wizardry`.
-
-Plugin updates reach existing installs when a new version is released; [CHANGELOG.md](CHANGELOG.md) lists what changed in each, and which rules to re-check.
+A Claude Code skill that applies these rules is described [near the end](#-claude-code-skill).
 
 ## 🔐 The Fourteen Security Spells
 
@@ -450,6 +442,19 @@ echo "# comment" >> spellbook/main.py
 time docker build -t wizardry:latest .
 # Dependencies aren't reinstalled - that's Spell #6!
 ```
+
+## 🧰 Claude Code Skill
+
+If you use Claude Code, the [`dockerfile-wizardry` skill](skills/dockerfile-wizardry/SKILL.md) applies the [rulebook](#-the-rulebook): it audits an existing Dockerfile rule by rule or writes a new one, citing a rule id for each finding and choice and naming trade-offs instead of deciding them silently. It reads the same rulebook, from a `references/` folder generated from `docs/rules/`; the rules stand on their own without it. To install it, copy `skills/dockerfile-wizardry` into a project's `.claude/skills/` (or your own `~/.claude/skills/`), or install it as a plugin from this repository:
+
+```
+/plugin marketplace add placheckij/dockerfile-wizardry
+/plugin install dockerfile-wizardry@dockerfile-wizardry
+```
+
+or, from a shell, `claude plugin install dockerfile-wizardry --marketplace placheckij/dockerfile-wizardry`.
+
+An installed plugin changes only when a new version is released. Unless you have turned on auto-update for the marketplace, fetch it with `/plugin marketplace update dockerfile-wizardry`. [CHANGELOG.md](CHANGELOG.md) lists what changed in each version and which rules to re-check.
 
 ## 💬 Support & Contact
 
