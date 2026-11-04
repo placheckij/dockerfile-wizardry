@@ -109,6 +109,13 @@ class LoadBaselineTest(StandardsTestCase):
         with self.assertRaisesRegex(check_standards.CheckError, "distroless"):
             check_standards.load_baseline()
 
+    def test_load_baseline_rejects_non_ascii_cis_version(self):
+        data = baseline()
+        data["cis_docker_benchmark"]["verified_version"] = "1.\u0669.0"
+        self.write(data)
+        with self.assertRaisesRegex(check_standards.CheckError, "baseline"):
+            check_standards.load_baseline()
+
     def test_check_error_is_the_shared_class(self):
         self.assertIs(check_standards.CheckError, standards_sources.CheckError)
 

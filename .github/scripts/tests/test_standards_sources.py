@@ -195,6 +195,17 @@ class WatchTest(unittest.TestCase):
             (s.watch_dockerfile_frontend, {"reviewed_version": "1.28"}),
             (s.watch_hadolint, {"reviewed_release": "2.15.1", "reviewed_rules": []}),
             (s.watch_distroless, {}),
+            # non-ASCII digits, which \d would accept
+            (s.watch_dockerfile_frontend, {"reviewed_version": "1.\u0662\u0668.0"}),
+            (
+                s.watch_hadolint,
+                {"reviewed_release": "v2.\u0661\u0665.1", "reviewed_rules": ["DL3000"]},
+            ),
+            (
+                s.watch_hadolint,
+                {"reviewed_release": "v2.15.1", "reviewed_rules": ["DL\u0663000"]},
+            ),
+            (s.watch_distroless, {"reviewed_debian_versions": ["\u0661\u0663"]}),
         ]
         for watcher, entry in cases:
             with (
