@@ -37,7 +37,7 @@ strength: SHOULD
 spells:
 - 12
 
-last_verified: 2026-11-02
+last_verified: 2026-11-04
 
 statement:
   Add a `HEALTHCHECK` that exercises the application, using a tool that exists in the image. A
@@ -53,10 +53,13 @@ why:
 
 how_to_check:
   Hadolint DL3057 (missing `HEALTHCHECK`; ignored by default, so enable it); Dockle CIS-DI-0006.
+  Only the final stage needs a `HEALTHCHECK`, but DL3057 is reported for every stage without
+  one, so on a build stage's `FROM` it is a false positive.
 
 sources:
 - https://www.cisecurity.org/benchmark/docker
 - https://docs.docker.com/reference/dockerfile/#healthcheck
+- https://github.com/hadolint/hadolint
 
 ## DW-HEALTH-03: Set the stop signal
 

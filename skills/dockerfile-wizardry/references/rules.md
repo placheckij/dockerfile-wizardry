@@ -385,7 +385,7 @@ Sources:
 
 ## DW-HEALTH-02: Add a health check
 
-Strength: SHOULD. Last verified: 2026-11-02.
+Strength: SHOULD. Last verified: 2026-11-04.
 
 Add a `HEALTHCHECK` that exercises the application, using a tool that exists in the image. A
 failed check must exit non-zero.
@@ -398,10 +398,13 @@ ships its missing-`HEALTHCHECK` rule disabled by default. See the
 [trade-offs](https://github.com/placheckij/dockerfile-wizardry/blob/main/docs/rules/tradeoffs.md#4-a-healthcheck-in-the-image-or-probes-in-the-platform).
 
 How to check: Hadolint DL3057 (missing `HEALTHCHECK`; ignored by default, so enable it); Dockle CIS-DI-0006.
+Only the final stage needs a `HEALTHCHECK`, but DL3057 is reported for every stage without
+one, so on a build stage's `FROM` it is a false positive.
 
 Sources:
 - https://www.cisecurity.org/benchmark/docker
 - https://docs.docker.com/reference/dockerfile/#healthcheck
+- https://github.com/hadolint/hadolint
 
 ## DW-HEALTH-03: Set the stop signal
 
