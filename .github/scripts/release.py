@@ -9,8 +9,10 @@ first.
 Usage:
     python3 .github/scripts/release.py check [--base REF]
         Fail when CHANGELOG.md is malformed or its newest version is not plugin.json's. With
-        --base, also fail when the changes since REF touch the plugin but add no entry under
-        Unreleased (a release, which raises the version, is exempt), or lower the version.
+        --base, also fail when the changes since REF touch the plugin but leave Unreleased
+        unchanged or empty (a release, which raises the version, is exempt), or lower the
+        version. Rewording or removing an entry counts as a change: the check is a reminder,
+        and amending the entry for the same rule, or a revert removing its own, is legitimate.
     python3 .github/scripts/release.py prepare patch|minor|major
         Bump plugin.json and move the Unreleased entries into a section for the new version,
         dated today. Commit the result and open it as a pull request.
@@ -221,7 +223,7 @@ def unreleased_body(text):
 
 
 def adds_unreleased_entries(root, base, changelog):
-    """True when the Unreleased section has entries and differs from the one at `base`, or
+    """True when the Unreleased section has entries and any change from the one at `base`, or
     when `base` has no changelog yet."""
     if CHANGELOG not in git(root, "ls-tree", "--name-only", base).splitlines():
         return True
@@ -254,8 +256,8 @@ def run_check(root, base):
             and not adds_unreleased_entries(root, base, changelog)
         ):
             problems.append(
-                f"this changes the plugin ({', '.join(SHIPPED)}) but adds nothing under "
-                f"## [{UNRELEASED}] in {CHANGELOG}: add an entry there"
+                f"this changes the plugin ({', '.join(SHIPPED)}) but leaves "
+                f"## [{UNRELEASED}] in {CHANGELOG} unchanged: add an entry there"
             )
         if parse_version(version) < parse_version(before):
             problems.append(f"{PLUGIN} lowers the version from {before} to {version}")

@@ -204,6 +204,17 @@ class CheckTest(unittest.TestCase):
         self.commit()
         self.assertEqual(self.check("check", "--base", self.base)[0], 1)
 
+    def test_amending_an_unreleased_entry_counts(self):
+        self.write("skills/SKILL.md", "two\n")
+        self.write(
+            release.CHANGELOG,
+            CHANGELOG.replace(
+                "now wants numbers. (#17)", "now wants numbers. (#17, #18)"
+            ),
+        )
+        self.commit()
+        self.assertEqual(self.check("check", "--base", self.base)[0], 0)
+
     def test_first_changelog_needs_no_unreleased_entry(self):
         self.git("rm", "-q", release.CHANGELOG)
         self.commit()

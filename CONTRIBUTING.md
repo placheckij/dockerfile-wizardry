@@ -29,7 +29,8 @@ Claude Code gives existing users a new copy of the plugin only when the version 
 
 - A pull request that changes `skills/` or `.claude-plugin/` (including the generated
   `references/` folder, so any rulebook change) adds a line under `## [Unreleased]` in
-  `CHANGELOG.md`, naming the rule ids it affects. Static Checks fails without it.
+  `CHANGELOG.md`, naming the rule ids it affects. Static Checks fails if the pull request leaves
+  that section unchanged.
 - To release, test the skill from `main` (for example with `claude --plugin-dir .` in a
   checkout), then run `python3 .github/scripts/release.py prepare patch|minor|major`. It bumps
   `plugin.json` and moves the Unreleased entries into a dated section. `CHANGELOG.md` says which
