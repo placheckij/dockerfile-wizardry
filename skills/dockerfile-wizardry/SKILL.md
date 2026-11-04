@@ -108,9 +108,8 @@ unless the workflow, build script or Compose file that builds this image names a
      final stage built `FROM scratch` inherits from none), or when a later instruction in
      the same stage or further along that chain overrides it: a later `HEALTHCHECK`,
      `STOPSIGNAL`, `ENTRYPOINT` or `CMD` replaces the earlier one, and an `ENTRYPOINT` also
-     clears the `CMD` its stage inherits. Such an
-     instruction is not a DW-BASE-02 or DW-HEALTH finding, and a diff leaves it as it is;
-     at most, add a note.
+     clears the `CMD` its stage inherits. Such an instruction is not a DW-BASE-02 or
+     DW-HEALTH finding, and a diff leaves it as it is; at most, add a note.
    - **A rule the build command can meet as well as the Dockerfile** is a finding only
      when neither does. DW-BUILD-09 applies only where reproducible output matters, so
      unless the user has said it does, it goes under Limits. If it does matter,
