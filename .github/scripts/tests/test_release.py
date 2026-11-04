@@ -1,6 +1,7 @@
 import contextlib
 import datetime
 import io
+import os
 import subprocess
 import sys
 import tempfile
@@ -67,6 +68,14 @@ class ValidateTest(unittest.TestCase):
     def test_released_section_needs_entries(self):
         text = CHANGELOG.replace("- The skill. (#15)\n", "")
         self.assertIn("has no entries", " ".join(release.validate(text)))
+
+    def test_unreleased_takes_no_date(self):
+        text = CHANGELOG.replace("## [Unreleased]", "## [Unreleased] - 2026-11-05")
+        self.assertIn("takes no date", " ".join(release.validate(text)))
+
+    def test_needs_a_released_version(self):
+        text = CHANGELOG[: CHANGELOG.index("## [0.1.0]")]
+        self.assertIn("no released version", " ".join(release.validate(text)))
 
     def test_group_headings_are_not_entries(self):
         self.assertFalse(release.has_entries("\n### Changed\n\n"))
@@ -137,7 +146,7 @@ class CheckTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def git(self, *args):
+    def git(self, *args, env=None):
         return subprocess.run(
             [
                 "git",
@@ -153,6 +162,7 @@ class CheckTest(unittest.TestCase):
             capture_output=True,
             text=True,
             check=True,
+            env=env,
         ).stdout
 
     def write(self, name, text):
@@ -203,6 +213,12 @@ class CheckTest(unittest.TestCase):
         self.commit()
         self.assertEqual(self.check("check", "--base", base)[0], 0)
 
+    def test_moving_a_file_out_of_the_plugin_needs_an_entry(self):
+        (self.root / "docs").mkdir()
+        self.git("mv", "skills/SKILL.md", "docs/SKILL.md")
+        self.commit()
+        self.assertEqual(self.check("check", "--base", self.base)[0], 1)
+
     def test_other_changes_need_no_entry(self):
         self.write("README.md", "readme\n")
         self.commit()
@@ -241,6 +257,22 @@ class CheckTest(unittest.TestCase):
         code, output = self.check("pending")
         self.assertEqual(code, 0)
         self.assertIn("1 unreleased commit(s)", output)
+
+    def test_pending_fails_on_an_old_unreleased_change(self):
+        self.write("skills/SKILL.md", "two\n")
+        self.git("add", "-A")
+        old = (datetime.date.today() - datetime.timedelta(days=20)).isoformat()
+        self.git(
+            "commit",
+            "-q",
+            "-m",
+            "c",
+            env={**os.environ, "GIT_COMMITTER_DATE": f"{old}T12:00:00"},
+        )
+        code, output = self.check("pending")
+        self.assertEqual(code, 1)
+        self.assertIn(f"the oldest on {old}", output)
+        self.assertEqual(self.check("pending", "--days", "30")[0], 0)
 
     def test_pending_counts_from_the_release_tag(self):
         self.write("skills/SKILL.md", "two\n")

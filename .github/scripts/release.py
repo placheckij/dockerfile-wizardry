@@ -241,7 +241,10 @@ def run_check(root, base):
             f"{PLUGIN} says {version}, but the newest version in {CHANGELOG} is {latest}"
         )
     if base is not None:
-        changed = git(root, "diff", "--name-only", base, "HEAD").splitlines()
+        # --no-renames: a file moved out of skills/ is listed under its old path as well
+        changed = git(
+            root, "diff", "--name-only", "--no-renames", base, "HEAD"
+        ).splitlines()
         before = plugin_version(git(root, "show", f"{base}:{PLUGIN}"))
         # a release moves the entries out of Unreleased, and the pull request that adds the
         # changelog has nothing to compare with
