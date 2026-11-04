@@ -4,6 +4,8 @@
 
 [![GitHub](https://img.shields.io/badge/license-MIT-brightgreen.svg)](https://raw.githubusercontent.com/placheckij/dockerfile-wizardry/main/LICENSE)
 [![CI](https://github.com/placheckij/dockerfile-wizardry/actions/workflows/ci.yml/badge.svg)](https://github.com/placheckij/dockerfile-wizardry/actions/workflows/ci.yml)
+[![Static Checks](https://github.com/placheckij/dockerfile-wizardry/actions/workflows/checks.yml/badge.svg)](https://github.com/placheckij/dockerfile-wizardry/actions/workflows/checks.yml)
+[![Secret Scan](https://github.com/placheckij/dockerfile-wizardry/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/placheckij/dockerfile-wizardry/actions/workflows/secret-scan.yml)
 [![Python](https://img.shields.io/badge/python-3.14-blue.svg)](https://www.python.org/downloads/)
 [![Docker](https://img.shields.io/badge/docker-24.0+-blue.svg)](https://www.docker.com/)
 [![Hadolint](https://img.shields.io/badge/dockerfile-linted-success.svg)](https://github.com/hadolint/hadolint)

@@ -1,8 +1,8 @@
 name: 🧙‍♂️ Dockerfile Wizardry CI
 
-# Builds and runs the image and the Python tests. The static checks (Hadolint, Trivy's
+# Builds and runs the image and the Python tests. The static checks (Hadolint, ruff, Trivy's
 # configuration scan, the rulebook and fixtures) are in checks.yml and the secret scan in
-# secret-scan.yml, so a change to the docs alone does not rebuild the image.
+# secret-scan.yml, so a change to the docs or the workflow scripts does not rebuild the image.
 
 on:
   pull_request:
@@ -13,8 +13,6 @@ on:
       - 'spellbook/**'
       - 'pyproject.toml'
       - 'uv.lock'
-      # ruff lints and format-checks every Python file in the repository
-      - '**/*.py'
       - '.github/workflows/ci.yml'
   push:
     branches: [ main ]
@@ -156,11 +154,6 @@ jobs:
       # --locked: fail if uv.lock is out of date with pyproject.toml
       - name: Install dependencies
         run: uv sync --locked
-
-      - name: Lint and check formatting
-        run: |
-          uv run --locked ruff check .
-          uv run --locked ruff format --check .
 
       - name: Run tests
         run: |

@@ -2,7 +2,7 @@ name: 📖 Static Checks
 
 # Checks that read files without building or running the image: the Dockerfiles and examples
 # (Hadolint, Trivy's configuration scan), the rulebook and its generated pages, the README table
-# of contents, the labelled fixtures and the workflow scripts.
+# of contents, the labelled fixtures, the workflow scripts and the Python code (ruff).
 #
 # Runs on changes to those files, and weekly, so a new Trivy misconfiguration rule or a fixture
 # base image that can no longer be pulled is noticed. A red scheduled run emails the last editor
@@ -10,15 +10,23 @@ name: 📖 Static Checks
 
 on:
   pull_request:
+    branches: [ main ]
     paths: &paths
       - 'Dockerfile'
       - 'README.md'
+      # check_rules.py fails on README links to missing files, and README links to these
+      - 'RUNTIME_SECURITY.md'
+      - 'LICENSE'
       - 'docs/rules/**'
       - 'skills/**'
       - '.claude-plugin/**'
       - 'examples/**'
       - 'fixtures/**'
       - '.github/scripts/**'
+      # ruff lints and format-checks every Python file; its version and settings come from these
+      - '**/*.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
       - '.github/workflows/checks.yml'
   push:
     branches: [ main ]
@@ -93,3 +101,33 @@ jobs:
           # The single-stage files are deliberately naive benchmark baselines (they run as root),
           # and the bad fixtures break these rules on purpose (check_fixtures.py checks them)
           skip-files: 'Dockerfile.single-stage-alpine,Dockerfile.single-stage-slim,fixtures/dockerfiles/debian-apt-naive/Dockerfile,fixtures/dockerfiles/python-naive/Dockerfile'
+
+  python-lint:
+    name: 🐍 Lint Python (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.14'
+
+      # Same uv version as the Dockerfiles. setup-uv caches uv's download cache,
+      # keyed on uv.lock, so no separate cache step is needed.
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: 0.13.6
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      # --locked: fail if uv.lock is out of date with pyproject.toml
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Lint and check formatting
+        run: |
+          uv run --locked ruff check .
+          uv run --locked ruff format --check .
