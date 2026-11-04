@@ -170,6 +170,22 @@ class ParseJsonTest(unittest.TestCase):
         out = '[{"code":"DL3007","line":1},{"code":"DL3007","line":2}]'
         self.assertEqual(check_fixtures.parse_hadolint(out), {"DL3007"})
 
+    def test_parse_hadolint_filters_levels(self):
+        out = '[{"code":"DL3008","level":"warning"},{"code":"DL3057","level":"info"}]'
+        self.assertEqual(
+            check_fixtures.parse_hadolint(out, levels={"error", "warning"}), {"DL3008"}
+        )
+        self.assertEqual(check_fixtures.parse_hadolint(out), {"DL3008", "DL3057"})
+
+    def test_buildcheck_codes_passes_dockerfile(self):
+        with mock.patch.object(
+            check_fixtures, "run_docker", return_value=('{"warnings":null}', "")
+        ) as run:
+            check_fixtures.buildcheck_codes(Path("/ctx"), Path("/ctx/Dockerfile.slim"))
+        args = run.call_args.args[0]
+        self.assertEqual(args[args.index("-f") + 1], "/ctx/Dockerfile.slim")
+        self.assertEqual(args[-1], "/ctx")
+
     def test_buildcheck_json_without_warnings_key(self):
         self.assertEqual(check_fixtures.parse_buildcheck('{"sources":[]}'), set())
 

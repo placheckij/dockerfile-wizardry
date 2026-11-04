@@ -1,8 +1,9 @@
 name: 📖 Static Checks
 
 # Checks that read files without building or running the image: the Dockerfiles and examples
-# (Hadolint, Trivy's configuration scan), the rulebook and its generated pages, the README table
-# of contents, the labelled fixtures, the workflow scripts and the Python code (ruff).
+# (Hadolint, Trivy's configuration scan), the rulebook, its generated pages and its dates against
+# the standards baseline, the README table of contents, the labelled fixtures, the workflow
+# scripts and the Python code (ruff).
 #
 # Runs on changes to those files, and weekly, so a new Trivy misconfiguration rule or a fixture
 # base image that can no longer be pulled is noticed. A red scheduled run emails the last editor
@@ -26,6 +27,8 @@ on:
       - 'examples/**'
       - 'fixtures/**'
       - '.github/scripts/**'
+      # stale_rules.py compares the rules with the recorded source changes
+      - '.github/standards-baseline.json'
       # ruff lints and format-checks every Python file; its version and settings come from these
       - '**/*.py'
       - 'pyproject.toml'
@@ -48,12 +51,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Run Hadolint
-        uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
-        with:
-          dockerfile: Dockerfile
-          failure-threshold: warning
 
       # The smoke-test scripts are bash; shellcheck is preinstalled on GitHub's runners
       - name: Lint shell scripts (shellcheck)
@@ -78,8 +75,18 @@ jobs:
       - name: Check the rulebook entries, links and generated pages
         run: python3 .github/scripts/check_rules.py --check
 
+      # A rule citing a source whose recorded change in .github/standards-baseline.json is newer
+      # than the rule's last_verified date must be re-read and re-dated
+      - name: Check no rule is older than a recorded change to its sources
+        run: python3 .github/scripts/stale_rules.py
+
       - name: Test the rulebook checker
         run: python3 -m unittest discover -s .github/scripts/tests
+
+      # Every tracked Dockerfile outside fixtures/ must pass Hadolint (warning and above) and
+      # Docker's build checks
+      - name: Lint the Dockerfiles with Hadolint and Docker's build checks
+        run: python3 .github/scripts/lint_dockerfiles.py
 
       # fixtures/dockerfiles/ holds Dockerfiles labelled good or bad; Hadolint and Docker's build
       # checks must report exactly the codes each expected-findings.txt lists
