@@ -40,7 +40,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import check_rules
 import stale_rules
 import standards_sources
-from standards_sources import BASELINE_NAME, CheckError, update_hint
+from standards_sources import BASELINE_NAME, VERSION_RE, CheckError, update_hint
 
 CIS_KEY = "cis_docker_benchmark"
 OWASP_KEY = "owasp_docker_cheat_sheet"
@@ -52,7 +52,7 @@ OWASP_PAGE = (
 OWASP_REPO = "OWASP/CheatSheetSeries"
 OWASP_FILE = "cheatsheets/Docker_Security_Cheat_Sheet.md"
 
-CIS_VERSION_RE = re.compile(r"Docker[ _]Benchmark[ _]\(?v?(\d+\.\d+\.\d+)")
+CIS_VERSION_RE = re.compile(r"Docker[ _]Benchmark[ _]\(?v?([0-9]+\.[0-9]+\.[0-9]+)")
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 ANCHOR_RE = re.compile(r"^[a-z0-9-]+$")
 CITED_ANCHOR_RE = re.compile(r"Docker_Security_Cheat_Sheet\.html#([A-Za-z0-9-]+)")
@@ -219,7 +219,7 @@ def load_baseline():
         raise CheckError(
             f"baseline file {BASELINE_NAME} is missing or malformed: {error!r}"
         ) from error
-    if not re.fullmatch(r"\d+\.\d+\.\d+", str(cis)) or not SHA_RE.match(str(owasp)):
+    if not VERSION_RE.fullmatch(str(cis)) or not SHA_RE.match(str(owasp)):
         raise CheckError(
             f"baseline file {BASELINE_NAME} has an invalid version or commit"
         )

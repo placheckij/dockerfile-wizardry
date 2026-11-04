@@ -113,6 +113,13 @@ class LoadBaselineTest(StandardsTestCase):
         self.assertIs(check_standards.CheckError, standards_sources.CheckError)
 
 
+class CisVersionTest(unittest.TestCase):
+    def test_non_ascii_digits_are_not_matched(self):
+        page = "CIS Docker Benchmark v1.\u0661\u0660.0 and CIS Docker Benchmark v1.9.0"
+        with mock.patch.object(check_standards, "fetch", return_value=page):
+            self.assertEqual(check_standards.latest_cis_version(), "1.9.0")
+
+
 class MainTest(StandardsTestCase):
     def outdated_hadolint(self):
         watch = standards_sources.Watch(

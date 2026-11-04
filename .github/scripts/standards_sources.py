@@ -8,7 +8,7 @@ alarms but a change the rules depend on does:
   * build_checks: the rule pages in buildkit's frontend/dockerfile/docs/rules, which
     docs.docker.com/reference/build-checks/ is rendered from
   * hadolint: the latest Hadolint release and the DL rule codes listed in its README
-  * distroless: the Debian versions the distroless README lists images for
+  * distroless: the Debian versions in the distroless README's table of images
 
 Everything is read through `gh api` and is untrusted: values are matched against strict
 patterns before they are compared or printed, and finding nothing is a CheckError (the check
@@ -27,15 +27,19 @@ BASELINE_NAME = ".github/standards-baseline.json"
 BUILDKIT = "moby/buildkit"
 BUILD_CHECKS_DIR = "frontend/dockerfile/docs/rules"
 
-FRONTEND_REF_RE = re.compile(r"^refs/tags/dockerfile/(\d+\.\d+\.\d+)$")
-VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
-HADOLINT_TAG_RE = re.compile(r"^v\d+\.\d+\.\d+$")
+# [0-9], not \d: in Python \d also matches other scripts' digits, which int() accepts
+FRONTEND_REF_RE = re.compile(r"^refs/tags/dockerfile/([0-9]+\.[0-9]+\.[0-9]+)$")
+VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
+HADOLINT_TAG_RE = re.compile(r"^v[0-9]+\.[0-9]+\.[0-9]+$")
 CHECK_FILE_RE = re.compile(r"^([a-z0-9-]+)\.md$")
 CHECK_NAME_RE = re.compile(r"^[a-z0-9-]+$")
-HADOLINT_CITED_RE = re.compile(r"\[(DL\d{4})\]")
-HADOLINT_CODE_RE = re.compile(r"^DL\d{4}$")
-DISTROLESS_IMAGE_RE = re.compile(r"distroless/[a-z0-9-]+-debian(\d+)\b")
-DEBIAN_RE = re.compile(r"^\d+$")
+HADOLINT_CITED_RE = re.compile(r"\[(DL[0-9]{4})\]")
+HADOLINT_CODE_RE = re.compile(r"^DL[0-9]{4}$")
+# the first cell of a row in the README's image table; prose and examples mention other versions
+DISTROLESS_IMAGE_RE = re.compile(
+    r"^\|\s*gcr\.io/distroless/[a-z0-9-]+-debian([0-9]+)\s*\|", re.MULTILINE
+)
+DEBIAN_RE = re.compile(r"^[0-9]+$")
 
 
 class CheckError(Exception):

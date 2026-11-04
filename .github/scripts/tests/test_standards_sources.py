@@ -50,10 +50,32 @@ class ParserTest(unittest.TestCase):
 
     def test_distroless_debian_versions(self):
         text = (
-            "gcr.io/distroless/static-debian12\n"
-            "gcr.io/distroless/python3-debian13 and gcr.io/distroless/cc-debian13"
+            "| gcr.io/distroless/static-debian12 | latest |\n"
+            "| gcr.io/distroless/python3-debian13 | latest |\n"
+            "| gcr.io/distroless/cc-debian13 | latest |\n"
         )
         self.assertEqual(s.distroless_debian_versions(text), ["12", "13"])
+
+    def test_distroless_versions_come_from_the_image_table_only(self):
+        text = (
+            "Specifying `gcr.io/distroless/static-debian14` will select newer images.\n"
+            "| Image | Tags |\n"
+            "| gcr.io/distroless/static-debian13     | latest, nonroot |\n"
+            "|gcr.io/distroless/cc-debian12|latest|\n"
+            "FROM gcr.io/distroless/python3-debian11:debug\n"
+        )
+        self.assertEqual(s.distroless_debian_versions(text), ["12", "13"])
+
+    def test_non_ascii_digits_are_not_matched(self):
+        for call in (
+            lambda: s.latest_stable(["refs/tags/dockerfile/1.\u0662.0"]),
+            lambda: s.hadolint_rules("[DL\uff13\uff10\uff10\uff10]"),
+            lambda: s.distroless_debian_versions(
+                "| gcr.io/distroless/static-debian\u0661\u0663 | latest |"
+            ),
+        ):
+            with self.subTest(call=call), self.assertRaises(s.CheckError):
+                call()
 
     def test_empty_signal_is_check_error(self):
         for call in (
@@ -127,6 +149,13 @@ class WatchTest(unittest.TestCase):
         ):
             s.watch_hadolint(self.hadolint_entry())
 
+    def test_watch_hadolint_non_ascii_tag_is_check_error(self):
+        with (
+            gh("v2.\u0661\u0666.0\n", HADOLINT_README),
+            self.assertRaises(s.CheckError),
+        ):
+            s.watch_hadolint(self.hadolint_entry())
+
     def test_watch_frontend_newer_upstream_is_a_problem(self):
         entry = {"reviewed_version": "1.28.0", "rule_sources": SOURCES}
         with gh("refs/tags/dockerfile/1.28.0\nrefs/tags/dockerfile/1.29.0\n"):
@@ -151,7 +180,11 @@ class WatchTest(unittest.TestCase):
 
     def test_watch_distroless_new_debian(self):
         entry = {"reviewed_debian_versions": ["13"], "rule_sources": SOURCES}
-        with gh("distroless/static-debian13 distroless/static-debian14"):
+        table = (
+            "| gcr.io/distroless/static-debian13 | latest |\n"
+            "| gcr.io/distroless/static-debian14 | latest |\n"
+        )
+        with gh(table):
             watch = s.watch_distroless(entry)
         self.assertEqual(watch.diff, ["+ 14"])
 

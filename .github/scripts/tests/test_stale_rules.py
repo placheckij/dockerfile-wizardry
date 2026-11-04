@@ -56,6 +56,22 @@ class StaleTest(unittest.TestCase):
         self.assertTrue(stale_rules.cites([url], [HADOLINT]))
         self.assertFalse(stale_rules.cites(["https://example.com/"], [HADOLINT]))
 
+    def test_prefix_ends_at_a_url_boundary(self):
+        frontend = "https://github.com/moby/buildkit/releases/tag/dockerfile"
+        cases = [
+            (HADOLINT, HADOLINT, True),
+            (HADOLINT + "#rules", HADOLINT, True),
+            (HADOLINT + "?tab=readme", HADOLINT, True),
+            (HADOLINT + "-extra", HADOLINT, False),
+            (HADOLINT + "-extra/README.md", HADOLINT, False),
+            (frontend + "%2F1.16.0", frontend, True),
+            (frontend + "-labs", frontend, False),
+            ("https://example.com/a/b", "https://example.com/a/", True),
+        ]
+        for url, prefix, expected in cases:
+            with self.subTest(url=url, prefix=prefix):
+                self.assertIs(stale_rules.cites([url], [prefix]), expected)
+
 
 class MatchingTest(unittest.TestCase):
     def test_unmatched_prefix_is_reported(self):
