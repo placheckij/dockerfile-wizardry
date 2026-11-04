@@ -135,6 +135,20 @@ class CheckIntegrationTest(RuleFileTestCase):
         self.assertEqual(check_rules.main(["--write"], root=self.dir), 0)
         self.assertEqual(check_rules.main(["--check"], root=self.dir), 0)
 
+    def test_check_reports_a_stray_reference_file(self):
+        self.tree(RULE, [1])
+        self.assertEqual(check_rules.main(["--write"], root=self.dir), 0)
+        stray = "skills/dockerfile-wizardry/references/old-rules.md"
+        (self.dir / stray).write_text("stale\n")
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            self.assertEqual(check_rules.main(["--check"], root=self.dir), 1)
+        self.assertIn(stray, stderr.getvalue())
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(check_rules.main(["--write"], root=self.dir), 0)
+        self.assertFalse((self.dir / stray).exists())
+        self.assertEqual(check_rules.main(["--check"], root=self.dir), 0)
+
     def test_check_reports_a_missing_example(self):
         self.tree(RULE, [1])
         (self.dir / "examples" / "pod.yaml").unlink()

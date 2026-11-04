@@ -109,3 +109,12 @@ def reference_files(rules, root):
         content = (root / "examples" / name).read_text(encoding="utf-8")
         files.append((out / "examples" / name, content))
     return files
+
+
+def stray_files(root, generated):
+    """Files in the skill's references that are not among the generated paths."""
+    out = root / REFERENCES
+    if not out.is_dir():
+        return []
+    generated = set(generated)
+    return sorted(p for p in out.rglob("*") if p.is_file() and p not in generated)
