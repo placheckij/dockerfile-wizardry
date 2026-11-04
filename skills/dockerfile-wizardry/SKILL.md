@@ -80,10 +80,23 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    about (no `COPY` or `ADD` for DW-BUILD-03, no download for DW-DEPS-03). If you think
    a rule matters less for this image, for example a health check for a one-shot
    command, report the finding and add that note; do not leave it out.
+   - **A rule passes only when you checked all of it.** If part of a rule needs evidence
+     you did not see, the rule does not pass: DW-SUPPLY-03 also asks what a pinned action
+     fetches in turn, and DW-SUPPLY-05 also asks whether removed files are gone from every
+     layer, which needs the built image. Say which part you checked and put the rest under
+     Limits. No rule is listed both as passing and under Limits.
    - **A gap that causes no harm yet is still a finding**, at the rule's strength: a
      `.dockerignore` pattern meant at any depth but written without `**/`
      (`__pycache__/` while `src/` is copied whole) breaks DW-BUILD-03 even if no
      matching file exists today. Say in the Finding column that nothing is affected yet.
+     Go through every pattern, not only those for secrets: docs (`*.md`), test and tool
+     caches (`.pytest_cache/`, `.coverage`) and build output can sit inside a copied
+     directory too, and the diff fixes every such pattern.
+   - **Check image metadata on the image the container runs.** `LABEL`, `EXPOSE`,
+     `HEALTHCHECK`, `STOPSIGNAL`, `ENTRYPOINT` and `CMD` reach the image only from the final
+     stage and the stages it is built `FROM`; a final stage built `FROM scratch` inherits
+     none of them. Check DW-BASE-02 and the DW-HEALTH rules there. In any other stage these
+     instructions are not findings and a diff leaves them as they are; at most, add a note.
    - **A rule the build command can meet as well as the Dockerfile** is a finding only
      when neither does. DW-BUILD-09 applies only where reproducible output matters, so
      unless the user has said it does, it goes under Limits. If it does matter,
