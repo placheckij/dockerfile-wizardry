@@ -231,8 +231,10 @@ warnings found."
 - Its reason for DW-BUILD-05 not applying, "no package-manager download to cache-mount",
   is wrong: `pip install -r requirements.txt` is such a download. And the replacement
   file adds a build stage whose `pip install` sets `PIP_NO_CACHE_DIR=1` instead of using
-  a `--mount=type=cache`, which the rule's build-stage clause asks for. So the fix it says
-  "covers all findings" breaks DW-BUILD-05.
+  a `--mount=type=cache`, which the rule's build-stage clause asks for. DW-DEPS-02 accepts
+  a disabled cache, and this repository's own Dockerfile disables it the same way, but
+  DW-BUILD-05 is not met that way. So the fix it says "covers all findings" leaves
+  DW-BUILD-05 unmet.
 - It says DW-BUILD-10 is "met here via the slim base". `python:3.13-slim` at that digest
   still has `/usr/bin/apt-get`, `/usr/bin/dpkg` and `/usr/local/bin/pip` (checked with
   `command -v`). Only pruning (DW-BUILD-04) or a base without them would meet the rule.
