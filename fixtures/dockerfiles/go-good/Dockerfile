@@ -39,5 +39,6 @@ USER 65532:65532
 EXPOSE 8080
 STOPSIGNAL SIGTERM
 # no HEALTHCHECK: distroless static has no shell or curl to run one (see expected-findings.txt)
-# run with `docker run --init` (or an orchestrator equivalent) for an init as PID 1
+# no init in the image: run with `docker run --init` or an orchestrator equivalent
+# (see expected-findings.txt)
 ENTRYPOINT ["/app"]

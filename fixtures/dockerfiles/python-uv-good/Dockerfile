@@ -51,5 +51,6 @@ STOPSIGNAL SIGTERM
 # the image's own Python makes the request, so no curl is needed
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
     CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
-# run with `docker run --init` (or an orchestrator equivalent) for an init as PID 1
+# no init in the image: run with `docker run --init` or an orchestrator equivalent
+# (see expected-findings.txt)
 ENTRYPOINT ["python", "-m", "app"]

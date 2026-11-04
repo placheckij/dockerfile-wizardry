@@ -15,5 +15,5 @@ DW-BASE-02                                            # no LABEL
 DW-BUILD-02                                           # one stage: pip installs into the image that runs the app
 DW-BUILD-10                                           # the full python image keeps apt and dpkg in the runtime image
 DW-HEALTH-03                                          # no STOPSIGNAL
-DW-HEALTH-04                                          # no init as PID 1, and nothing asks for docker run --init
+DW-HEALTH-04                                          # no init as PID 1
 DW-USER-02                                            # the runtime user (root) owns, and can change, the code in /app

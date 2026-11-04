@@ -12,5 +12,5 @@ DW-BASE-01                                            # debian:trixie-slim has n
 DW-BASE-02                                            # no LABEL
 DW-BUILD-10                                           # the slim base keeps apt and dpkg in the image that runs curl
 DW-HEALTH-03                                          # no STOPSIGNAL
-DW-HEALTH-04                                          # no init as PID 1, and nothing asks for docker run --init
+DW-HEALTH-04                                          # no init as PID 1
 DW-USER-02                                            # the runtime user (root) owns, and can change, everything it runs

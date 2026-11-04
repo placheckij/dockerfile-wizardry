@@ -42,5 +42,6 @@ STOPSIGNAL SIGTERM
 # the image's own Node.js makes the request (fetch is built in), so no curl is needed
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
     CMD ["node", "-e", "fetch('http://127.0.0.1:3000/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
-# run with `docker run --init` (or an orchestrator equivalent) for an init as PID 1
+# no init in the image: run with `docker run --init` or an orchestrator equivalent
+# (see expected-findings.txt)
 ENTRYPOINT ["node", "src/server.js"]
