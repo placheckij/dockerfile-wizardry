@@ -159,7 +159,8 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
 5. **Ask which fixes to apply.** Apply only the ones the user chooses, by editing the
    file, not by applying the diffs one after another: each diff was made against the
    original, so after the first one the others may no longer match. Re-run the linters
-   afterwards if they were available, and show what changed.
+   afterwards if they were available, and show what changed, with secret values
+   redacted as in step 4.
 6. **Close** with two lists. First, the rules the Dockerfile passes now, under the words
    "passes the listed checks". Use those words only for rules that actually pass. Second,
    the rules that do not pass: every must-fix or should-fix finding still open, including
