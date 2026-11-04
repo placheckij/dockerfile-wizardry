@@ -2,8 +2,8 @@ name: 📖 Static Checks
 
 # Checks that read files without building or running the image: the Dockerfiles and examples
 # (Hadolint, Trivy's configuration scan), the rulebook, its generated pages and its dates against
-# the standards baseline, the README table of contents, the labelled fixtures, the workflow
-# scripts and the Python code (ruff).
+# the standards baseline, the README table of contents, the changelog against the plugin version,
+# the labelled fixtures, the workflow scripts and the Python code (ruff).
 #
 # Runs on changes to those files, and weekly, so a new Trivy misconfiguration rule or a fixture
 # base image that can no longer be pulled is noticed. A red scheduled run emails the last editor
@@ -55,6 +55,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # a pull request is checked out as a merge commit; its first parent is the base, which
+          # the changelog check compares with
+          fetch-depth: 2
 
       # The smoke-test scripts are bash; shellcheck is preinstalled on GitHub's runners
       - name: Lint shell scripts (shellcheck)
@@ -83,6 +87,19 @@ jobs:
       # than the rule's last_verified date must be re-read and re-dated
       - name: Check no rule is older than a recorded change to its sources
         run: python3 .github/scripts/stale_rules.py
+
+      # A pull request that changes the plugin (skills/, .claude-plugin/) must add a line under
+      # Unreleased in CHANGELOG.md, and the newest version there must be plugin.json's (see
+      # release.py)
+      - name: Check the changelog and the plugin version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            python3 -I .github/scripts/release.py check --base HEAD^1
+          else
+            python3 -I .github/scripts/release.py check
+          fi
 
       - name: Test the rulebook checker
         run: python3 -m unittest discover -s .github/scripts/tests
