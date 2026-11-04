@@ -51,8 +51,9 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    DL3002 and DL3066 are DW-USER-01 findings only on the `USER` the container runs as:
    the final stage's last `USER`, or, if the final stage sets none, the last `USER`
    along the chain of stages it is built `FROM`. On any other `USER` they are not
-   findings, though the rule names them: at most, add a note and suggest writing that
-   `USER` by number.
+   findings, though the rule names them: at most, add a note, suggesting for DL3066 that
+   the `USER` be written by number, and for DL3002 a `# hadolint ignore=DL3002` above
+   that `USER` with the reason that the stage never runs as a container.
 
    If a linter is not available, say so and check by reading; then name a code only
    where you can tell it would fire on this file (DL3002 needs an explicit root `USER`,
