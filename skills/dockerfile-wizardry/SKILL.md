@@ -28,6 +28,9 @@ Dockerfile, or **create** one for a project.
 ## 2. Audit mode
 
 Use this when the user has a Dockerfile and wants it reviewed, hardened or optimized.
+Here "the final stage" is the stage the image is built from: the last stage in the file,
+unless the workflow, build script or Compose file that builds this image names another
+(`--target`, or `target:` under `build:` in Compose).
 
 1. **Read the inputs.** The Dockerfile (every stage), the `.dockerignore` at the root of
    the build context (a `<Dockerfile name>.dockerignore` next to the Dockerfile takes
@@ -69,7 +72,9 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    along the chain of stages it is built `FROM`. On any other `USER` they are not
    findings, though the rule names them: at most, add a note, suggesting for DL3066 that
    the `USER` be written by number, and for DL3002 a `# hadolint ignore=DL3002` above
-   that `USER` with the reason that the stage never runs as a container.
+   that `USER` with the reason that the stage never runs as a container. DL3025 and
+   JSONArgsRecommended on a `CMD` or `ENTRYPOINT` that never reaches the image (step 3)
+   are not DW-HEALTH-05 findings either: at most, add a note.
 
    If a linter is not available, say so and check by reading; then name a code only
    where you can tell it would fire on this file (DL3002 needs an explicit root `USER`,
@@ -80,10 +85,31 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    about (no `COPY` or `ADD` for DW-BUILD-03, no download for DW-DEPS-03). If you think
    a rule matters less for this image, for example a health check for a one-shot
    command, report the finding and add that note; do not leave it out.
+   - **A rule passes only when you checked all of it.** If part of a rule needs evidence
+     you did not see, the rule does not pass: DW-SUPPLY-03 also asks what a pinned action
+     fetches in turn, and DW-SUPPLY-05 also asks whether removed files are gone from every
+     layer, which needs the built image. Say which part you checked and put the rest under
+     Limits; such a rule is not also listed as passing. A `manual` rule you checked in
+     full by reading does pass, even though Limits (section 5) notes it was checked by
+     reading only.
    - **A gap that causes no harm yet is still a finding**, at the rule's strength: a
      `.dockerignore` pattern meant at any depth but written without `**/`
      (`__pycache__/` while `src/` is copied whole) breaks DW-BUILD-03 even if no
      matching file exists today. Say in the Finding column that nothing is affected yet.
+     Go through every pattern, not only those for secrets: docs (`*.md`), test and tool
+     caches (`.pytest_cache/`, `.coverage`) and build output can sit inside a copied
+     directory too, and the diff fixes every such pattern. Before widening one, check that
+     the build needs no file it would newly exclude (a `README.md` that a package's
+     `pyproject.toml` names, a source package called `build`); keep such a file with a `!`
+     line after the pattern, or leave the pattern as it is and say why.
+   - **Check image metadata on the image the container runs.** A `LABEL`, `EXPOSE`,
+     `HEALTHCHECK`, `STOPSIGNAL`, `ENTRYPOINT` or `CMD` never reaches the image when it sits
+     in a stage the final stage is not built `FROM`, directly or through other stages (a
+     final stage built `FROM scratch` inherits from none), or when a later instruction in
+     the same stage or further along that chain overrides it: a later `HEALTHCHECK`,
+     `STOPSIGNAL`, `ENTRYPOINT` or `CMD` replaces the earlier one, and an `ENTRYPOINT` also
+     clears the `CMD` its stage inherits. Such an instruction is not a DW-BASE-02 or
+     DW-HEALTH finding, and a diff leaves it as it is; at most, add a note.
    - **A rule the build command can meet as well as the Dockerfile** is a finding only
      when neither does. DW-BUILD-09 applies only where reproducible output matters, so
      unless the user has said it does, it goes under Limits. If it does matter,
@@ -279,7 +305,8 @@ End every report or summary with what was not checked:
 - **CI pipeline rules**: build cache export (DW-BUILD-07), action pinning (DW-SUPPLY-03),
   scheduled rebuilds (DW-SUPPLY-04), image scanning (DW-SUPPLY-05), Docker Engine and
   BuildKit versions (DW-SUPPLY-06), unless a workflow that acts on this image is in the
-  repository or the user gave it to you; then check these rules against it.
+  repository or the user gave it to you; then check these rules against it. Even then,
+  what a pinned action fetches in turn (DW-SUPPLY-03) goes here if you did not check it.
 - **Files not opened**: any copied file you did not read (step 1).
 - **The built image**: whether removed files are gone from every layer (DW-BUILD-04,
   DW-SUPPLY-05) needs the image, not the Dockerfile.
