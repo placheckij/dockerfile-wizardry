@@ -40,9 +40,10 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    Also read the files that settle rules beyond the Dockerfile when they are in the
    repository, whether or not the user named them: CI workflows (`.github/workflows/`,
    `.gitlab-ci.yml` and the like) and build scripts for the CI pipeline rules listed under
-   Limits, and Compose or Kubernetes files for the runtime notes. A file you can read is
-   a file you were given. Only a workflow or script that builds or deploys this
-   Dockerfile's image counts; another job's schedule or action pins say nothing about it.
+   Limits, and Compose or Kubernetes files for DW-SUPPLY-02's verification. A file you
+   can read is a file you were given. Only a workflow, script or manifest that builds,
+   scans, publishes or deploys this Dockerfile's image counts; another job's schedule
+   or action pins say nothing about it.
 2. **Run the linters if they are installed.** Do not install anything without asking.
    - `hadolint --info DL3057 <Dockerfile>` (DL3057, a missing `HEALTHCHECK`, is off by
      default; this turns it on for DW-HEALTH-02)
@@ -260,14 +261,14 @@ reverse, so name it in the summary.
 
 End every report or summary with what was not checked:
 
-- **Runtime settings**: `docker run` flags, Compose and Kubernetes settings, unless
-  those files are in the repository or the user gave them to you.
+- **Runtime settings**: `docker run` flags, Compose and Kubernetes settings. The
+  rulebook does not cover them, even when those files are in the repository.
 - **Registry and publishing**: SBOM, provenance and signing (DW-SUPPLY-01, DW-SUPPLY-02),
   and signature verification where it is deployed, except what the publishing workflow
   and deployment files you read show (step 3); none of it if the image is not published.
 - **CI pipeline rules**: build cache export (DW-BUILD-07), action pinning (DW-SUPPLY-03),
   scheduled rebuilds (DW-SUPPLY-04), image scanning (DW-SUPPLY-05), Docker Engine and
-  BuildKit versions (DW-SUPPLY-06), unless a workflow that builds this image is in the
+  BuildKit versions (DW-SUPPLY-06), unless a workflow that acts on this image is in the
   repository or the user gave it to you; then check these rules against it.
 - **Files not opened**: any copied file you did not read (step 1).
 - **The built image**: whether removed files are gone from every layer (DW-BUILD-04,
