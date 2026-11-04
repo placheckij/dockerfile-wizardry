@@ -36,12 +36,17 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    wrapper script it runs (DW-HEALTH-05 needs the `exec` in it checked by reading).
    Open the copied files, not only their names: a secret sits inside a config file
    whose name gives nothing away. If there are too many to read, say which you did not
-   open and list them under Limits.
+   open and list them under Limits. For a secret you find, report the file, the line
+   and what kind of secret it is, never its value: the report is often pasted into a
+   pull request or an issue.
    Also read the files that settle rules beyond the Dockerfile when they are in the
    repository, whether or not the user named them: CI workflows (`.github/workflows/`,
    `.gitlab-ci.yml` and the like) and build scripts for the CI pipeline rules listed under
-   Limits, and Compose or Kubernetes files for DW-SUPPLY-02's verification. A file you
-   can read is a file you were given. Only a workflow, script or manifest that builds,
+   Limits, and Compose or Kubernetes files for the rules that runtime settings can meet:
+   an `init: true` in Compose meets DW-HEALTH-04 as `docker run --init` does, liveness
+   and readiness probes are the platform side of DW-HEALTH-02 (still report a missing
+   `HEALTHCHECK`, and note the probes with trade-offs §4), and a verify policy is
+   DW-SUPPLY-02's verification. A file you can read is a file you were given. Only a workflow, script or manifest that builds,
    scans, publishes or deploys this Dockerfile's image counts; another job's schedule
    or action pins say nothing about it.
 2. **Run the linters if they are installed.** Do not install anything without asking.
@@ -261,8 +266,10 @@ reverse, so name it in the summary.
 
 End every report or summary with what was not checked:
 
-- **Runtime settings**: `docker run` flags, Compose and Kubernetes settings. The
-  rulebook does not cover them, even when those files are in the repository.
+- **Runtime settings**: `docker run` flags, Compose and Kubernetes settings, beyond the
+  few rules step 1 checks against them. The rulebook has no rules for capabilities,
+  read-only filesystems, resource limits and the like, even when those files are in the
+  repository.
 - **Registry and publishing**: SBOM, provenance and signing (DW-SUPPLY-01, DW-SUPPLY-02),
   and signature verification where it is deployed, except what the publishing workflow
   and deployment files you read show (step 3); none of it if the image is not published.
