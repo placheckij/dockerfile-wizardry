@@ -122,7 +122,9 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    as it is now, with file headers and line numbers, so that each diff applies on its
    own. Where fixes change the same lines, or lines within three of each other (a hunk
    carries three lines of context, so a nearby change breaks the other diff), give one
-   diff and name the rules it covers.
+   diff and name the rules it covers. Where a line the diff shows, removed or context,
+   holds a secret value, replace the value with `<redacted>` and say so: that diff no
+   longer applies with `git apply`, and the fix is made by editing the file (step 5).
    Place comments as in create mode (section 3, step 4). A diff must not call a binary
    the image lacks: if it adds `tini` as the entrypoint, it also installs `tini`.
    Do not count hunk lines by hand; if you can run commands, let `diff` write the hunk
