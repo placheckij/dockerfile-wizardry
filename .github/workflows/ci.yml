@@ -79,10 +79,9 @@ jobs:
           format: 'table'
           severity: 'CRITICAL,HIGH'
           exit-code: '1'
-          # The single-stage files are deliberately naive benchmark baselines (they run as root)
-          skip-files: 'Dockerfile.single-stage-alpine,Dockerfile.single-stage-slim'
-          # The bad fixtures break these rules on purpose; check_fixtures.py checks them instead
-          skip-dirs: 'fixtures'
+          # The single-stage files are deliberately naive benchmark baselines (they run as root),
+          # and the bad fixtures break these rules on purpose (check_fixtures.py checks them)
+          skip-files: 'Dockerfile.single-stage-alpine,Dockerfile.single-stage-slim,fixtures/dockerfiles/debian-apt-naive/Dockerfile,fixtures/dockerfiles/python-naive/Dockerfile'
 
       - name: Scan the repository for secrets (CIS 4.9)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
