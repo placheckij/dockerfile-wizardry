@@ -185,9 +185,10 @@ Plus a `.dockerignore` in this context (currently absent) with at least: `**/.gi
 Reviewed by hand against `expected-findings.txt` (14 rules) and the rulebook.
 
 **Expected findings.** All 14 are reported, each with the severity its strength gives.
-It puts DW-BUILD-05 under "does not apply", which matches the label: the file has one
-stage, and the rule's final-stage clause asks for cleanup in the same layer instead.
-The pip cache left in that layer is DW-DEPS-02, which it reports.
+DW-BUILD-05 is not among them: the file has one stage, and the rule's final-stage clause
+asks for cleanup in the same layer instead. The pip cache left in that layer is
+DW-DEPS-02, which it reports. The run also puts DW-BUILD-05 under "does not apply", but
+for a wrong reason (see below).
 
 **Rule ids.** Every id it cites exists in `references/rules.md` (checked by script).
 
@@ -224,6 +225,11 @@ reported nothing, and `docker buildx build --call check` gave "Check complete, n
 warnings found."
 
 **What it missed or got wrong.**
+- Its reason for DW-BUILD-05 not applying, "no package-manager download to cache-mount",
+  is wrong: `pip install -r requirements.txt` is such a download. And the replacement
+  file adds a build stage whose `pip install` sets `PIP_NO_CACHE_DIR=1` instead of using
+  a `--mount=type=cache`, which the rule's build-stage clause asks for. So the fix it says
+  "covers all findings" breaks DW-BUILD-05.
 - It says DW-BUILD-10 is "met here via the slim base". `python:3.13-slim` at that digest
   still has `/usr/bin/apt-get`, `/usr/bin/dpkg` and `/usr/local/bin/pip` (checked with
   `command -v`). Only pruning (DW-BUILD-04) or a base without them would meet the rule.

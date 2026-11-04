@@ -151,7 +151,9 @@ Reviewed by hand against `expected-findings.txt` (9 rules) and the rulebook.
 **Expected findings.** All nine are reported, each with the severity its strength gives:
 DW-USER-01 (must fix); DW-BASE-01, DW-BASE-02, DW-BUILD-10, DW-HEALTH-02, DW-HEALTH-03,
 DW-HEALTH-04 and DW-USER-02 (should fix); DW-DEPS-01 (decide). It also shows DW-BUILD-04
-as a decision. For DW-HEALTH-02 and -04 it adds a note that they matter less for a
+as a decision. Since this run, SKILL.md says that only DW-DEPS-01's pinning part is a
+decision, so the recommended packages and kept apt lists would now be should fix; the run
+called those parts clear improvements and fixed them in the diff. For DW-HEALTH-02 and -04 it adds a note that they matter less for a
 one-shot command, as SKILL.md asks.
 
 **Rule ids.** Every id it cites exists in `references/rules.md` (checked by script).
@@ -184,6 +186,8 @@ warnings found." The JSON does not record tool calls, so it does not show whethe
 wrote the hunk; the run had no permission denials.
 
 **What it missed or got wrong.**
+- It offers to apply "only the must-fix (DW-USER-01/02)", but DW-USER-02 is a SHOULD, and
+  its own table rates it should fix. DW-USER-01 is the only must-fix.
 - The diff sets `USER 10001:10001` without creating that user and group. That runs, but
   DW-USER-01 asks for a dedicated user and group with those ids.
 - The `HEALTHCHECK` runs `curl --version`, which tests nothing. DW-HEALTH-02 asks for a
