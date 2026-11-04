@@ -91,6 +91,20 @@ class MainTest(unittest.TestCase):
             self.hadolint.call_args.kwargs["levels"], lint_dockerfiles.FAIL_LEVELS
         )
 
+    def test_main_refuses_a_hadolint_config_it_would_ignore(self):
+        self.patch_linters()
+        for name in (".hadolint.yaml", ".hadolint.yml"):
+            with self.subTest(name=name):
+                config = self.root / name
+                config.write_text("ignored: [DL3008]\n", encoding="utf-8")
+                try:
+                    code, _, err = self.run_main()
+                finally:
+                    config.unlink()
+                self.assertEqual(code, 1)
+                self.assertIn(name, err)
+                self.assertIn("not applied", err)
+
     def test_main_docker_unavailable_exits_2(self):
         with mock.patch.object(
             check_fixtures,

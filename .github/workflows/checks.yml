@@ -12,8 +12,9 @@ name: 📖 Static Checks
 on:
   pull_request:
     branches: [ main ]
-    # A new config file for one of these tools (e.g. ruff.toml, .hadolint.yaml, .shellcheckrc,
-    # trivy.yaml, .trivyignore) must be added to this list.
+    # A new config file for one of these tools (e.g. ruff.toml, .shellcheckrc, trivy.yaml,
+    # .trivyignore) must be added to this list. Hadolint runs in a container without the repo,
+    # so lint_dockerfiles.py fails on a .hadolint.yaml until the scripts pass it in.
     paths: &paths
       # Trivy's configuration scan covers every Dockerfile in the repository
       - '**/Dockerfile*'

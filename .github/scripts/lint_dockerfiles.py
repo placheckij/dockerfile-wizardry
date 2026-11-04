@@ -3,7 +3,8 @@
 Runs Hadolint (the pinned image from check_fixtures.py) and `docker buildx build --call check`
 on each tracked file named `Dockerfile` or `Dockerfile.<suffix>` outside fixtures/, with the
 repository root as build context. Hadolint findings at warning level and above fail, as do all
-build check warnings. Fixtures are checked against their labels by check_fixtures.py instead.
+build check warnings. Hadolint runs without a repository config, so a `.hadolint.yaml` fails
+the check instead of being silently ignored. Fixtures are checked against their labels by check_fixtures.py instead.
 
 Usage:
     python3 .github/scripts/lint_dockerfiles.py
@@ -26,6 +27,8 @@ import check_fixtures
 # the same threshold as Hadolint's `--failure-threshold warning`
 FAIL_LEVELS = {"error", "warning"}
 DOCKERFILE_RE = re.compile(r"^Dockerfile(\.[^/]+)?$")
+# Hadolint runs in a container on stdin, so a repository config would be silently ignored
+HADOLINT_CONFIGS = (".hadolint.yaml", ".hadolint.yml")
 
 
 def tracked_dockerfiles(root):
@@ -50,6 +53,14 @@ def main(argv, root=ROOT):
     if argv:
         print("usage: lint_dockerfiles.py", file=sys.stderr)
         return 2
+    configs = [name for name in HADOLINT_CONFIGS if (root / name).exists()]
+    if configs:
+        print(
+            f"{', '.join(configs)}: not applied, because Hadolint runs in a container on "
+            "stdin. Pass it to the container in check_fixtures.hadolint_codes first.",
+            file=sys.stderr,
+        )
+        return 1
     dockerfiles = tracked_dockerfiles(root)
     if not dockerfiles:
         print("No Dockerfile found outside fixtures/.", file=sys.stderr)
