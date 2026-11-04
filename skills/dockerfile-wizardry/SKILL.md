@@ -70,8 +70,8 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    findings, though the rule names them: at most, add a note, suggesting for DL3066 that
    the `USER` be written by number, and for DL3002 a `# hadolint ignore=DL3002` above
    that `USER` with the reason that the stage never runs as a container. DL3025 and
-   JSONArgsRecommended are DW-HEALTH-05 findings only on the `CMD` and `ENTRYPOINT` the
-   final image keeps (step 3); on any other, at most add a note.
+   JSONArgsRecommended on a `CMD` or `ENTRYPOINT` that never reaches the image (step 3)
+   are not DW-HEALTH-05 findings either: at most, add a note.
 
    If a linter is not available, say so and check by reading; then name a code only
    where you can tell it would fire on this file (DL3002 needs an explicit root `USER`,
@@ -99,17 +99,13 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
      the build needs no file it would newly exclude (a `README.md` that a package's
      `pyproject.toml` names, a source package called `build`); keep such a file with a `!`
      line after the pattern, or leave the pattern as it is and say why.
-   - **Check image metadata on the image the container runs.** `LABEL`, `EXPOSE`,
-     `HEALTHCHECK`, `STOPSIGNAL`, `ENTRYPOINT` and `CMD` reach the image only from the final
-     stage and the chain it is built `FROM`, down to the base image, whose own settings
-     count too: `docker buildx imagetools inspect <image> --format '{{json .Image}}'` shows
-     them (for a multi-platform image, one entry per platform; read the one you build
-     for), and if you cannot run it, say so. A final stage built `FROM scratch` inherits
-     none of them. Along that chain, only the last `CMD`, `ENTRYPOINT`, `HEALTHCHECK` and
-     `STOPSIGNAL` count, and an `ENTRYPOINT` clears the `CMD` its stage inherits (from the
-     base image or an earlier stage), not one set earlier in the same stage.
-     Check DW-BASE-02 and the DW-HEALTH rules against what the image keeps. Any other of
-     these instructions is not a finding, and a diff leaves it as it is; at most, add a note.
+   - **Check image metadata on the image the container runs.** A `LABEL`, `EXPOSE`,
+     `HEALTHCHECK`, `STOPSIGNAL`, `ENTRYPOINT` or `CMD` never reaches the image when it sits
+     in a stage the final stage is not built `FROM`, directly or through other stages (a
+     final stage built `FROM scratch` inherits from none), or when a later stage in that
+     chain sets the same `HEALTHCHECK`, `STOPSIGNAL`, `ENTRYPOINT` or `CMD` again. Such an
+     instruction is not a DW-BASE-02 or DW-HEALTH finding, and a diff leaves it as it is;
+     at most, add a note.
    - **A rule the build command can meet as well as the Dockerfile** is a finding only
      when neither does. DW-BUILD-09 applies only where reproducible output matters, so
      unless the user has said it does, it goes under Limits. If it does matter,
