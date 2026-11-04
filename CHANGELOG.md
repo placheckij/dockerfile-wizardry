@@ -14,6 +14,8 @@ Each pull request that changes `skills/` or `.claude-plugin/` adds a line under 
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-04
+
 ### Changed
 
 - Audit mode reads the contents of every copied file, not only the names, and reports a secret it finds by file, line and kind, never by value, redacting it in any diff or change summary that shows the line. It reads the CI workflows that build, scan, publish or deploy the image instead of leaving DW-BUILD-07 and DW-SUPPLY-03 to DW-SUPPLY-06 under Limits when the user did not hand them over, and reads Compose and Kubernetes files for the rules they can meet: `init: true` meets DW-HEALTH-04, and probes are noted against DW-HEALTH-02.
