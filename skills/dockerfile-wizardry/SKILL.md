@@ -179,8 +179,8 @@ Use this when the user wants a new Dockerfile for a project.
    `# hadolint ignore=DL3057` above its `FROM` with that reason. Write every `USER` by
    number, a build-time root as `USER 0`: Hadolint v2.15.1 reports DL3066 on every
    `USER` given by name. A build stage that ends as `USER 0` still gets DL3002, which is
-   not a finding there; put `# hadolint ignore=DL3002` above that `USER` with that
-   reason.
+   not a finding there; put `# hadolint ignore=DL3002` above that `USER` with the
+   reason that a build stage never runs as a container.
 6. **Offer a runtime example.** Offer a hardened Compose service or Kubernetes Pod spec,
    adapted from `references/examples/compose.yaml` or `references/examples/pod.yaml`:
    change the image name, port, user and group IDs and health check notes to fit, and

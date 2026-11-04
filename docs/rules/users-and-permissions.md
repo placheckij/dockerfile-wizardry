@@ -24,9 +24,9 @@ why:
   just the name, which the host may not be able to resolve. With `runAsNonRoot: true` and no
   `runAsUser`, the Kubernetes kubelet therefore refuses to start a container whose image names
   its user ("image has non-numeric user (…), cannot verify user is non-root"). Give the gid as
-  a number as well: a group name, like a user name, is mapped to an id only inside the
-  container, from the image's `/etc/group`; and a user without a primary group (for example, a
-  uid with no `/etc/passwd` entry) runs with the root group. Giving a group, by name or number,
+  a number as well: a group name, like a user name, is looked up in files inside the image
+  (Docker documents this for `COPY --chown`); and a user without a primary group (for example,
+  a uid with no `/etc/passwd` entry) runs with the root group. Giving a group, by name or number,
   also drops the user's other group memberships, so give the runtime user what it needs
   through that one group.
 
