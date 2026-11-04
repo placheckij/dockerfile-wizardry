@@ -44,10 +44,14 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    DL3002 under DW-USER-01, SecretsUsedInArgOrEnv under DW-SECRET-01). Report every code
    under its matching rule; where a line says a code is reported under another rule
    (DW-BUILD-05 does this for DL3009, DL3019 and DL3042), use that rule. A code that no
-   rule names is reported separately, marked "not from the rulebook". If a linter is not
-   available, say so and check by reading; then name a code only where you can tell it
-   would fire on this file (DL3002 needs an explicit `USER root`, not a missing `USER`),
-   and say the codes were not run.
+   rule names is reported separately, marked "not from the rulebook". DL3057 on a build
+   stage's `FROM` is not a DW-HEALTH-02 finding: Hadolint asks every stage for a
+   `HEALTHCHECK`, but only the final stage runs as a container. At most, suggest a
+   `# hadolint ignore=DL3057` above that `FROM`, as in create mode (step 5).
+
+   If a linter is not available, say so and check by reading; then name a code only
+   where you can tell it would fire on this file (DL3002 needs an explicit `USER root`,
+   not a missing `USER`), and say the codes were not run.
 3. **Go rule by rule** through `references/rules.md` in order. For each rule decide:
    finding, passes, does not apply (say why), or cannot be checked from these files
    (it goes under Limits). "Does not apply" means the Dockerfile has nothing the rule is
