@@ -313,6 +313,11 @@ class MainTest(RuleFileTestCase):
         rules = self.dir / "docs" / "rules"
         rules.mkdir(parents=True)
         (rules / "base-image.md").write_text(rule_text, encoding="utf-8")
+        # the skill's references copy these two
+        (rules / "tradeoffs.md").write_text("# Trade-offs\n", encoding="utf-8")
+        (self.dir / "examples").mkdir()
+        for name in ("compose.yaml", "pod.yaml"):
+            (self.dir / "examples" / name).write_text("name: x\n", encoding="utf-8")
         for name, text in (extra_files or {}).items():
             (rules / name).write_text(text, encoding="utf-8")
         (rules / "README.md").write_text(INDEX_README, encoding="utf-8")

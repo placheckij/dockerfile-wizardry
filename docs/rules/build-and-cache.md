@@ -129,7 +129,7 @@ sources:
 
 strength: SHOULD
 
-last_verified: 2026-11-02
+last_verified: 2026-11-04
 
 statement:
   Give the package manager's cache directory to the build with `RUN
@@ -154,7 +154,11 @@ why:
   and point `target` at that user's actual cache directory.
 
 how_to_check:
-  manual. Hadolint's DL3009, DL3019 and DL3042 understand cache mounts. Dockle reads the image
+  manual. No linter checks for a cache mount. Hadolint's DL3009, DL3019 and DL3042 check the
+  cleanup that DW-DEPS-01 and DW-DEPS-02 ask for, and are reported under those rules; they stay
+  quiet for an install with a cache mount on the path each expects (`/var/lib/apt/lists`,
+  `/var/cache/apk`, pip's cache). DL3019 still fires for a mount on `/etc/apk/cache`, the
+  directory the Alpine wiki names, so there it is a false positive. Dockle reads the image
   history, not the Dockerfile, so it cannot see a mount and may still report an `apk add` without
   `--no-cache` (DKL-DI-0004) or an apt install that leaves its lists (DKL-DI-0005).
 
@@ -162,6 +166,7 @@ sources:
 - https://docs.docker.com/build/cache/optimize/
 - https://docs.docker.com/reference/dockerfile/
 - https://wiki.alpinelinux.org/wiki/Local_APK_cache
+- https://github.com/hadolint/hadolint
 
 ## DW-BUILD-06: Mount a large source tree instead of copying it when it only produces an artifact
 

@@ -1,0 +1,16 @@
+# Bad on purpose. Each line: a rule the Dockerfile breaks, then the linter codes that catch it.
+# A line without codes is a rule no linter checks here; it was decided by reading the file
+# against the rulebook. DW-BUILD-04 is a TRADE-OFF (a decision, not a fault) and is not listed.
+# DW-DEPS-01 is a TRADE-OFF too, but only its pinning part is in dispute; the parts this file
+# breaks (recommended packages, apt lists kept) are not. DL3008 (unpinned apt versions) is
+# the pinning side, which the skill does not default to; it is listed because Hadolint
+# reports it here.
+DW-DEPS-01    DL3015 DL3009 DL3008                    # recommended packages and apt lists kept
+DW-USER-01    DL3002 DL3066                           # USER root is last (DL3066 fires on the name too)
+DW-HEALTH-02  DL3057                                  # no HEALTHCHECK
+DW-BASE-01                                            # debian:trixie-slim has no digest
+DW-BASE-02                                            # no LABEL
+DW-BUILD-10                                           # the slim base keeps apt and dpkg in the image that runs curl
+DW-HEALTH-03                                          # no STOPSIGNAL
+DW-HEALTH-04                                          # no init as PID 1
+DW-USER-02                                            # the runtime user (root) owns, and can change, everything it runs

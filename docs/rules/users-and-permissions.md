@@ -10,7 +10,7 @@ strength: MUST
 spells:
 - 4
 
-last_verified: 2026-11-02
+last_verified: 2026-11-04
 
 statement:
   Create a dedicated user and group with explicit numeric IDs and switch to it with `USER`
@@ -22,10 +22,13 @@ why:
 
 how_to_check:
   Hadolint DL3002 (last user should not be root); Dockle CIS-DI-0001 (a user has been created).
+  Hadolint DL3066 (a non-numeric user id, which the host may not resolve) is advisory: a `USER`
+  given by name meets this rule when that user was created with explicit numeric IDs.
 
 sources:
 - https://www.cisecurity.org/benchmark/docker
 - https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-2-set-a-user
+- https://github.com/hadolint/hadolint
 
 ## DW-USER-02: The runtime user must not own or be able to change what it runs
 

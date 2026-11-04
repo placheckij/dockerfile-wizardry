@@ -50,13 +50,19 @@ jobs:
       - name: Check the README table of contents is up to date
         run: python3 .github/scripts/readme_toc.py --check
 
-      # docs/rules/ holds the sourced rulebook; its rule index and sources page are generated
+      # docs/rules/ holds the sourced rulebook; its rule index and sources page are generated,
+      # and so is the skill's references folder (skills/dockerfile-wizardry/references/)
       # (fix: python3 .github/scripts/check_rules.py --write)
       - name: Check the rulebook entries, links and generated pages
         run: python3 .github/scripts/check_rules.py --check
 
       - name: Test the rulebook checker
         run: python3 -m unittest discover -s .github/scripts/tests
+
+      # fixtures/dockerfiles/ holds Dockerfiles labelled good or bad; Hadolint and Docker's build
+      # checks must report exactly the codes each expected-findings.txt lists
+      - name: Check the Dockerfile fixtures match their labels
+        run: python3 .github/scripts/check_fixtures.py
 
   security-scan:
     name: 🛡️ Security Scan
@@ -73,8 +79,9 @@ jobs:
           format: 'table'
           severity: 'CRITICAL,HIGH'
           exit-code: '1'
-          # The single-stage files are deliberately naive benchmark baselines (they run as root)
-          skip-files: 'Dockerfile.single-stage-alpine,Dockerfile.single-stage-slim'
+          # The single-stage files are deliberately naive benchmark baselines (they run as root),
+          # and the bad fixtures break these rules on purpose (check_fixtures.py checks them)
+          skip-files: 'Dockerfile.single-stage-alpine,Dockerfile.single-stage-slim,fixtures/dockerfiles/debian-apt-naive/Dockerfile,fixtures/dockerfiles/python-naive/Dockerfile'
 
       - name: Scan the repository for secrets (CIS 4.9)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0

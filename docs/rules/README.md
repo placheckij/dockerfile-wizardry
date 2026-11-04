@@ -28,7 +28,8 @@ Where sources disagree, or the best choice depends on your situation, a rule is 
 ## Index
 
 Generated from the theme files by `.github/scripts/check_rules.py --write`; CI fails if it is
-out of date.
+out of date. The same command generates the skill's references
+([`skills/dockerfile-wizardry/references/`](../../skills/dockerfile-wizardry/references/rules.md)) from these files.
 
 <!-- rules-index:start -->
 | Rule | Title | Strength | Spells | Theme |

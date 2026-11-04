@@ -11,7 +11,7 @@ strength: TRADE-OFF
 spells:
 - 3
 
-last_verified: 2026-11-02
+last_verified: 2026-11-03
 
 statement:
   Install only what the running container needs, run the package index update and the install in
@@ -34,13 +34,16 @@ why:
 
 how_to_check:
   Hadolint DL3008 (pin apt versions) and DL3018 (pin apk versions) check the pinning side of the
-  trade-off; Dockle CIS-DI-0007 flags an `apt-get update` used alone (apt only). Whether to pin is
-  the decision described above.
+  trade-off. Hadolint DL3015 (apt without `--no-install-recommends`) checks for extra packages, and
+  DL3009 (apt lists not deleted) and DL3019 (apk without `--no-cache`) check the cache cleanup;
+  Dockle CIS-DI-0007 flags an `apt-get update` used alone (apt only). Whether to pin is the
+  decision described above.
 
 sources:
 - https://www.cisecurity.org/benchmark/docker
 - https://docs.docker.com/build/building/best-practices/#run
 - https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-9-integrate-container-scanning-tools-into-your-cicd-pipeline
+- https://github.com/hadolint/hadolint
 
 ## DW-DEPS-02: Install language tooling pinned, with its cache out of the layer
 
@@ -49,7 +52,7 @@ strength: SHOULD
 spells:
 - 5
 
-last_verified: 2026-11-02
+last_verified: 2026-11-03
 
 statement:
   Keep the installer's download cache out of the layer, either by disabling it or by keeping it
@@ -73,12 +76,14 @@ why:
   matters more than start-up time.
 
 how_to_check:
-  manual
+  manual. Hadolint DL3042 reports a `pip install` that keeps pip's download cache in the layer; it
+  checks pip only, and not whether the installer is pinned.
 
 sources:
 - https://docs.docker.com/build/building/best-practices/#run
 - https://docs.astral.sh/uv/guides/integration/docker/
 - https://docs.python.org/3/library/py_compile.html
+- https://github.com/hadolint/hadolint
 
 ## DW-DEPS-03: Verify what you download during the build
 

@@ -37,7 +37,7 @@ strength: SHOULD
 spells:
 - 12
 
-last_verified: 2026-11-02
+last_verified: 2026-11-04
 
 statement:
   Add a `HEALTHCHECK` that exercises the application, using a tool that exists in the image. A
@@ -53,10 +53,13 @@ why:
 
 how_to_check:
   Hadolint DL3057 (missing `HEALTHCHECK`; ignored by default, so enable it); Dockle CIS-DI-0006.
+  Only the final stage needs a `HEALTHCHECK`, but DL3057 is reported for every stage without
+  one, so on a build stage's `FROM` it is a false positive.
 
 sources:
 - https://www.cisecurity.org/benchmark/docker
 - https://docs.docker.com/reference/dockerfile/#healthcheck
+- https://github.com/hadolint/hadolint
 
 ## DW-HEALTH-03: Set the stop signal
 
@@ -111,7 +114,7 @@ sources:
 
 strength: SHOULD
 
-last_verified: 2026-11-02
+last_verified: 2026-11-03
 
 statement:
   Write `ENTRYPOINT` and `CMD` in exec (JSON array) form. If the entrypoint is a shell script,
@@ -125,10 +128,12 @@ why:
   Docker's build check `JSONArgsRecommended` flags the shell form for this reason.
 
 how_to_check:
-  Docker build check JSONArgsRecommended (`docker build --check`). It does not look inside a
-  wrapper script, and a `SHELL` instruction suppresses the warning, so the `exec` in a script has
-  to be checked by reading it.
+  Docker build check JSONArgsRecommended (`docker build --check`) and Hadolint DL3025 (JSON
+  notation for `CMD` and `ENTRYPOINT`). Neither looks inside a wrapper script, and a `SHELL`
+  instruction suppresses the build check's warning, so the `exec` in a script has to be checked by
+  reading it.
 
 sources:
 - https://hynek.me/articles/docker-signals/
 - https://docs.docker.com/reference/build-checks/json-args-recommended/
+- https://github.com/hadolint/hadolint

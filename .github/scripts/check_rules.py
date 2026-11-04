@@ -26,7 +26,7 @@ anchors come from readme_toc.py, so both scripts agree with the anchors github.c
 
 Usage:
     python3 .github/scripts/check_rules.py --check   # exit 1 on any problem (CI)
-    python3 .github/scripts/check_rules.py --write   # regenerate the generated blocks
+    python3 .github/scripts/check_rules.py --write   # regenerate the generated blocks and files
 
 Runs with the runner's system python3 (no third-party packages).
 """
@@ -501,35 +501,57 @@ def main(argv, root=ROOT):
         return 2
     rules, problems = collect(root)
     rules_dir = root / "docs" / "rules"
-    updates = []  # (path, label, current text, new text)
+    updates = []  # (path, display path, label, current text, new text)
+    strays = []  # files in the skill's references that nothing generates
     if not problems:
+        # imported here because skill_references imports this module
+        import skill_references
+
         tradeoffs = tradeoff_sources(rules_dir / "tradeoffs.md")
-        for name, label, start, end, body in generated_pages(rules, tradeoffs):
-            path = rules_dir / name
-            try:
-                current = path.read_text(encoding="utf-8")
-                updates.append(
-                    (path, label, current, with_block(current, start, end, body))
-                )
-            except (OSError, ValueError) as error:
-                problems.append(f"docs/rules/{name}: {error}")
+        try:
+            for name, label, start, end, body in generated_pages(rules, tradeoffs):
+                path = rules_dir / name
+                try:
+                    current = path.read_text(encoding="utf-8")
+                    new = with_block(current, start, end, body)
+                except (OSError, ValueError) as error:
+                    problems.append(f"docs/rules/{name}: {error}")
+                    continue
+                updates.append((path, f"docs/rules/{name}", label, current, new))
+            generated = skill_references.reference_files(rules, root)
+            for path, new in generated:
+                current = path.read_text(encoding="utf-8") if path.exists() else ""
+                display = path.relative_to(root).as_posix()
+                updates.append((path, display, "skill reference", current, new))
+            strays = skill_references.stray_files(root, [path for path, _ in generated])
+        except OSError as error:
+            problems.append(f"skill references: {error}")
     if problems:
         print("The rulebook has problems:", file=sys.stderr)
         for problem in problems:
             print(f"  - {problem}", file=sys.stderr)
         return 1
-    stale = [(path, label) for path, label, current, new in updates if current != new]
+    stale = [
+        (display, label)
+        for _, display, label, current, new in updates
+        if current != new
+    ]
     if "--write" in argv:
-        for path, label, current, new in updates:
+        for path, display, label, current, new in updates:
             if current != new:
+                path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(new, encoding="utf-8")
-                print(f"docs/rules/{path.name}: {label} updated.")
+                print(f"{display}: {label} updated.")
+        for path in strays:
+            path.unlink()
+            print(f"{path.relative_to(root).as_posix()}: removed, not generated.")
         return 0
-    if stale:
-        for path, label in stale:
-            print(
-                f"docs/rules/{path.name}: the {label} is out of date.", file=sys.stderr
-            )
+    if stale or strays:
+        for display, label in stale:
+            print(f"{display}: the {label} is out of date.", file=sys.stderr)
+        for path in strays:
+            display = path.relative_to(root).as_posix()
+            print(f"{display}: not generated from the rulebook.", file=sys.stderr)
         print(
             "Run:  python3 .github/scripts/check_rules.py --write   and commit the result.",
             file=sys.stderr,

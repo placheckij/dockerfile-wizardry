@@ -1,0 +1,12 @@
+{
+  "name": "dockerfile-wizardry",
+  "description": "Create and audit Dockerfiles against a sourced rulebook of build, security and supply-chain rules.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Jakub Płachecki"
+  },
+  "homepage": "https://github.com/placheckij/dockerfile-wizardry",
+  "repository": "https://github.com/placheckij/dockerfile-wizardry",
+  "license": "MIT",
+  "keywords": ["docker", "dockerfile", "containers", "security"]
+}

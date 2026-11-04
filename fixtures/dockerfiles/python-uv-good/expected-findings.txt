@@ -1,0 +1,8 @@
+# Good: no linter findings expected. Two manual rules are not met, on purpose; the lines
+# below record those choices, and no linter checks them.
+# The runtime stage keeps the base image's apt, dpkg and pip. Leaving them out means
+# pruning and flattening (the DW-BUILD-04 trade-off) or another base (trade-offs §6), and
+# this fixture takes the simpler side.
+DW-BUILD-10
+DW-HEALTH-04  # no init in the image: it is left to `docker run --init` or the
+              # orchestrator, which the Dockerfile cannot set

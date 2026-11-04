@@ -1,0 +1,7 @@
+# Good. Both expected findings are accepted, not faults.
+# distroless static has no shell, curl or other program to run a HEALTHCHECK with, and the
+# application is not known to have a health-check mode of its own, so the image leaves health
+# checking to the platform's probes (see the DW-HEALTH-02 trade-off).
+DW-HEALTH-02  DL3057
+DW-HEALTH-04  # no init in the image: it is left to `docker run --init` or the
+              # orchestrator, which the Dockerfile cannot set

@@ -7,7 +7,7 @@ How credentials reach a build without ending up in the image or its metadata.
 
 strength: MUST
 
-last_verified: 2026-11-02
+last_verified: 2026-11-03
 
 statement:
   Give a build its secrets with `RUN --mount=type=secret` (or an SSH mount), never with `ARG`, `ENV`
@@ -25,11 +25,11 @@ why:
   build, which must not be stored in the resulting image.
 
 how_to_check:
-  Docker build check SecretsUsedInArgOrEnv (`docker build --check`), which reports `ENV` and `ARG`
-  keys that look sensitive, so it matches names only; Dockle CIS-DI-0010, which checks
-  environment variables and credential files, and in practice also flags sensitive-looking
-  `KEY=value` words in the final image's history, which is where a build argument used by a `RUN`
-  shows up; a secret scanner over the repository.
+  Docker build check SecretsUsedInArgOrEnv (`docker build --check`) and Hadolint DL3064, which
+  report `ENV` and `ARG` keys that look sensitive, so they match names only; Dockle CIS-DI-0010,
+  which checks environment variables and credential files, and in practice also flags
+  sensitive-looking `KEY=value` words in the final image's history, which is where a build argument
+  used by a `RUN` shows up; a secret scanner over the repository.
 
 sources:
 - https://docs.docker.com/build/building/secrets/
@@ -38,3 +38,4 @@ sources:
 - https://github.com/goodwithtech/dockle/blob/master/CHECKPOINT.md
 - https://www.ncsc.gov.uk/collection/using-containerisation/building-container-images
 - https://www.cisecurity.org/benchmark/docker
+- https://github.com/hadolint/hadolint

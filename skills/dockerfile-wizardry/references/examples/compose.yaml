@@ -1,0 +1,34 @@
+# Hardened Docker Compose example for the Dockerfile Wizardry image.
+# Build the image first:   docker build -t wizardry:1.0.0 .
+# Run it:                  docker compose -f examples/compose.yaml up -d --wait
+# Smoke-tested in CI by .github/scripts/smoke_compose.sh - see RUNTIME_SECURITY.md.
+services:
+  wizardry:
+    image: wizardry:1.0.0
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+          pids: 100   # max processes (CIS 5.29): memory and CPU limits do not stop a fork bomb
+        reservations:
+          memory: 256M   # soft limit; a cpus reservation would be ignored outside Swarm
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=100m
+    # Cap open file descriptors (OWASP Rule 7). Size this for your real number of connections.
+    # Compose puts the service on its own user-defined network, not the default bridge (CIS 5.30).
+    ulimits:
+      nofile:
+        soft: 1024
+        hard: 1024
+    ports:
+      - "127.0.0.1:8000:8000"
+    # No healthcheck block: the image ships its own HEALTHCHECK (it uses Python,
+    # the image has no curl). Overriding it here would need a command that exists
+    # inside the container.
+    restart: on-failure:5
