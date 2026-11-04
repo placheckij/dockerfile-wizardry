@@ -18,6 +18,9 @@ on:
     paths: &paths
       # Trivy's configuration scan covers every Dockerfile in the repository
       - '**/Dockerfile*'
+      # lint_dockerfiles.py fails on a Hadolint config it cannot apply
+      - '.hadolint.yaml'
+      - '.hadolint.yml'
       # check_rules.py fails on README links to missing files or headings, and README links to
       # other root files
       - '*.md'

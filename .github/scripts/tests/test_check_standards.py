@@ -183,6 +183,20 @@ class MainTest(StandardsTestCase):
             err,
         )
 
+    def test_step_summary_shows_set_diff(self):
+        summary = self.path.parent / "summary.md"
+        with (
+            self.outdated_hadolint(),
+            mock.patch.dict("os.environ", {"GITHUB_STEP_SUMMARY": str(summary)}),
+        ):
+            code, _, _ = self.run_main()
+        self.assertEqual(code, 1)
+        text = summary.read_text(encoding="utf-8")
+        self.assertIn("**Outdated:**", text)
+        self.assertIn(
+            "\n**What changed in hadolint:**\n\n```diff\n+ DL3062\n```\n", text
+        )
+
     def test_report_only_returns_zero_when_outdated(self):
         with self.outdated_hadolint():
             code, _, _ = self.run_main("--report-only")

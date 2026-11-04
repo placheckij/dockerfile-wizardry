@@ -49,6 +49,16 @@ class TrackedDockerfilesTest(unittest.TestCase):
         )
 
 
+class TrackedButDeletedTest(unittest.TestCase):
+    def test_tracked_dockerfile_deleted_from_the_tree_is_skipped(self):
+        tmp, root = git_repo(["Dockerfile", "Dockerfile.slim"])
+        self.addCleanup(tmp.cleanup)
+        (root / "Dockerfile.slim").unlink()
+        self.assertEqual(
+            [p.name for p in lint_dockerfiles.tracked_dockerfiles(root)], ["Dockerfile"]
+        )
+
+
 class MainTest(unittest.TestCase):
     def setUp(self):
         tmp, self.root = git_repo(["Dockerfile"])

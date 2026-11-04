@@ -32,7 +32,7 @@ HADOLINT_CONFIGS = (".hadolint.yaml", ".hadolint.yml")
 
 
 def tracked_dockerfiles(root):
-    """Tracked Dockerfiles outside fixtures/, sorted by path."""
+    """Tracked Dockerfiles outside fixtures/ that exist in the working tree, sorted by path."""
     result = subprocess.run(
         ["git", "-C", str(root), "ls-files", "-z"],
         capture_output=True,
@@ -45,6 +45,7 @@ def tracked_dockerfiles(root):
         if DOCKERFILE_RE.match(Path(name).name)
         and not name.endswith(".dockerignore")
         and not name.startswith("fixtures/")
+        and (root / name).is_file()
     ]
     return [root / path for path in sorted(paths, key=lambda p: p.as_posix())]
 
