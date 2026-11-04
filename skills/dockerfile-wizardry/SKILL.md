@@ -102,11 +102,12 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    - **Check image metadata on the image the container runs.** `LABEL`, `EXPOSE`,
      `HEALTHCHECK`, `STOPSIGNAL`, `ENTRYPOINT` and `CMD` reach the image only from the final
      stage and the chain it is built `FROM`, down to the base image, whose own settings
-     count too: `docker buildx imagetools inspect <image> --format '{{json (index .Image
-     "linux/amd64").Config}}'` shows them (use the platform you build for), and if you
-     cannot run it, say so. A final stage built `FROM scratch` inherits none of them. Along
-     that chain, only the last `CMD`, `ENTRYPOINT`, `HEALTHCHECK` and `STOPSIGNAL` count,
-     and an `ENTRYPOINT` clears any `CMD` set before it, the base image's included.
+     count too: `docker buildx imagetools inspect <image> --format '{{json .Image}}'` shows
+     them (for a multi-platform image, one entry per platform; read the one you build
+     for), and if you cannot run it, say so. A final stage built `FROM scratch` inherits
+     none of them. Along that chain, only the last `CMD`, `ENTRYPOINT`, `HEALTHCHECK` and
+     `STOPSIGNAL` count, and an `ENTRYPOINT` clears the `CMD` its stage inherits (from the
+     base image or an earlier stage), not one set earlier in the same stage.
      Check DW-BASE-02 and the DW-HEALTH rules against what the image keeps. Any other of
      these instructions is not a finding, and a diff leaves it as it is; at most, add a note.
    - **A rule the build command can meet as well as the Dockerfile** is a finding only
