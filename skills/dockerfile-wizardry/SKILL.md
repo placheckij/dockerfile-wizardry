@@ -70,8 +70,8 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    findings, though the rule names them: at most, add a note, suggesting for DL3066 that
    the `USER` be written by number, and for DL3002 a `# hadolint ignore=DL3002` above
    that `USER` with the reason that the stage never runs as a container. DL3025 and
-   JSONArgsRecommended on a `CMD` or `ENTRYPOINT` outside the final stage and the stages
-   it is built `FROM` are not DW-HEALTH-05 findings either (step 3): at most, add a note.
+   JSONArgsRecommended are DW-HEALTH-05 findings only on the `CMD` and `ENTRYPOINT` the
+   final image keeps (step 3); on any other, at most add a note.
 
    If a linter is not available, say so and check by reading; then name a code only
    where you can tell it would fire on this file (DL3002 needs an explicit root `USER`,
@@ -100,8 +100,10 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    - **Check image metadata on the image the container runs.** `LABEL`, `EXPOSE`,
      `HEALTHCHECK`, `STOPSIGNAL`, `ENTRYPOINT` and `CMD` reach the image only from the final
      stage and the stages it is built `FROM`; a final stage built `FROM scratch` inherits
-     none of them. Check DW-BASE-02 and the DW-HEALTH rules there. In any other stage these
-     instructions are not findings and a diff leaves them as they are; at most, add a note.
+     none of them. Along that chain, only the last `CMD`, `ENTRYPOINT`, `HEALTHCHECK` and
+     `STOPSIGNAL` count, and an `ENTRYPOINT` clears any `CMD` set in an earlier stage.
+     Check DW-BASE-02 and the DW-HEALTH rules against what the image keeps. Any other of
+     these instructions is not a finding, and a diff leaves it as it is; at most, add a note.
    - **A rule the build command can meet as well as the Dockerfile** is a finding only
      when neither does. DW-BUILD-09 applies only where reproducible output matters, so
      unless the user has said it does, it goes under Limits. If it does matter,
