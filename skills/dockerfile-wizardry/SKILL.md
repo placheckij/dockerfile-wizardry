@@ -48,8 +48,9 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    build stage's `FROM` is not a DW-HEALTH-02 finding: Hadolint asks every stage for a
    `HEALTHCHECK`, but only the final stage runs as a container. At most, suggest a
    `# hadolint ignore=DL3057` above that `FROM`, as in create mode (step 5). Likewise,
-   DL3002 and DL3066 are DW-USER-01 findings only on the last `USER` of the final stage,
-   not on a build stage's `USER` or an earlier one in the final stage.
+   DL3002 and DL3066 are DW-USER-01 findings only on the `USER` the container runs as:
+   the final stage's last `USER`, or, if the final stage sets none, the last `USER` of
+   the stage it is built `FROM`. On any other `USER` they are not findings.
 
    If a linter is not available, say so and check by reading; then name a code only
    where you can tell it would fire on this file (DL3002 needs an explicit `USER root`
@@ -173,7 +174,8 @@ Use this when the user wants a new Dockerfile for a project.
    rules once and fix or report what remains. Hadolint asks every stage for a
    `HEALTHCHECK` (DL3057), but a build stage never runs as a container, so put
    `# hadolint ignore=DL3057` above its `FROM` with that reason. Write a `USER` that only
-   applies during the build as `USER 0`, not `USER root`, so DL3066 does not fire on it.
+   applies during the build as `USER 0`, not `USER root`: Hadolint v2.15.1 reports
+   DL3066 on every `USER` given by name.
 6. **Offer a runtime example.** Offer a hardened Compose service or Kubernetes Pod spec,
    adapted from `references/examples/compose.yaml` or `references/examples/pod.yaml`:
    change the image name, port, user and group IDs and health check notes to fit, and

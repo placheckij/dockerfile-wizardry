@@ -639,20 +639,22 @@ as root.
 
 Why: Code execution inside the container then starts with the privileges of an unprivileged user,
 not root, which limits what a compromise can reach (CIS 4.1, OWASP Rule 2). The uid must be
-numeric because a name is mapped to an id only inside the container, from the image's
-`/etc/passwd`; a check that reads only the image config sees the name and cannot tell which
-id it is. With `runAsNonRoot: true` and no `runAsUser`, the Kubernetes kubelet therefore
-refuses to start a container whose image names its user ("image has non-numeric user (…),
-cannot verify user is non-root"). Give the gid as well: a user without a primary group runs
-with the root group. Naming a group also drops the user's other group memberships, so the
-runtime user gets what it needs through that one group.
+numeric because a name is mapped to an id only inside the container; the image config holds
+just the name, which the host may not be able to resolve. With `runAsNonRoot: true` and no
+`runAsUser`, the Kubernetes kubelet therefore refuses to start a container whose image names
+its user ("image has non-numeric user (…), cannot verify user is non-root"). Give the gid as
+well: a user without a primary group, such as a uid with no `/etc/passwd` entry, runs with
+the root group. Naming a group also drops the user's other group memberships, so the runtime
+user gets what it needs through that one group.
 
 How to check: Hadolint DL3002 (last user should not be root), DL3066 (non-numeric user id, which the host
-may not resolve); Dockle CIS-DI-0001 (a user has been created). The Hadolint codes are
-findings only on the user the container runs as, the last `USER` of the final stage.
-Hadolint also reports DL3002 on a build stage that ends as root and DL3066 on any `USER`
-given by name; there they are not findings under this rule. A `USER` that only applies
-during the build can be written `USER 0`, which DL3066 accepts.
+may not resolve); Dockle CIS-DI-0001 (a user has been created). DL3066 checks only the uid,
+so check the gid by reading. The Hadolint codes are findings only on the `USER` the container
+runs as: the final stage's last `USER`, or, when the final stage sets none, the last `USER`
+of the stage it is built `FROM`. Hadolint v2.15.1 also reports DL3002 on a build stage that
+ends as root and DL3066 on every `USER` given by name; on those other lines they are not
+findings under this rule. A `USER` that only applies during the build can be written
+`USER 0`, which DL3066 accepts.
 
 Sources:
 - https://www.cisecurity.org/benchmark/docker

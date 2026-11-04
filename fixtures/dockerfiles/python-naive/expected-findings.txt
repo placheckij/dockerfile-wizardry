@@ -10,7 +10,7 @@ DW-BUILD-01                                           # the code is copied befor
 DW-DEPS-02    DL3042                                  # pip keeps its download cache in the layer
 DW-HEALTH-05  DL3025 JSONArgsRecommended              # shell-form CMD
 DW-HEALTH-02  DL3057                                  # no HEALTHCHECK
-DW-USER-01                                            # no USER, so it runs as root; DL3002 fires only on an explicit USER root
+DW-USER-01                                            # no USER, so it runs as root; DL3002 fires only on an explicit root USER
 DW-BASE-02                                            # no LABEL
 DW-BUILD-02                                           # one stage: pip installs into the image that runs the app
 DW-BUILD-10                                           # the full python image keeps apt and dpkg in the runtime image

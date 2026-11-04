@@ -19,7 +19,7 @@ LABEL maintainer="placheckij" \
       description="Dockerfile Wizardry - Best Practices Example" \
       org.opencontainers.image.source="https://github.com/placheckij/dockerfile-wizardry"
 
-# root, by uid: a numeric USER is what Hadolint DL3066 asks for
+# root, by uid: Hadolint v2.15.1 reports DL3066 on every USER given by name
 USER 0
 # 🛡️ Spell #3: Minimal Packages & Non-Root User (CIS 4.3, 4.6)
 # (only tini - no curl, the health check below uses Python)

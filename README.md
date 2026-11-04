@@ -139,9 +139,9 @@ USER 1337:1337
 ```
 Running as an unprivileged user limits what an attacker can do if the application is compromised.
 
-`USER` gives the ids, not the name `wizard`. A name is mapped to an id only inside the container, from the image's `/etc/passwd`, so tools that read only the image config cannot tell whether it is root (Hadolint DL3066 flags it). Kubernetes with `runAsNonRoot: true` and no `runAsUser` refuses to start such a container, because the kubelet cannot verify that the user is not uid 0.
+`USER` gives the ids, not the name `wizard`. A name is mapped to an id only inside the container, so tools that read only the image config cannot tell whether it is root. Kubernetes with `runAsNonRoot: true` and no `runAsUser` refuses to start such a container, because the kubelet cannot verify that the user is not uid 0. Hadolint DL3066 flags a `USER` given by name.
 
-**Source:** [CIS Docker Benchmark 4.1](https://www.cisecurity.org/benchmark/docker) - Ensure that a user for the container has been created | [OWASP - Run as Non-Root](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-2-set-a-user) | [Kubernetes kubelet - runAsNonRoot check](https://github.com/kubernetes/kubernetes/blob/v1.37.2/pkg/kubelet/kuberuntime/security_context_others.go#L50)
+**Source:** [CIS Docker Benchmark 4.1](https://www.cisecurity.org/benchmark/docker) - Ensure that a user for the container has been created | [OWASP - Run as Non-Root](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-2-set-a-user) | [Kubernetes kubelet - runAsNonRoot check](https://github.com/kubernetes/kubernetes/blob/v1.37.2/pkg/kubelet/kuberuntime/security_context_others.go#L50) | [Hadolint DL3066](https://github.com/hadolint/hadolint/wiki/DL3066) - Non-numeric user-id may not be resolvable by host system
 
 ### 📚 Spell #5: uv Installation (No Cache)
 ```dockerfile
