@@ -19,6 +19,7 @@ Each pull request that changes `skills/` or `.claude-plugin/` adds a line under 
 - Audit mode lists a rule as passing only when every part of it was checked, and puts the unchecked part under Limits instead: what a pinned action fetches in turn for DW-SUPPLY-03, and whether removed files are gone from every layer for DW-SUPPLY-05.
 - Audit mode checks every `.dockerignore` pattern for a missing `**/` (DW-BUILD-03), including docs, test caches and build output, not only patterns for secrets, and keeps any file the build needs at that depth with a `!` line.
 - Audit mode does not report or rewrite a `LABEL`, `EXPOSE`, `HEALTHCHECK`, `STOPSIGNAL`, `ENTRYPOINT` or `CMD` that never reaches the image, because it sits in a stage the final stage is not built from or a later instruction overrides it (DW-BASE-02, DW-HEALTH-01 to DW-HEALTH-05). It no longer rewrites labels in a stage a `FROM scratch` final stage never inherits, or reports DL3025 or JSONArgsRecommended on such a `CMD` or `ENTRYPOINT`.
+- Audit mode takes the final stage to be the one the image is built from: the last stage, unless the workflow, build script or Compose file that builds the image names a `--target` (DW-BASE-02, DW-HEALTH-01 to DW-HEALTH-05, DW-USER-01).
 
 ## [0.1.1] - 2026-11-04
 

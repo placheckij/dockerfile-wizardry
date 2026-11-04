@@ -28,6 +28,9 @@ Dockerfile, or **create** one for a project.
 ## 2. Audit mode
 
 Use this when the user has a Dockerfile and wants it reviewed, hardened or optimized.
+Here "the final stage" is the stage the image is built from: the last stage in the file,
+unless the workflow, build script or Compose file that builds this image names another
+(`--target`, or `target:` under `build:` in Compose).
 
 1. **Read the inputs.** The Dockerfile (every stage), the `.dockerignore` at the root of
    the build context (a `<Dockerfile name>.dockerignore` next to the Dockerfile takes
@@ -303,7 +306,8 @@ End every report or summary with what was not checked:
 - **CI pipeline rules**: build cache export (DW-BUILD-07), action pinning (DW-SUPPLY-03),
   scheduled rebuilds (DW-SUPPLY-04), image scanning (DW-SUPPLY-05), Docker Engine and
   BuildKit versions (DW-SUPPLY-06), unless a workflow that acts on this image is in the
-  repository or the user gave it to you; then check these rules against it.
+  repository or the user gave it to you; then check these rules against it. Even then,
+  what a pinned action fetches in turn (DW-SUPPLY-03) goes here if you did not check it.
 - **Files not opened**: any copied file you did not read (step 1).
 - **The built image**: whether removed files are gone from every layer (DW-BUILD-04,
   DW-SUPPLY-05) needs the image, not the Dockerfile.
