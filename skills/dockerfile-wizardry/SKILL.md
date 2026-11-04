@@ -41,7 +41,8 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    repository, whether or not the user named them: CI workflows (`.github/workflows/`,
    `.gitlab-ci.yml` and the like) and build scripts for the CI pipeline rules listed under
    Limits, and Compose or Kubernetes files for the runtime notes. A file you can read is
-   a file you were given.
+   a file you were given. Only a workflow or script that builds or deploys this
+   Dockerfile's image counts; another job's schedule or action pins say nothing about it.
 2. **Run the linters if they are installed.** Do not install anything without asking.
    - `hadolint --info DL3057 <Dockerfile>` (DL3057, a missing `HEALTHCHECK`, is off by
      default; this turns it on for DW-HEALTH-02)
@@ -82,12 +83,15 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
      unless the user has said it does, it goes under Limits. If it does matter,
      `SOURCE_DATE_EPOCH` can come from a global `ARG`, a `--build-arg` or the client's
      environment, and the timestamp rewrite is an exporter option. Check the Dockerfile
-     together with any CI workflow or build script you read; with none, put the rule
-     under Limits instead of reporting a missing `ARG`.
+     together with the workflow or build script that builds this image; with none, put
+     the rule under Limits instead of reporting a missing `ARG`.
    - **Do not assume facts the files do not show.** Whether the image is published
-     decides whether DW-SUPPLY-01 and DW-SUPPLY-02 apply; if the user has not said, ask,
-     or leave both under Limits. Their evidence is in the publishing step, never in the
-     Dockerfile, so check them only against a CI workflow or build script you read.
+     decides whether DW-SUPPLY-01 and DW-SUPPLY-02 apply. The user saying so settles
+     it, and so does a workflow or script you read that pushes this image; otherwise
+     ask, or leave both under Limits. Their evidence is never in the Dockerfile: check
+     SBOM, provenance and signing against the publishing workflow, and DW-SUPPLY-02's
+     verification against the deployment files you read (an admission policy, a
+     verify step before deploy); what none of them shows goes under Limits.
 4. **Report.** Start with a table, one row per finding, in rule order:
 
    | Rule | Line | Finding | Severity |
@@ -259,13 +263,12 @@ End every report or summary with what was not checked:
 - **Runtime settings**: `docker run` flags, Compose and Kubernetes settings, unless
   those files are in the repository or the user gave them to you.
 - **Registry and publishing**: SBOM, provenance and signing (DW-SUPPLY-01, DW-SUPPLY-02),
-  unless the user said the image is published and a CI workflow or build script you read
-  publishes it (then check them against that file), or said it is not published (then they do
-  not apply).
+  and signature verification where it is deployed, except what the publishing workflow
+  and deployment files you read show (step 3); none of it if the image is not published.
 - **CI pipeline rules**: build cache export (DW-BUILD-07), action pinning (DW-SUPPLY-03),
   scheduled rebuilds (DW-SUPPLY-04), image scanning (DW-SUPPLY-05), Docker Engine and
-  BuildKit versions (DW-SUPPLY-06), unless the workflow files are in the repository or
-  the user gave them to you; then check these rules against them.
+  BuildKit versions (DW-SUPPLY-06), unless a workflow that builds this image is in the
+  repository or the user gave it to you; then check these rules against it.
 - **Files not opened**: any copied file you did not read (step 1).
 - **The built image**: whether removed files are gone from every layer (DW-BUILD-04,
   DW-SUPPLY-05) needs the image, not the Dockerfile.
