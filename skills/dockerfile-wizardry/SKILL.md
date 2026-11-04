@@ -61,7 +61,10 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    - `SHOULD` gives **should fix**;
    - `TRADE-OFF` gives **decide**. State both sides from the matching section of
      `references/tradeoffs.md` (or from the rule's reasons when it has no section) and
-     do not count it as a violation.
+     do not count it as a violation. Where the statement names only one part as the
+     trade-off, the other parts are not in dispute: DW-DEPS-01 calls only pinning a
+     trade-off, so a missing cache cleanup, a separate index update or an unneeded
+     package is **should fix**, and only pinning is **decide**.
 
    Then, for each finding: the reason (a sentence or two from the rule's "Why"), one
    source link from the rule's "Sources", and a unified diff against the user's file
