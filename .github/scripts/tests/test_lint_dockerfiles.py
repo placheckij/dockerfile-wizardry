@@ -49,6 +49,16 @@ class TrackedDockerfilesTest(unittest.TestCase):
         )
 
 
+class TrackedButDeletedTest(unittest.TestCase):
+    def test_tracked_dockerfile_deleted_from_the_tree_is_skipped(self):
+        tmp, root = git_repo(["Dockerfile", "Dockerfile.slim"])
+        self.addCleanup(tmp.cleanup)
+        (root / "Dockerfile.slim").unlink()
+        self.assertEqual(
+            [p.name for p in lint_dockerfiles.tracked_dockerfiles(root)], ["Dockerfile"]
+        )
+
+
 class MainTest(unittest.TestCase):
     def setUp(self):
         tmp, self.root = git_repo(["Dockerfile"])
@@ -90,6 +100,20 @@ class MainTest(unittest.TestCase):
         self.assertEqual(
             self.hadolint.call_args.kwargs["levels"], lint_dockerfiles.FAIL_LEVELS
         )
+
+    def test_main_refuses_a_hadolint_config_it_would_ignore(self):
+        self.patch_linters()
+        for name in (".hadolint.yaml", ".hadolint.yml"):
+            with self.subTest(name=name):
+                config = self.root / name
+                config.write_text("ignored: [DL3008]\n", encoding="utf-8")
+                try:
+                    code, _, err = self.run_main()
+                finally:
+                    config.unlink()
+                self.assertEqual(code, 1)
+                self.assertIn(name, err)
+                self.assertIn("not applied", err)
 
     def test_main_docker_unavailable_exits_2(self):
         with mock.patch.object(

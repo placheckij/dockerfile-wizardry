@@ -20,6 +20,7 @@ python3 (no third-party packages).
 
 import datetime
 import json
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,13 +44,17 @@ class Watched:
 
 
 def _valid_date(value):
-    if not isinstance(value, str):
+    """YYYY-MM-DD only: fromisoformat alone also takes forms such as 2026-W49-2, which would
+    then compare wrongly as strings."""
+    if not isinstance(value, str) or not re.fullmatch(
+        r"[0-9]{4}-[0-9]{2}-[0-9]{2}", value
+    ):
         return False
     try:
         datetime.date.fromisoformat(value)
     except ValueError:
         return False
-    return len(value) == 10
+    return True
 
 
 def load_watched(baseline):
