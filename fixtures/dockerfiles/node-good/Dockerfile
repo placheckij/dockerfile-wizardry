@@ -28,11 +28,13 @@ LABEL org.opencontainers.image.title="example-node-service" \
 # an oversight. Removing them (DW-BUILD-10) means pruning and flattening, the DW-BUILD-04
 # trade-off, or another base (trade-offs §6); see expected-findings.txt
 ENV NODE_ENV=production
+# root owns the code and dependencies; the app user reads them through its group and
+# cannot change them
+RUN install -d -o root -g node -m 0750 /app
 WORKDIR /app
-# root owns the code and dependencies; the app user can read but not change them
-COPY --from=build /app/node_modules ./node_modules
-COPY package.json ./
-COPY src ./src
+COPY --from=build --chown=root:node --chmod=u=rwX,g=rX,o= /app/node_modules ./node_modules
+COPY --chown=root:node --chmod=u=rw,g=r,o= package.json ./
+COPY --chown=root:node --chmod=u=rwX,g=rX,o= src ./src
 # uid and gid 1000 are the `node` user the official image creates
 USER 1000:1000
 EXPOSE 3000

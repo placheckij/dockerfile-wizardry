@@ -32,7 +32,8 @@ LABEL org.opencontainers.image.title="example-go-service" \
       org.opencontainers.image.authors="Example Team <team@example.com>" \
       org.opencontainers.image.source="https://example.com/example-go-service" \
       org.opencontainers.image.licenses="MIT"
-COPY --from=build /out/app /app
+# root owns the binary; the nonroot group can run it but not change it
+COPY --from=build --chown=0:65532 --chmod=0550 /out/app /app
 # 65532 is the `nonroot` user distroless images define
 USER 65532:65532
 EXPOSE 8080

@@ -35,12 +35,14 @@ LABEL org.opencontainers.image.title="example-python-service" \
 # The slim base keeps apt and dpkg in this stage: a deliberate choice, not an
 # oversight. Removing them (DW-BUILD-10) means pruning and flattening, the DW-BUILD-04
 # trade-off, or another base (trade-offs §6); see expected-findings.txt
+# root owns the code and dependencies; the app user reads them through its group and
+# cannot change them
 RUN groupadd --system --gid 10001 app \
-    && useradd --system --uid 10001 --gid app --no-create-home app
+    && useradd --system --uid 10001 --gid app --no-create-home app \
+    && install -d -o root -g app -m 0750 /app
 WORKDIR /app
-# root owns the code and dependencies; the app user can read but not change them
-COPY --from=build /app/.venv /app/.venv
-COPY src/app ./app
+COPY --from=build --chown=root:app --chmod=u=rwX,g=rX,o= /app/.venv /app/.venv
+COPY --chown=root:app --chmod=u=rwX,g=rX,o= src/app ./app
 ENV PATH=/app/.venv/bin:$PATH \
     PYTHONUNBUFFERED=1
 USER 10001:10001
