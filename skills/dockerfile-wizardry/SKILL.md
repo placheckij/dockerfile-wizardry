@@ -43,9 +43,10 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    Each rule's "How to check" line names the linter codes that belong to it (for example
    DL3002 under DW-USER-01, SecretsUsedInArgOrEnv under DW-SECRET-01). Report every code
    under its matching rule; where a line says a code is reported under another rule
-   (DW-BUILD-05 does this for DL3009, DL3019 and DL3042), use that rule. A code that no
-   rule names is reported separately, marked "not from the rulebook". DL3057 on a build
-   stage's `FROM` is not a DW-HEALTH-02 finding: Hadolint asks every stage for a
+   (DW-BUILD-05 does this for DL3009, DL3019 and DL3042), use that rule; where it calls a
+   code advisory (DL3066 under DW-USER-01), report it as a note, not a finding. A code
+   that no rule names is reported separately, marked "not from the rulebook". DL3057 on a
+   build stage's `FROM` is not a DW-HEALTH-02 finding: Hadolint asks every stage for a
    `HEALTHCHECK`, but only the final stage runs as a container. At most, suggest a
    `# hadolint ignore=DL3057` above that `FROM`, as in create mode (step 5).
 
@@ -104,6 +105,9 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    +USER 10001:10001
     CMD ["/app/server"]
    ```
+
+   This example assumes an earlier stage or the base already has user and group 10001;
+   if not, the same diff also creates them, as DW-USER-01 asks.
 
    After the findings, list the rules that pass and the rules that do not apply, by id.
 5. **Ask which fixes to apply.** Apply only the ones the user chooses. Re-run the linters
