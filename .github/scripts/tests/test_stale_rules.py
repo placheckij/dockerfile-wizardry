@@ -65,6 +65,7 @@ class StaleTest(unittest.TestCase):
             (HADOLINT + "-extra", HADOLINT, False),
             (HADOLINT + "-extra/README.md", HADOLINT, False),
             (frontend + "%2F1.16.0", frontend, True),
+            (frontend + "%2f1.16.0", frontend, True),
             (frontend + "-labs", frontend, False),
             ("https://example.com/a/b", "https://example.com/a/", True),
         ]

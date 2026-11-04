@@ -3,9 +3,10 @@
 .github/standards-baseline.json records, per watched upstream source, the value this repo was
 last checked against. Each entry lists `rule_sources`: URL prefixes that tie it to the rules
 (and trade-off sections) citing it. A rule cites a watched source when one of its `sources`
-is one of those prefixes or continues one with `/`, `?`, `#` or `%2F`. When the monthly standards watch reports a change and the
-baseline is moved to the new value, the entry's `changed_on` is set to that date; from then on
-every rule citing the source must have a `last_verified` date on or after `changed_on`.
+is one of those prefixes or continues one with `/`, `?`, `#` or `%2F` (either case). When the
+monthly standards watch reports a change and the baseline is moved to the new value, the entry's
+`changed_on` is set to that date; from then on every rule citing the source must have a
+`last_verified` date on or after `changed_on`.
 
 The script also fails when a prefix matches no rule and no trade-off source, since a typo there
 would silently switch the check off for that source.
