@@ -385,7 +385,7 @@ See **[RUNTIME_SECURITY.md](RUNTIME_SECURITY.md)** for comprehensive production 
 
 ## 🛡️ What CI Checks
 
-Beyond building and testing, the workflows guard the properties this repo claims. Each workflow runs only when the files it checks change, plus on its weekly or monthly schedule; the secret scan runs on every push and pull request.
+Beyond building and testing, the workflows guard the properties this repo claims. Each workflow runs only when the files it checks change, plus on its weekly or monthly schedule; the secret scan runs on every push to main and every pull request to main.
 - **Weekly rebuild without cache** and re-scan, so new CVEs and OS patches surface without a push (CIS 4.4).
 - **Base image digest freshness** - fails when the pinned digest is stale (Spell #1).
 - **Trivy** fails on HIGH/CRITICAL findings, and an assertion makes sure it can actually *see* the image's OS and Python packages (a scanner that sees nothing passes vacuously).

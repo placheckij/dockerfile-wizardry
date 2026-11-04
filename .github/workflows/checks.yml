@@ -11,11 +11,14 @@ name: 📖 Static Checks
 on:
   pull_request:
     branches: [ main ]
+    # A new config file for one of these tools (e.g. ruff.toml, .hadolint.yaml, .shellcheckrc,
+    # trivy.yaml, .trivyignore) must be added to this list.
     paths: &paths
-      - 'Dockerfile'
-      - 'README.md'
-      # check_rules.py fails on README links to missing files, and README links to these
-      - 'RUNTIME_SECURITY.md'
+      # Trivy's configuration scan covers every Dockerfile in the repository
+      - '**/Dockerfile*'
+      # check_rules.py fails on README links to missing files or headings, and README links to
+      # other root files
+      - '*.md'
       - 'LICENSE'
       - 'docs/rules/**'
       - 'skills/**'
