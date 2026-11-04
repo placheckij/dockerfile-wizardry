@@ -19,6 +19,9 @@ LABEL maintainer="placheckij" \
       description="Dockerfile Wizardry - Best Practices Example" \
       org.opencontainers.image.source="https://github.com/placheckij/dockerfile-wizardry"
 
+# root is uid 0 in every image, and this USER only applies while building, not to the
+# user the container runs as (DW-USER-01 asks for a numeric USER in the final stage)
+# hadolint ignore=DL3066
 USER root
 # 🛡️ Spell #3: Minimal Packages & Non-Root User (CIS 4.3, 4.6)
 # (only tini - no curl, the health check below uses Python)
@@ -36,7 +39,7 @@ RUN apk -U upgrade && \
 ENV PYTHONUNBUFFERED=true
 
 # 🔐 Spell #4: Non-Root User (CIS 4.1, OWASP)
-USER wizard
+USER 1337:1337
 WORKDIR /spellbook
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -85,6 +88,9 @@ COPY --chown=wizard:wizards ./pyproject.toml ./
 # back to writable, and a writable directory lets entries be renamed or replaced.
 # So everything under /spellbook - code, dependencies and the directory itself - is
 # root-owned and reachable by the app user only through the read-only `wizards` group.
+# root is uid 0 in every image, and this USER only applies while building, not to the
+# user the container runs as (DW-USER-01 asks for a numeric USER in the final stage)
+# hadolint ignore=DL3066
 USER root
 RUN chown -R root:wizards /spellbook && \
     chmod -R g-w,o-rwx /spellbook && \
@@ -106,7 +112,7 @@ RUN /usr/local/bin/python -m pip uninstall -y pip && \
     rm -f /usr/bin/wget /usr/bin/nc /usr/bin/telnet /usr/bin/ftpget /usr/bin/ftpput \
           /usr/bin/tftp /usr/bin/ssl_client /bin/wget /bin/nc /bin/telnet /bin/ssl_client && \
     rm -rf /sbin/apk /lib/libapk* /var/cache/apk /etc/apk
-USER wizard
+USER 1337:1337
 
 # ═══════════════════════════════════════════════════════════════════════
 # 🪶 Stage 4: Flatten into the Final Image
@@ -127,7 +133,7 @@ LABEL maintainer="placheckij" \
       version="1.0.0" \
       description="Dockerfile Wizardry - Best Practices Example" \
       org.opencontainers.image.source="https://github.com/placheckij/dockerfile-wizardry"
-USER wizard
+USER 1337:1337
 WORKDIR /spellbook
 
 # 📢 Spell #11: Explicit Port Declaration

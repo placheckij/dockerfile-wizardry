@@ -13,22 +13,30 @@ spells:
 last_verified: 2026-11-04
 
 statement:
-  Create a dedicated user and group with explicit numeric IDs and switch to it with `USER`
-  before the final `CMD`/`ENTRYPOINT`. Never leave the container running as root.
+  Create a dedicated user and group with explicit numeric IDs and switch to it by number,
+  `USER <uid>:<gid>`, before the final `CMD`/`ENTRYPOINT`. Never leave the container running
+  as root.
 
 why:
   Code execution inside the container then starts with the privileges of an unprivileged user,
-  not root, which limits what a compromise can reach (CIS 4.1, OWASP Rule 2).
+  not root, which limits what a compromise can reach (CIS 4.1, OWASP Rule 2). The user must be
+  numeric because only the container resolves a name, through the image's `/etc/passwd`;
+  anything outside it sees ids. With `runAsNonRoot: true` and no `runAsUser`, the Kubernetes
+  kubelet refuses to start a container whose image names its user ("image has non-numeric
+  user, cannot verify user is non-root").
 
 how_to_check:
-  Hadolint DL3002 (last user should not be root); Dockle CIS-DI-0001 (a user has been created).
-  Hadolint DL3066 (a non-numeric user id, which the host may not resolve) is advisory: a `USER`
-  given by name meets this rule when that user was created with explicit numeric IDs.
+  Hadolint DL3002 (last user should not be root), DL3066 (non-numeric user id, which the host
+  may not resolve); Dockle CIS-DI-0001 (a user has been created). Both Hadolint codes concern the
+  last `USER` of the final stage, the user the container runs as; DL3066 on a `USER` in a build
+  stage is not a finding under this rule.
 
 sources:
 - https://www.cisecurity.org/benchmark/docker
 - https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-2-set-a-user
 - https://github.com/hadolint/hadolint
+- https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/
+- https://github.com/kubernetes/kubernetes/blob/v1.37.2/pkg/kubelet/kuberuntime/security_context_others.go#L50
 
 ## DW-USER-02: The runtime user must not own or be able to change what it runs
 

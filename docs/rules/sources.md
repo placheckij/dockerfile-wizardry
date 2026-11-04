@@ -82,6 +82,7 @@ of date.
 - [github.com/hadolint/hadolint](<https://github.com/hadolint/hadolint>): [DW-BUILD-05](build-and-cache.md#dw-build-05-keep-package-manager-downloads-in-a-cache-mount), [DW-DEPS-01](dependencies.md#dw-deps-01-install-only-the-packages-you-need-in-one-layer), [DW-DEPS-02](dependencies.md#dw-deps-02-install-language-tooling-pinned-with-its-cache-out-of-the-layer), [DW-HEALTH-02](health-and-signals.md#dw-health-02-add-a-health-check), [DW-HEALTH-05](health-and-signals.md#dw-health-05-use-exec-form-and-exec-in-wrapper-scripts-so-signals-reach-the-application), [DW-SECRET-01](secrets.md#dw-secret-01-never-pass-secrets-through-arg-env-or-copy-mount-them), [DW-USER-01](users-and-permissions.md#dw-user-01-run-as-a-non-root-user), [trade-off 2](tradeoffs.md#2-pinning-operating-system-package-versions), [trade-off 4](tradeoffs.md#4-a-healthcheck-in-the-image-or-probes-in-the-platform), [trade-off 5](tradeoffs.md#5-add-or-copy)
 - [github.com/hadolint/hadolint/blob/master/src/Hadolint/Rule/DL3020.hs](<https://github.com/hadolint/hadolint/blob/master/src/Hadolint/Rule/DL3020.hs>): [trade-off 5](tradeoffs.md#5-add-or-copy)
 - [github.com/krallin/tini](<https://github.com/krallin/tini>): [DW-HEALTH-04](health-and-signals.md#dw-health-04-run-a-minimal-init-as-pid-1)
+- [github.com/kubernetes/kubernetes/blob/v1.37.2/pkg/kubelet/kuberuntime/security\_context\_others.go#L50](<https://github.com/kubernetes/kubernetes/blob/v1.37.2/pkg/kubelet/kuberuntime/security_context_others.go#L50>): [DW-USER-01](users-and-permissions.md#dw-user-01-run-as-a-non-root-user)
 - [github.com/moby/buildkit/blob/master/docs/build-repro.md](<https://github.com/moby/buildkit/blob/master/docs/build-repro.md>): [DW-BUILD-09](build-and-cache.md#dw-build-09-use-source_date_epoch-when-you-need-reproducible-output)
 - [github.com/moby/buildkit/releases/tag/dockerfile/1.16.0](<https://github.com/moby/buildkit/releases/tag/dockerfile%2F1.16.0>): [DW-DEPS-03](dependencies.md#dw-deps-03-verify-what-you-download-during-the-build)
 - [github.com/opencontainers/image-spec/blob/main/annotations.md#pre-defined-annotation-keys](<https://github.com/opencontainers/image-spec/blob/main/annotations.md#pre-defined-annotation-keys>): [DW-BASE-02](base-image.md#dw-base-02-label-the-image-with-metadata)
@@ -95,6 +96,7 @@ of date.
 
 - [kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/](<https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/>): [trade-off 4](tradeoffs.md#4-a-healthcheck-in-the-image-or-probes-in-the-platform)
 - [kubernetes.io/docs/concepts/containers/images/](<https://kubernetes.io/docs/concepts/containers/images/>): [trade-off 1](tradeoffs.md#1-tag-or-digest-for-the-base-image)
+- [kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/](<https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/>): [DW-USER-01](users-and-permissions.md#dw-user-01-run-as-a-non-root-user)
 
 ## ncsc.gov.uk
 

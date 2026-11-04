@@ -135,9 +135,11 @@ Package versions are **not** pinned, on purpose: OWASP Rule 9 lists pinned OS pa
 ```dockerfile
 RUN addgroup -g 1337 wizards && \
     adduser -D -h /spellbook -G wizards -u 1337 wizard
-USER wizard
+USER 1337:1337
 ```
 Running as an unprivileged user limits what an attacker can do if the application is compromised.
+
+`USER` names the ids, not `wizard`: a name is resolved only inside the container, through the image's `/etc/passwd`, so tools outside it cannot tell whether it is root. Kubernetes with `runAsNonRoot: true` and no `runAsUser` refuses to start such a container, because the kubelet cannot verify the user is not uid 0 (hadolint DL3066).
 
 **Source:** [CIS Docker Benchmark 4.1](https://www.cisecurity.org/benchmark/docker) - Ensure that a user for the container has been created | [OWASP - Run as Non-Root](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-2-set-a-user)
 
