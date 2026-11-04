@@ -225,6 +225,9 @@ reported nothing, and `docker buildx build --call check` gave "Check complete, n
 warnings found."
 
 **What it missed or got wrong.**
+- With Hadolint not installed, it cites DL3006 (under DW-BASE-01) and DL3002 (under
+  DW-USER-01) as if they fire on this file. Pinned Hadolint v2.15.1 reports neither:
+  DL3006 needs an image with no tag, and DL3002 needs an explicit `USER root`.
 - Its reason for DW-BUILD-05 not applying, "no package-manager download to cache-mount",
   is wrong: `pip install -r requirements.txt` is such a download. And the replacement
   file adds a build stage whose `pip install` sets `PIP_NO_CACHE_DIR=1` instead of using

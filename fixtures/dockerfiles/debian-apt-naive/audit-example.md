@@ -186,6 +186,11 @@ warnings found." The JSON does not record tool calls, so it does not show whethe
 wrote the hunk; the run had no permission denials.
 
 **What it missed or got wrong.**
+- The diff headers name `a/Dockerfile`, not the path the run was given
+  (`fixtures/dockerfiles/debian-apt-naive/Dockerfile`), so from the repository root,
+  where the run started, `git apply` tries the root `Dockerfile` and fails. It applies
+  only from inside the fixture directory, which is where it was checked above. SKILL.md's
+  `diff` recipe hard-coded `Dockerfile` at the time; it now takes the file's path.
 - It offers to apply "only the must-fix (DW-USER-01/02)", but DW-USER-02 is a SHOULD, and
   its own table rates it should fix. DW-USER-01 is the only must-fix.
 - The diff sets `USER 10001:10001` without creating that user and group. That runs, but
