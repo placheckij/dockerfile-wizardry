@@ -17,7 +17,7 @@ Each pull request that changes `skills/` or `.claude-plugin/` adds a line under 
 ### Changed
 
 - Audit mode reads the contents of every copied file, not only the names, and reads CI workflows and Compose or Kubernetes files found in the repository instead of leaving DW-BUILD-07 and DW-SUPPLY-03 to DW-SUPPLY-06 under Limits when the user did not hand them over.
-- Audit mode reports a gap that affects no file yet (DW-BUILD-03) at the rule's strength, checks the Dockerfile half of DW-BUILD-09 and leaves the build-command half under Limits, asks rather than assumes whether the image is published (DW-SUPPLY-01, DW-SUPPLY-02), and reports a trade-off the file has already settled (DW-BUILD-04, DW-DEPS-01) as a **decide** row without a diff.
+- Audit mode reports a gap that affects no file yet (DW-BUILD-03) at the rule's strength, reports DW-BUILD-09 only when reproducible output matters and neither the Dockerfile nor a build workflow it read sets `SOURCE_DATE_EPOCH`, asks rather than assumes whether the image is published and checks DW-SUPPLY-01 and DW-SUPPLY-02 only against a publishing workflow, and reports a trade-off the file has already settled (DW-BUILD-04, DW-DEPS-01) as a **decide** row without a diff.
 - Audit mode merges fixes whose lines fall within three of each other into one diff, and applies chosen fixes by editing the file instead of applying the diffs in sequence.
 - DW-BUILD-05 says which pip cache-mount targets keep Hadolint's DL3042 quiet: any target ending in `.cache/pip`, not the parent `.cache`.
 

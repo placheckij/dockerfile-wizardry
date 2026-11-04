@@ -76,13 +76,17 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    - **A gap that causes no harm yet is still a finding**, at the rule's strength: a
      `.dockerignore` pattern without `**/` breaks DW-BUILD-03 even if no matching file
      exists today. Say in the Finding column that nothing is affected yet.
-   - **A rule split between the Dockerfile and the build command** (DW-BUILD-09: the
-     `ARG` is in the file, the exporter option is on the command line) is checked for
-     the part the file holds; the rest goes under Limits unless a CI workflow or build
-     script you read shows it.
+   - **A rule the build command can meet as well as the Dockerfile** is a finding only
+     when neither does. DW-BUILD-09 applies only where reproducible output matters, so
+     unless the user has said it does, it goes under Limits. If it does matter,
+     `SOURCE_DATE_EPOCH` can come from a global `ARG`, a `--build-arg` or the client's
+     environment, and the timestamp rewrite is an exporter option. Check the Dockerfile
+     together with any CI workflow or build script you read; with none, put the rule
+     under Limits instead of reporting a missing `ARG`.
    - **Do not assume facts the files do not show.** Whether the image is published
-     decides DW-SUPPLY-01 and DW-SUPPLY-02; if the user has not said, ask, or leave both
-     under Limits.
+     decides whether DW-SUPPLY-01 and DW-SUPPLY-02 apply; if the user has not said, ask,
+     or leave both under Limits. Their evidence is in the publishing step, never in the
+     Dockerfile, so check them only against a CI workflow you read.
 4. **Report.** Start with a table, one row per finding, in rule order:
 
    | Rule | Line | Finding | Severity |
@@ -254,7 +258,9 @@ End every report or summary with what was not checked:
 - **Runtime settings**: `docker run` flags, Compose and Kubernetes settings, unless
   those files are in the repository or the user gave them to you.
 - **Registry and publishing**: SBOM, provenance and signing (DW-SUPPLY-01, DW-SUPPLY-02),
-  unless the user said whether and how the image is published.
+  unless the user said the image is published and a CI workflow you read publishes it
+  (then check them against that workflow), or said it is not published (then they do
+  not apply).
 - **CI pipeline rules**: build cache export (DW-BUILD-07), action pinning (DW-SUPPLY-03),
   scheduled rebuilds (DW-SUPPLY-04), image scanning (DW-SUPPLY-05), Docker Engine and
   BuildKit versions (DW-SUPPLY-06), unless the workflow files are in the repository or
