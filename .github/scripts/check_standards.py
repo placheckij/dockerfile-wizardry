@@ -234,9 +234,19 @@ def load_baseline():
 
 
 def recheck_line(baseline, key, rules, tradeoffs):
-    """`  Re-check: DW-…, tradeoffs.md: …` for the rules citing a baseline entry, or ""."""
+    """`  Re-check: DW-…` for the rules citing a baseline entry, then the trade-off sections
+    citing it on a line of their own: they have no last_verified date, so stale_rules.py cannot
+    hold them to changed_on. "" when nothing cites the entry."""
     cited = stale_rules.cited_by(baseline[key]["rule_sources"], rules, tradeoffs)
-    return f"\n  Re-check: {', '.join(cited)}" if cited else ""
+    rule_ids = [label for label in cited if not label.startswith("tradeoffs.md: ")]
+    sections = [label for label in cited if label.startswith("tradeoffs.md: ")]
+    text = f"\n  Re-check: {', '.join(rule_ids)}" if rule_ids else ""
+    if sections:
+        text += (
+            "\n  Also re-read (no last_verified date, so CI does not track these): "
+            + ", ".join(sections)
+        )
+    return text
 
 
 def main():

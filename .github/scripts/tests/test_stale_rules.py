@@ -1,8 +1,11 @@
 import contextlib
 import io
+import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -117,6 +120,76 @@ class LoadWatchedTest(unittest.TestCase):
                 self.assertRaisesRegex(stale_rules.BaselineError, "^hadolint: "),
             ):
                 stale_rules.load_watched({"hadolint": entry})
+
+
+class MainExitTest(unittest.TestCase):
+    """main() on a temporary root, with the rulebook replaced by `rules`."""
+
+    def run_main(self, baseline, rules=(), problems=(), tradeoffs=()):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        (root / ".github").mkdir()
+        if baseline is not None:
+            (root / ".github" / "standards-baseline.json").write_text(
+                baseline if isinstance(baseline, str) else json.dumps(baseline),
+                encoding="utf-8",
+            )
+        out = io.StringIO()
+        with (
+            mock.patch.object(
+                check_rules, "collect", return_value=(list(rules), list(problems))
+            ),
+            mock.patch.object(
+                check_rules, "tradeoff_sources", return_value=list(tradeoffs)
+            ),
+            contextlib.redirect_stdout(out),
+            contextlib.redirect_stderr(out),
+        ):
+            code = stale_rules.main([], root=root)
+        return code, out.getvalue()
+
+    def test_stale_rule_exits_1(self):
+        code, out = self.run_main(
+            {"hadolint": {"rule_sources": [HADOLINT], "changed_on": "2026-12-01"}},
+            rules=[rule("DW-BASE-01", [HADOLINT])],
+        )
+        self.assertEqual(code, 1)
+        self.assertIn(
+            "DW-BASE-01 cites hadolint, which changed on 2026-12-01; "
+            "last verified 2026-11-02",
+            out,
+        )
+
+    def test_unmatched_prefix_exits_1(self):
+        code, out = self.run_main(
+            {"hadolint": {"rule_sources": ["https://github.com/hadolint/hadolin/"]}},
+            rules=[rule("DW-BASE-01", [HADOLINT])],
+        )
+        self.assertEqual(code, 1)
+        self.assertIn("hadolint: prefix https://github.com/hadolint/hadolin/", out)
+
+    def test_rulebook_problems_exit_1(self):
+        code, out = self.run_main(
+            {"hadolint": {"rule_sources": [HADOLINT]}}, problems=["x.md: broken"]
+        )
+        self.assertEqual(code, 1)
+        self.assertIn("x.md: broken", out)
+
+    def test_malformed_baseline_exits_2(self):
+        for baseline in ({"hadolint": {}}, "{not json", None, "[]"):
+            with self.subTest(baseline=baseline):
+                code, _ = self.run_main(
+                    baseline, rules=[rule("DW-BASE-01", [HADOLINT])]
+                )
+                self.assertEqual(code, 2)
+
+    def test_current_rules_exit_0(self):
+        code, out = self.run_main(
+            {"hadolint": {"rule_sources": [HADOLINT], "changed_on": "2026-11-02"}},
+            rules=[rule("DW-BASE-01", [HADOLINT])],
+        )
+        self.assertEqual(code, 0, out)
 
 
 class MainTest(unittest.TestCase):
