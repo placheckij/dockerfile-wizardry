@@ -6,9 +6,9 @@ Dockerfile is expected to trigger for it; a good fixture lists only accepted fin
 with a reason:
 
     # comments start with a hash
-    DW-BASE-01  DL3007
-    DW-USER-01  DL3002 DL3059   # Hadolint codes and Docker build-check rule names mix freely
-    DW-HEALTH-01                # a rule id with no code, for rules no linter covers
+    DW-BASE-01    DL3007
+    DW-HEALTH-05  DL3025 JSONArgsRecommended   # Hadolint codes and build-check names mix freely
+    DW-HEALTH-03                               # a rule id with no code, for rules no linter covers
 
 The linters are Hadolint (pinned image, run through Docker) and `docker buildx build --call
 check`. The union of the codes they report must equal the union of the listed codes, and every
