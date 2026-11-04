@@ -69,7 +69,9 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    along the chain of stages it is built `FROM`. On any other `USER` they are not
    findings, though the rule names them: at most, add a note, suggesting for DL3066 that
    the `USER` be written by number, and for DL3002 a `# hadolint ignore=DL3002` above
-   that `USER` with the reason that the stage never runs as a container.
+   that `USER` with the reason that the stage never runs as a container. DL3025 and
+   JSONArgsRecommended on a `CMD` or `ENTRYPOINT` outside the final stage and the stages
+   it is built `FROM` are not DW-HEALTH-05 findings either (step 3): at most, add a note.
 
    If a linter is not available, say so and check by reading; then name a code only
    where you can tell it would fire on this file (DL3002 needs an explicit root `USER`,
@@ -91,7 +93,10 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
      matching file exists today. Say in the Finding column that nothing is affected yet.
      Go through every pattern, not only those for secrets: docs (`*.md`), test and tool
      caches (`.pytest_cache/`, `.coverage`) and build output can sit inside a copied
-     directory too, and the diff fixes every such pattern.
+     directory too, and the diff fixes every such pattern. Before widening one, check that
+     the build needs no file it would newly exclude (a `README.md` that a package's
+     `pyproject.toml` names, a source package called `build`); keep such a file with a `!`
+     line after the pattern, or leave the pattern as it is and say why.
    - **Check image metadata on the image the container runs.** `LABEL`, `EXPOSE`,
      `HEALTHCHECK`, `STOPSIGNAL`, `ENTRYPOINT` and `CMD` reach the image only from the final
      stage and the stages it is built `FROM`; a final stage built `FROM scratch` inherits
