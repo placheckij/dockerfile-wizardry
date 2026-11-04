@@ -4,6 +4,8 @@
 
 [![GitHub](https://img.shields.io/badge/license-MIT-brightgreen.svg)](https://raw.githubusercontent.com/placheckij/dockerfile-wizardry/main/LICENSE)
 [![CI](https://github.com/placheckij/dockerfile-wizardry/actions/workflows/ci.yml/badge.svg)](https://github.com/placheckij/dockerfile-wizardry/actions/workflows/ci.yml)
+[![Static Checks](https://github.com/placheckij/dockerfile-wizardry/actions/workflows/checks.yml/badge.svg)](https://github.com/placheckij/dockerfile-wizardry/actions/workflows/checks.yml)
+[![Secret Scan](https://github.com/placheckij/dockerfile-wizardry/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/placheckij/dockerfile-wizardry/actions/workflows/secret-scan.yml)
 [![Python](https://img.shields.io/badge/python-3.14-blue.svg)](https://www.python.org/downloads/)
 [![Docker](https://img.shields.io/badge/docker-24.0+-blue.svg)](https://www.docker.com/)
 [![Hadolint](https://img.shields.io/badge/dockerfile-linted-success.svg)](https://github.com/hadolint/hadolint)
@@ -383,7 +385,7 @@ See **[RUNTIME_SECURITY.md](RUNTIME_SECURITY.md)** for comprehensive production 
 
 ## 🛡️ What CI Checks
 
-Beyond building and testing, the workflow guards the properties this repo claims:
+Beyond building and testing, the workflows guard the properties this repo claims. Each workflow runs only when the files it checks change, plus on its weekly or monthly schedule; the secret scan runs on every push to main and every pull request to main.
 - **Weekly rebuild without cache** and re-scan, so new CVEs and OS patches surface without a push (CIS 4.4).
 - **Base image digest freshness** - fails when the pinned digest is stale (Spell #1).
 - **Trivy** fails on HIGH/CRITICAL findings, and an assertion makes sure it can actually *see* the image's OS and Python packages (a scanner that sees nothing passes vacuously).

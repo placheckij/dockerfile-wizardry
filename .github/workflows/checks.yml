@@ -1,0 +1,136 @@
+name: 📖 Static Checks
+
+# Checks that read files without building or running the image: the Dockerfiles and examples
+# (Hadolint, Trivy's configuration scan), the rulebook and its generated pages, the README table
+# of contents, the labelled fixtures, the workflow scripts and the Python code (ruff).
+#
+# Runs on changes to those files, and weekly, so a new Trivy misconfiguration rule or a fixture
+# base image that can no longer be pulled is noticed. A red scheduled run emails the last editor
+# of the cron line.
+
+on:
+  pull_request:
+    branches: [ main ]
+    # A new config file for one of these tools (e.g. ruff.toml, .hadolint.yaml, .shellcheckrc,
+    # trivy.yaml, .trivyignore) must be added to this list.
+    paths: &paths
+      # Trivy's configuration scan covers every Dockerfile in the repository
+      - '**/Dockerfile*'
+      # check_rules.py fails on README links to missing files or headings, and README links to
+      # other root files
+      - '*.md'
+      - 'LICENSE'
+      - 'docs/rules/**'
+      - 'skills/**'
+      - '.claude-plugin/**'
+      - 'examples/**'
+      - 'fixtures/**'
+      - '.github/scripts/**'
+      # ruff lints and format-checks every Python file; its version and settings come from these
+      - '**/*.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/checks.yml'
+  push:
+    branches: [ main ]
+    paths: *paths
+  schedule:
+    - cron: '15 6 * * 1'   # Mondays 06:15 UTC (CI itself runs at 06:00)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: 🔍 Lint Dockerfile and Scripts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Run Hadolint
+        uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: warning
+
+      # The smoke-test scripts are bash; shellcheck is preinstalled on GitHub's runners
+      - name: Lint shell scripts (shellcheck)
+        run: shellcheck .github/scripts/*.sh
+
+      # The Python scripts in .github/scripts run with the runner's system python3, not the
+      # project's Python 3.14. `ruff format` targets 3.14 and can emit syntax older Pythons
+      # reject (e.g. `except A, B:`), so compile them with the interpreter that will run them.
+      - name: Check the workflow scripts compile with the runner's Python
+        run: |
+          python3 --version
+          python3 -m py_compile .github/scripts/*.py
+
+      # The README's table of contents is generated; fail if a heading changed and it was not
+      # regenerated (fix: python3 .github/scripts/readme_toc.py)
+      - name: Check the README table of contents is up to date
+        run: python3 .github/scripts/readme_toc.py --check
+
+      # docs/rules/ holds the sourced rulebook; its rule index and sources page are generated,
+      # and so is the skill's references folder (skills/dockerfile-wizardry/references/)
+      # (fix: python3 .github/scripts/check_rules.py --write)
+      - name: Check the rulebook entries, links and generated pages
+        run: python3 .github/scripts/check_rules.py --check
+
+      - name: Test the rulebook checker
+        run: python3 -m unittest discover -s .github/scripts/tests
+
+      # fixtures/dockerfiles/ holds Dockerfiles labelled good or bad; Hadolint and Docker's build
+      # checks must report exactly the codes each expected-findings.txt lists
+      - name: Check the Dockerfile fixtures match their labels
+        run: python3 .github/scripts/check_fixtures.py
+
+  config-scan:
+    name: 🛡️ Trivy Configuration Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: 'config'
+          scan-ref: '.'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          # The single-stage files are deliberately naive benchmark baselines (they run as root),
+          # and the bad fixtures break these rules on purpose (check_fixtures.py checks them)
+          skip-files: 'Dockerfile.single-stage-alpine,Dockerfile.single-stage-slim,fixtures/dockerfiles/debian-apt-naive/Dockerfile,fixtures/dockerfiles/python-naive/Dockerfile'
+
+  python-lint:
+    name: 🐍 Lint Python (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.14'
+
+      # Same uv version as the Dockerfiles. setup-uv caches uv's download cache,
+      # keyed on uv.lock, so no separate cache step is needed.
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: 0.13.6
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      # --locked: fail if uv.lock is out of date with pyproject.toml
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Lint and check formatting
+        run: |
+          uv run --locked ruff check .
+          uv run --locked ruff format --check .
