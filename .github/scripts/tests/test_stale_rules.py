@@ -114,6 +114,8 @@ class LoadWatchedTest(unittest.TestCase):
             {"rule_sources": HADOLINT},
             {"rule_sources": [HADOLINT], "changed_on": "2026-13-01"},
             {"rule_sources": [HADOLINT], "changed_on": 20261201},
+            {"rule_sources": [HADOLINT], "changed_on": "2026-W49-2"},
+            {"rule_sources": [HADOLINT], "changed_on": "20261201"},
         ):
             with (
                 self.subTest(entry=entry),
