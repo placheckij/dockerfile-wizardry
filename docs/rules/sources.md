@@ -57,6 +57,7 @@ of date.
   - [#stopsignal](<https://docs.docker.com/reference/dockerfile/#stopsignal>): [DW-HEALTH-03](health-and-signals.md#dw-health-03-set-the-stop-signal)
   - [#syntax](<https://docs.docker.com/reference/dockerfile/#syntax>): [DW-SUPPLY-06](supply-chain.md#dw-supply-06-keep-docker-engine-and-buildkit-patched-and-use-only-trusted-frontends)
   - [#understand-how-arg-and-from-interact](<https://docs.docker.com/reference/dockerfile/#understand-how-arg-and-from-interact>): [DW-BASE-01](base-image.md#dw-base-01-pin-the-base-image-by-digest)
+  - [#user](<https://docs.docker.com/reference/dockerfile/#user>): [DW-USER-01](users-and-permissions.md#dw-user-01-run-as-a-non-root-user)
 
 ## docs.python.org
 

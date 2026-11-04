@@ -19,10 +19,8 @@ LABEL maintainer="placheckij" \
       description="Dockerfile Wizardry - Best Practices Example" \
       org.opencontainers.image.source="https://github.com/placheckij/dockerfile-wizardry"
 
-# root is uid 0 in every image, and this USER only applies while building, not to the
-# user the container runs as (DW-USER-01 asks for a numeric USER in the final stage)
-# hadolint ignore=DL3066
-USER root
+# root, by uid: a numeric USER is what Hadolint DL3066 asks for
+USER 0
 # 🛡️ Spell #3: Minimal Packages & Non-Root User (CIS 4.3, 4.6)
 # (only tini - no curl, the health check below uses Python)
 # Packages are deliberately NOT version-pinned (hadolint DL3018, OWASP Rule 9 lists pinning):
@@ -88,10 +86,7 @@ COPY --chown=wizard:wizards ./pyproject.toml ./
 # back to writable, and a writable directory lets entries be renamed or replaced.
 # So everything under /spellbook - code, dependencies and the directory itself - is
 # root-owned and reachable by the app user only through the read-only `wizards` group.
-# root is uid 0 in every image, and this USER only applies while building, not to the
-# user the container runs as (DW-USER-01 asks for a numeric USER in the final stage)
-# hadolint ignore=DL3066
-USER root
+USER 0
 RUN chown -R root:wizards /spellbook && \
     chmod -R g-w,o-rwx /spellbook && \
     chmod -R 550 /spellbook/spells /spellbook/potions /spellbook/enchantments && \

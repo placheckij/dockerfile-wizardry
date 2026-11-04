@@ -81,7 +81,7 @@ expect "restart policy"                 "$(inspect '{{.HostConfig.RestartPolicy.
 expect "process limit (pids)"           "$(inspect '{{.HostConfig.PidsLimit}}')"                   100
 expect "open-files ulimit"             "$(inspect '{{range .HostConfig.Ulimits}}{{.Name}}={{.Soft}}:{{.Hard}};{{end}}')" "nofile=1024:1024;"
 expect "tmpfs"                          "$(inspect '{{.HostConfig.Tmpfs}}')"                       "map[/tmp:rw,noexec,nosuid,size=100m]"
-expect "runs as the unprivileged user"  "$(inspect '{{.Config.User}}')"                            wizard
+expect "runs as the unprivileged user"  "$(inspect '{{.Config.User}}')"                            1337:1337
 # Every published binding must be loopback-only - checking just the first would miss an extra 0.0.0.0 one
 expect "published ports (all bindings)" "$(inspect '{{range $p, $bs := .NetworkSettings.Ports}}{{range $bs}}{{$p}}={{.HostIp}}:{{.HostPort}};{{end}}{{end}}')" "8000/tcp=127.0.0.1:8000;"
 # On the project's own user-defined network, not the default bridge
