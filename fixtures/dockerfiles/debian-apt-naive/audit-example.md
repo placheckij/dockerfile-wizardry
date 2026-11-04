@@ -161,7 +161,8 @@ one-shot command, as SKILL.md asks.
 **Linters.** `docker build --check` ran and reported no warnings. Hadolint is not
 installed on this machine, so the run says so and names the Hadolint codes by reading,
 each under the rule that names it: DL3002 and DL3066 under DW-USER-01, DL3015, DL3009 and
-DL3008 under DW-DEPS-01, DL3057 under DW-HEALTH-02.
+DL3008 under DW-DEPS-01, DL3057 under DW-HEALTH-02. DW-USER-01 has since come to call
+DL3066 advisory; the must-fix stands on `USER root` alone.
 
 **Digests and versions.** The digest for `debian:trixie-slim`
 (`sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4`) matches
