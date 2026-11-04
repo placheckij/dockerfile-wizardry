@@ -138,8 +138,13 @@ def _list_field(key, entry, name, pattern):
     return value
 
 
-def _update_hint(key, name):
-    return f"set {key}.{name} in {BASELINE_NAME}"
+def update_hint(key, name, date_name="reviewed_on"):
+    """What to change in the baseline once the change is reviewed. Without changed_on the
+    staleness check in stale_rules.py has nothing to compare the rules' dates with."""
+    return (
+        f"set {key}.{name} in {BASELINE_NAME}, set {key}.{date_name} and {key}.changed_on "
+        "to today, and give each rule listed below a new last_verified date"
+    )
 
 
 def watch_dockerfile_frontend(entry):
@@ -156,7 +161,7 @@ def watch_dockerfile_frontend(entry):
         watch.problem = (
             f"Dockerfile frontend: newest is {latest}, this repo was checked against {reviewed}.\n"
             f"  Release notes: https://github.com/{BUILDKIT}/releases/tag/dockerfile%2F{latest}\n"
-            f"  Re-check the rules below, then {_update_hint(key, 'reviewed_version')}."
+            f"  Re-check the rules below, then {update_hint(key, 'reviewed_version')}."
         )
     return watch
 
@@ -175,7 +180,7 @@ def _set_watch(
         watch.problem = (
             f"{list_name or label}: the list changed ({len(diff)} added or removed, shown below).\n"
             f"  Look at {link}\n"
-            f"  Re-check the rules below, then {_update_hint(key, field_name)}."
+            f"  Re-check the rules below, then {update_hint(key, field_name)}."
         )
     return watch
 
@@ -219,7 +224,7 @@ def watch_hadolint(entry):
             f"Hadolint: newest release is {tag}, this repo was checked against "
             f"{reviewed_release}.\n"
             f"  Release notes: https://github.com/hadolint/hadolint/releases/tag/{tag}\n"
-            f"  Re-check the rules below, then {_update_hint(key, 'reviewed_release')}."
+            f"  Re-check the rules below, then {update_hint(key, 'reviewed_release')}."
         )
         if (
             watch.problem

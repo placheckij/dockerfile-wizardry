@@ -40,7 +40,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import check_rules
 import stale_rules
 import standards_sources
-from standards_sources import BASELINE_NAME, CheckError
+from standards_sources import BASELINE_NAME, CheckError, update_hint
 
 CIS_KEY = "cis_docker_benchmark"
 OWASP_KEY = "owasp_docker_cheat_sheet"
@@ -258,8 +258,8 @@ def main():
     if version_key(cis_latest) > version_key(cis_verified):
         problems.append(
             f"CIS Docker Benchmark: newest is v{cis_latest}, this repo was checked against v{cis_verified}.\n"
-            f"  Re-check the control numbers cited in README.md and the Dockerfile, then set "
-            f"cis_docker_benchmark.verified_version in {BASELINE_NAME}."
+            f"  Re-check the control numbers cited in README.md and the Dockerfile, then "
+            f"{update_hint(CIS_KEY, 'verified_version', 'verified_on')}."
             + recheck_line(baseline, CIS_KEY, rules, tradeoffs)
         )
     diff_text = None
@@ -269,7 +269,7 @@ def main():
             f"OWASP Docker Security Cheat Sheet changed: latest commit {sha[:9]} ({date}): {message}\n"
             f"  Compare: https://github.com/{OWASP_REPO}/compare/{owasp_reviewed}...{sha}\n"
             f"  (that view lists every file changed in the range; this cheat sheet's own diff is shown below)\n"
-            f"  Review it, then set owasp_docker_cheat_sheet.reviewed_commit in {BASELINE_NAME}."
+            f"  Review it, then {update_hint(OWASP_KEY, 'reviewed_commit')}."
             + recheck_line(baseline, OWASP_KEY, rules, tradeoffs)
         )
     if broken:

@@ -114,6 +114,12 @@ class WatchTest(unittest.TestCase):
             lines[3].startswith("  Hadolint rules: the list changed"), lines
         )
 
+    def test_problem_says_to_record_the_change(self):
+        with gh("v2.16.0\n", HADOLINT_README):
+            watch = s.watch_hadolint(self.hadolint_entry())
+        self.assertIn("hadolint.reviewed_on and hadolint.changed_on", watch.problem)
+        self.assertIn("last_verified", watch.problem)
+
     def test_watch_hadolint_bad_tag_is_check_error(self):
         with (
             gh("v2.16.0::set-output\n", HADOLINT_README),

@@ -139,6 +139,28 @@ class MainTest(StandardsTestCase):
         self.assertIn("DW-DEPS-01", err)
         self.assertIn("| + DL3062", err)
 
+    def test_cis_problem_says_to_record_the_change(self):
+        with mock.patch.object(
+            check_standards, "latest_cis_version", return_value="1.10.0"
+        ):
+            code, _, err = self.run_main()
+        self.assertEqual(code, 1)
+        self.assertIn("cis_docker_benchmark.changed_on", err)
+        self.assertIn("last_verified", err)
+
+    def test_owasp_problem_says_to_record_the_change(self):
+        with (
+            mock.patch.object(
+                check_standards,
+                "latest_owasp_commit",
+                return_value=("a" * 40, "2026-11-01", "msg"),
+            ),
+            mock.patch.object(check_standards, "owasp_diff", return_value=None),
+        ):
+            code, _, err = self.run_main()
+        self.assertEqual(code, 1)
+        self.assertIn("owasp_docker_cheat_sheet.changed_on", err)
+
     def test_report_only_returns_zero_when_outdated(self):
         with self.outdated_hadolint():
             code, _, _ = self.run_main("--report-only")

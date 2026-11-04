@@ -6,8 +6,9 @@ name: 📚 Standards Watch
 # release, Docker's Build Checks list, Hadolint's release and rules, and the
 # Debian versions distroless builds on. The failure names the rules that cite
 # the source. GitHub emails failed scheduled runs, so a red run is the
-# notification. After re-checking those rules, update the baseline file (and
-# the rules' last_verified dates) in a PR to turn it green again.
+# notification. After re-checking those rules, update the baseline value, its
+# reviewed date and changed_on, and the rules' last_verified dates, in a PR to
+# turn it green again (Static Checks fails while a rule is older than changed_on).
 
 on:
   schedule:
