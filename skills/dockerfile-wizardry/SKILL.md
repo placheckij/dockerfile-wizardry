@@ -102,8 +102,10 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    - **Check image metadata on the image the container runs.** A `LABEL`, `EXPOSE`,
      `HEALTHCHECK`, `STOPSIGNAL`, `ENTRYPOINT` or `CMD` never reaches the image when it sits
      in a stage the final stage is not built `FROM`, directly or through other stages (a
-     final stage built `FROM scratch` inherits from none), or when a later stage in that
-     chain sets the same `HEALTHCHECK`, `STOPSIGNAL`, `ENTRYPOINT` or `CMD` again. Such an
+     final stage built `FROM scratch` inherits from none), or when a later instruction in
+     the same stage or further along that chain overrides it: a later `HEALTHCHECK`,
+     `STOPSIGNAL`, `ENTRYPOINT` or `CMD` replaces the earlier one, and an `ENTRYPOINT` also
+     clears the `CMD` its stage inherits. Such an
      instruction is not a DW-BASE-02 or DW-HEALTH finding, and a diff leaves it as it is;
      at most, add a note.
    - **A rule the build command can meet as well as the Dockerfile** is a finding only
