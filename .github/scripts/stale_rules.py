@@ -123,7 +123,7 @@ def stale(rules, watched):
 
 
 def unmatched(watched, rules, tradeoffs):
-    """(key, prefix) for prefixes that no rule source and no trade-off source starts with."""
+    """(key, prefix) for prefixes that no rule source and no trade-off source `cites`."""
     urls = [url for rule in rules for url in rule.sources]
     urls += [url for _, section_urls in tradeoffs for url in section_urls]
     return [
