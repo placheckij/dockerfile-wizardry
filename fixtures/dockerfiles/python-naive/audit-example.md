@@ -182,15 +182,12 @@ Plus a `.dockerignore` in this context (currently absent) with at least: `**/.gi
 
 ## Review
 
-Reviewed by hand against `expected-findings.txt` (15 rules) and the rulebook.
+Reviewed by hand against `expected-findings.txt` (14 rules) and the rulebook.
 
-**Expected findings.** 14 of the 15 are reported, each with the severity its strength
-gives. The one it misses is DW-BUILD-05. The run puts it under "does not apply" ("no
-package-manager download to cache-mount; the fix disables the pip cache instead"). But
-`pip install` downloads into a layer, which is what the rule is about, and SKILL.md
-keeps "does not apply" for rules with nothing in the file to check. Of all the labels,
-this one is the closest call: the file has one stage, and the rule's final-stage clause
-sends such installs to DW-DEPS-01's cleanup.
+**Expected findings.** All 14 are reported, each with the severity its strength gives.
+It puts DW-BUILD-05 under "does not apply", which matches the label: the file has one
+stage, and the rule's final-stage clause asks for cleanup in the same layer instead.
+The pip cache left in that layer is DW-DEPS-02, which it reports.
 
 **Rule ids.** Every id it cites exists in `references/rules.md` (checked by script).
 
@@ -227,12 +224,13 @@ reported nothing, and `docker buildx build --call check` gave "Check complete, n
 warnings found."
 
 **What it missed or got wrong.**
-- DW-BUILD-05, as above.
 - It says DW-BUILD-10 is "met here via the slim base". `python:3.13-slim` at that digest
   still has `/usr/bin/apt-get`, `/usr/bin/dpkg` and `/usr/local/bin/pip` (checked with
   `command -v`). Only pruning (DW-BUILD-04) or a base without them would meet the rule.
 - It reports the installer as unpinned under DW-DEPS-02, but the fix keeps whatever pip
   the base image ships.
+- The `LABEL` values in the replacement file (title, source URL, version) are guesses,
+  and the run names only the license as a TODO.
 - It picks Python 3.13 (`python:latest` names no version) without saying that this was
   its own choice.
 - Comments are not sparing. Nearly every instruction has a `# DW-...` line, and two lines

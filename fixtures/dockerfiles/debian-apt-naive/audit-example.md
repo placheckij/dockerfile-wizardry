@@ -151,7 +151,7 @@ Reviewed by hand against `expected-findings.txt` (9 rules) and the rulebook.
 **Expected findings.** All nine are reported, each with the severity its strength gives:
 DW-USER-01 (must fix); DW-BASE-01, DW-BASE-02, DW-BUILD-10, DW-HEALTH-02, DW-HEALTH-03,
 DW-HEALTH-04 and DW-USER-02 (should fix); DW-DEPS-01 (decide). It also shows DW-BUILD-04
-as a decision. For DW-HEALTH-02, -03 and -04 it adds a note that they matter less for a
+as a decision. For DW-HEALTH-02 and -04 it adds a note that they matter less for a
 one-shot command, as SKILL.md asks.
 
 **Rule ids.** Every id it cites exists in `references/rules.md` (checked by script).
@@ -198,6 +198,6 @@ wrote the hunk; the run had no permission denials.
   anything the audited project has set up.
 
 **Earlier runs.** An earlier run marked DW-HEALTH-02 "does not apply" to a one-shot
-command, and in the previous committed run three of four diffs did not apply because
-their hunk lines were counted by hand. SKILL.md now defines "does not apply" and asks for
+command, and in the previous committed run three of four diffs did not apply: two had
+hand-counted hunk lines, and one had no context after the change. SKILL.md now defines "does not apply" and asks for
 `diff -u` to write the hunks; this run's diff applies.
