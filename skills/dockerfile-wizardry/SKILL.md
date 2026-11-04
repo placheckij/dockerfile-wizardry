@@ -86,7 +86,9 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
      you did not see, the rule does not pass: DW-SUPPLY-03 also asks what a pinned action
      fetches in turn, and DW-SUPPLY-05 also asks whether removed files are gone from every
      layer, which needs the built image. Say which part you checked and put the rest under
-     Limits. No rule is listed both as passing and under Limits.
+     Limits; such a rule is not also listed as passing. A `manual` rule you checked in
+     full by reading does pass, even though Limits (section 5) notes it was checked by
+     reading only.
    - **A gap that causes no harm yet is still a finding**, at the rule's strength: a
      `.dockerignore` pattern meant at any depth but written without `**/`
      (`__pycache__/` while `src/` is copied whole) breaks DW-BUILD-03 even if no
