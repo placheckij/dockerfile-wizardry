@@ -52,12 +52,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Run Hadolint
-        uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
-        with:
-          dockerfile: Dockerfile
-          failure-threshold: warning
-
       # The smoke-test scripts are bash; shellcheck is preinstalled on GitHub's runners
       - name: Lint shell scripts (shellcheck)
         run: shellcheck .github/scripts/*.sh
@@ -88,6 +82,11 @@ jobs:
 
       - name: Test the rulebook checker
         run: python3 -m unittest discover -s .github/scripts/tests
+
+      # Every tracked Dockerfile outside fixtures/ must pass Hadolint (warning and above) and
+      # Docker's build checks
+      - name: Lint the Dockerfiles with Hadolint and Docker's build checks
+        run: python3 .github/scripts/lint_dockerfiles.py
 
       # fixtures/dockerfiles/ holds Dockerfiles labelled good or bad; Hadolint and Docker's build
       # checks must report exactly the codes each expected-findings.txt lists

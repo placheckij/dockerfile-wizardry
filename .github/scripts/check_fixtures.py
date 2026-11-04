@@ -108,11 +108,16 @@ def load_json(output, linter, stderr=""):
         ) from error
 
 
-def parse_hadolint(output, stderr=""):
+def parse_hadolint(output, stderr="", levels=None):
+    """Hadolint codes; with `levels`, only findings at one of those levels."""
     findings = load_json(output, "Hadolint", stderr)
     if not isinstance(findings, list):
         raise LinterError("Hadolint JSON is not a list")
-    return {finding["code"] for finding in findings if "code" in finding}
+    return {
+        finding["code"]
+        for finding in findings
+        if "code" in finding and (levels is None or finding.get("level") in levels)
+    }
 
 
 def parse_buildcheck(output, stderr=""):
@@ -128,8 +133,9 @@ def parse_buildcheck(output, stderr=""):
     return {warning["ruleName"] for warning in result.get("warnings") or []}
 
 
-def hadolint_codes(dockerfile):
-    """Hadolint codes for a Dockerfile. DL3057 (missing HEALTHCHECK) is ignored by default."""
+def hadolint_codes(dockerfile, levels=None):
+    """Hadolint codes for a Dockerfile, optionally only at `levels`. DL3057 (missing
+    HEALTHCHECK), which Hadolint ignores by default, is turned on at info level."""
     output, stderr = run_docker(
         [
             "run", "--rm", "-i", HADOLINT_IMAGE,
@@ -137,13 +143,15 @@ def hadolint_codes(dockerfile):
         ],
         stdin=dockerfile.read_text(encoding="utf-8"),
     )  # fmt: skip
-    return parse_hadolint(output, stderr)
+    return parse_hadolint(output, stderr, levels)
 
 
-def buildcheck_codes(fixture_dir):
-    """Rule names reported by `docker buildx build --call check` for a fixture directory."""
+def buildcheck_codes(context, dockerfile=None):
+    """Rule names reported by `docker buildx build --call check` for a build context (a fixture
+    directory), with `dockerfile` when it is not the context's `Dockerfile`."""
+    file_args = ["-f", str(dockerfile)] if dockerfile else []
     output, stderr = run_docker(
-        ["buildx", "build", "--call", "check,format=json", str(fixture_dir)]
+        ["buildx", "build", "--call", "check,format=json", *file_args, str(context)]
     )
     return parse_buildcheck(output, stderr)
 
