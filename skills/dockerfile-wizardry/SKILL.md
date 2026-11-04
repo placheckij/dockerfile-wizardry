@@ -74,8 +74,9 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    a rule matters less for this image, for example a health check for a one-shot
    command, report the finding and add that note; do not leave it out.
    - **A gap that causes no harm yet is still a finding**, at the rule's strength: a
-     `.dockerignore` pattern without `**/` breaks DW-BUILD-03 even if no matching file
-     exists today. Say in the Finding column that nothing is affected yet.
+     `.dockerignore` pattern meant at any depth but written without `**/`
+     (`__pycache__/` while `src/` is copied whole) breaks DW-BUILD-03 even if no
+     matching file exists today. Say in the Finding column that nothing is affected yet.
    - **A rule the build command can meet as well as the Dockerfile** is a finding only
      when neither does. DW-BUILD-09 applies only where reproducible output matters, so
      unless the user has said it does, it goes under Limits. If it does matter,
@@ -86,7 +87,7 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    - **Do not assume facts the files do not show.** Whether the image is published
      decides whether DW-SUPPLY-01 and DW-SUPPLY-02 apply; if the user has not said, ask,
      or leave both under Limits. Their evidence is in the publishing step, never in the
-     Dockerfile, so check them only against a CI workflow you read.
+     Dockerfile, so check them only against a CI workflow or build script you read.
 4. **Report.** Start with a table, one row per finding, in rule order:
 
    | Rule | Line | Finding | Severity |
@@ -243,7 +244,7 @@ reverse, so name it in the summary.
   report DL3008 (apt) or DL3018 (apk); add `# hadolint ignore=DL3008` (or `DL3018`)
   directly above that `RUN`, with a one-line reason above the ignore line, and say in
   the summary that this was a choice. In audit mode, a version pin the file already has
-  is reported as a **decide** item and never removed by a diff.
+  is reported as a **decide** item and not removed by a diff unless the user asks.
 - **Base image family** (slim, default, distroless, or a vendor's hardened image) is a
   decision to put to the user with trade-offs §6. When the user has no preference, use
   the language's official slim variant (for a compiled binary, a slim distribution image
@@ -258,8 +259,8 @@ End every report or summary with what was not checked:
 - **Runtime settings**: `docker run` flags, Compose and Kubernetes settings, unless
   those files are in the repository or the user gave them to you.
 - **Registry and publishing**: SBOM, provenance and signing (DW-SUPPLY-01, DW-SUPPLY-02),
-  unless the user said the image is published and a CI workflow you read publishes it
-  (then check them against that workflow), or said it is not published (then they do
+  unless the user said the image is published and a CI workflow or build script you read
+  publishes it (then check them against that file), or said it is not published (then they do
   not apply).
 - **CI pipeline rules**: build cache export (DW-BUILD-07), action pinning (DW-SUPPLY-03),
   scheduled rebuilds (DW-SUPPLY-04), image scanning (DW-SUPPLY-05), Docker Engine and
