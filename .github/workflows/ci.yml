@@ -8,11 +8,14 @@ name: 🧙‍♂️ Dockerfile Wizardry CI
 on:
   pull_request:
     branches: [ main ]
-    # A new config file for pytest (e.g. a root conftest.py or pytest.ini) must be added here.
+    # A new config file for pytest or Trivy (e.g. a root conftest.py, pytest.ini, .trivyignore,
+    # trivy.yaml) must be added to this list.
     paths: &paths
       - 'Dockerfile'
       - '.dockerignore'
       - 'spellbook/**'
+      # neither copied into the image nor read by the tests
+      - '!spellbook/docs/**'
       - 'pyproject.toml'
       - 'uv.lock'
       - '.github/workflows/ci.yml'
