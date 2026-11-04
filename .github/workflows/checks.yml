@@ -1,0 +1,95 @@
+name: 📖 Static Checks
+
+# Checks that read files without building or running the image: the Dockerfiles and examples
+# (Hadolint, Trivy's configuration scan), the rulebook and its generated pages, the README table
+# of contents, the labelled fixtures and the workflow scripts.
+#
+# Runs on changes to those files, and weekly, so a new Trivy misconfiguration rule or a fixture
+# base image that can no longer be pulled is noticed. A red scheduled run emails the last editor
+# of the cron line.
+
+on:
+  pull_request:
+    paths: &paths
+      - 'Dockerfile'
+      - 'README.md'
+      - 'docs/rules/**'
+      - 'skills/**'
+      - '.claude-plugin/**'
+      - 'examples/**'
+      - 'fixtures/**'
+      - '.github/scripts/**'
+      - '.github/workflows/checks.yml'
+  push:
+    branches: [ main ]
+    paths: *paths
+  schedule:
+    - cron: '15 6 * * 1'   # Mondays 06:15 UTC (CI itself runs at 06:00)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: 🔍 Lint Dockerfile and Scripts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Run Hadolint
+        uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: warning
+
+      # The smoke-test scripts are bash; shellcheck is preinstalled on GitHub's runners
+      - name: Lint shell scripts (shellcheck)
+        run: shellcheck .github/scripts/*.sh
+
+      # The Python scripts in .github/scripts run with the runner's system python3, not the
+      # project's Python 3.14. `ruff format` targets 3.14 and can emit syntax older Pythons
+      # reject (e.g. `except A, B:`), so compile them with the interpreter that will run them.
+      - name: Check the workflow scripts compile with the runner's Python
+        run: |
+          python3 --version
+          python3 -m py_compile .github/scripts/*.py
+
+      # The README's table of contents is generated; fail if a heading changed and it was not
+      # regenerated (fix: python3 .github/scripts/readme_toc.py)
+      - name: Check the README table of contents is up to date
+        run: python3 .github/scripts/readme_toc.py --check
+
+      # docs/rules/ holds the sourced rulebook; its rule index and sources page are generated,
+      # and so is the skill's references folder (skills/dockerfile-wizardry/references/)
+      # (fix: python3 .github/scripts/check_rules.py --write)
+      - name: Check the rulebook entries, links and generated pages
+        run: python3 .github/scripts/check_rules.py --check
+
+      - name: Test the rulebook checker
+        run: python3 -m unittest discover -s .github/scripts/tests
+
+      # fixtures/dockerfiles/ holds Dockerfiles labelled good or bad; Hadolint and Docker's build
+      # checks must report exactly the codes each expected-findings.txt lists
+      - name: Check the Dockerfile fixtures match their labels
+        run: python3 .github/scripts/check_fixtures.py
+
+  config-scan:
+    name: 🛡️ Trivy Configuration Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: 'config'
+          scan-ref: '.'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          # The single-stage files are deliberately naive benchmark baselines (they run as root),
+          # and the bad fixtures break these rules on purpose (check_fixtures.py checks them)
+          skip-files: 'Dockerfile.single-stage-alpine,Dockerfile.single-stage-slim,fixtures/dockerfiles/debian-apt-naive/Dockerfile,fixtures/dockerfiles/python-naive/Dockerfile'
