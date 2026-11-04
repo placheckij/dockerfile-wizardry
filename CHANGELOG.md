@@ -24,5 +24,3 @@ Each pull request that changes `skills/` or `.claude-plugin/` adds a line under 
 
 - The `dockerfile-wizardry` skill, with an audit mode and a create mode, reading a `references/` copy of the rulebook generated from `docs/rules/`. (#15)
 - Plugin and marketplace manifests, so the skill installs with `/plugin marketplace add placheckij/dockerfile-wizardry`. (#15)
-
-This version was not tagged.
