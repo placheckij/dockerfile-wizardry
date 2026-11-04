@@ -51,6 +51,7 @@ of date.
 - [docs.docker.com/reference/dockerfile/](<https://docs.docker.com/reference/dockerfile/>)
   - [whole page](<https://docs.docker.com/reference/dockerfile/>): [DW-BUILD-05](build-and-cache.md#dw-build-05-keep-package-manager-downloads-in-a-cache-mount)
   - [#add](<https://docs.docker.com/reference/dockerfile/#add>): [DW-BUILD-03](build-and-cache.md#dw-build-03-copy-only-what-the-image-needs), [DW-DEPS-03](dependencies.md#dw-deps-03-verify-what-you-download-during-the-build), [trade-off 5](tradeoffs.md#5-add-or-copy)
+  - [#copy---chown---chmod](<https://docs.docker.com/reference/dockerfile/#copy---chown---chmod>): [DW-USER-01](users-and-permissions.md#dw-user-01-run-as-a-non-root-user)
   - [#expose](<https://docs.docker.com/reference/dockerfile/#expose>): [DW-HEALTH-01](health-and-signals.md#dw-health-01-declare-the-port-the-application-listens-on)
   - [#healthcheck](<https://docs.docker.com/reference/dockerfile/#healthcheck>): [DW-HEALTH-02](health-and-signals.md#dw-health-02-add-a-health-check)
   - [#label](<https://docs.docker.com/reference/dockerfile/#label>): [DW-BASE-02](base-image.md#dw-base-02-label-the-image-with-metadata)

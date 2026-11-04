@@ -49,12 +49,14 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    `HEALTHCHECK`, but only the final stage runs as a container. At most, suggest a
    `# hadolint ignore=DL3057` above that `FROM`, as in create mode (step 5). Likewise,
    DL3002 and DL3066 are DW-USER-01 findings only on the `USER` the container runs as:
-   the final stage's last `USER`, or, if the final stage sets none, the last `USER` of
-   the stage it is built `FROM`. On any other `USER` they are not findings.
+   the final stage's last `USER`, or, if the final stage sets none, the last `USER`
+   along the chain of stages it is built `FROM`. On any other `USER` they are not
+   findings, though the rule names them: at most, add a note and suggest writing that
+   `USER` by number.
 
    If a linter is not available, say so and check by reading; then name a code only
-   where you can tell it would fire on this file (DL3002 needs an explicit `USER root`
-   or `USER 0`, not a missing `USER`), and say the codes were not run.
+   where you can tell it would fire on this file (DL3002 needs an explicit root `USER`,
+   such as `USER root` or `USER 0`, not a missing `USER`), and say the codes were not run.
 3. **Go rule by rule** through `references/rules.md` in order. For each rule decide:
    finding, passes, does not apply (say why), or cannot be checked from these files
    (it goes under Limits). "Does not apply" means the Dockerfile has nothing the rule is
@@ -173,9 +175,11 @@ Use this when the user wants a new Dockerfile for a project.
 5. **Check your own output.** Run the linters as in audit mode, then go through the
    rules once and fix or report what remains. Hadolint asks every stage for a
    `HEALTHCHECK` (DL3057), but a build stage never runs as a container, so put
-   `# hadolint ignore=DL3057` above its `FROM` with that reason. Write a `USER` that only
-   applies during the build as `USER 0`, not `USER root`: Hadolint v2.15.1 reports
-   DL3066 on every `USER` given by name.
+   `# hadolint ignore=DL3057` above its `FROM` with that reason. Write every `USER` by
+   number, a build-time root as `USER 0`: Hadolint v2.15.1 reports DL3066 on every
+   `USER` given by name. A build stage that ends as `USER 0` still gets DL3002, which is
+   not a finding there; put `# hadolint ignore=DL3002` above that `USER` with that
+   reason.
 6. **Offer a runtime example.** Offer a hardened Compose service or Kubernetes Pod spec,
    adapted from `references/examples/compose.yaml` or `references/examples/pod.yaml`:
    change the image name, port, user and group IDs and health check notes to fit, and
