@@ -3,9 +3,10 @@
 .github/standards-baseline.json records, per watched upstream source, the value this repo was
 last checked against. Each entry lists `rule_sources`: URL prefixes that tie it to the rules
 (and trade-off sections) citing it. A rule cites a watched source when one of its `sources`
-starts with one of those prefixes. When the monthly standards watch reports a change and the
-baseline is moved to the new value, the entry's `changed_on` is set to that date; from then on
-every rule citing the source must have a `last_verified` date on or after `changed_on`.
+is one of those prefixes or continues one with `/`, `?`, `#` or `%2F` (either case). When the
+monthly standards watch reports a change and the baseline is moved to the new value, the entry's
+`changed_on` is set to that date; from then on every rule citing the source must have a
+`last_verified` date on or after `changed_on`.
 
 The script also fails when a prefix matches no rule and no trade-off source, since a typo there
 would silently switch the check off for that source.
@@ -81,8 +82,21 @@ def load_watched(baseline):
     return watched
 
 
+# where a prefix may end: `.../hadolint` covers `.../hadolint#rules`, not `.../hadolint-extra`
+URL_BOUNDARIES = ("/", "?", "#", "%2F", "%2f")
+
+
+def _cites_one(url, prefix):
+    if not url.startswith(prefix):
+        return False
+    rest = url[len(prefix) :]
+    return (
+        not rest or prefix.endswith(URL_BOUNDARIES) or rest.startswith(URL_BOUNDARIES)
+    )
+
+
 def cites(urls, prefixes):
-    return any(url.startswith(prefix) for url in urls for prefix in prefixes)
+    return any(_cites_one(url, prefix) for url in urls for prefix in prefixes)
 
 
 def cited_by(prefixes, rules, tradeoffs):
@@ -110,7 +124,7 @@ def stale(rules, watched):
 
 
 def unmatched(watched, rules, tradeoffs):
-    """(key, prefix) for prefixes that no rule source and no trade-off source starts with."""
+    """(key, prefix) for prefixes that no rule source and no trade-off source `cites`."""
     urls = [url for rule in rules for url in rule.sources]
     urls += [url for _, section_urls in tradeoffs for url in section_urls]
     return [
