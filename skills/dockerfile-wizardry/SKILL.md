@@ -43,7 +43,9 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    Each rule's "How to check" line names the linter codes that belong to it (for example
    DL3002 under DW-USER-01, SecretsUsedInArgOrEnv under DW-SECRET-01). Report every code
    under its matching rule. A code that no rule names is reported separately, marked
-   "not from the rulebook". If a linter is not available, say so and check by reading.
+   "not from the rulebook". If a linter is not available, say so and check by reading;
+   then name a code only where you can tell it would fire on this file (DL3002 needs an
+   explicit `USER root`, not a missing `USER`), and say the codes were not run.
 3. **Go rule by rule** through `references/rules.md` in order. For each rule decide:
    finding, passes, does not apply (say why), or cannot be checked from these files
    (it goes under Limits). "Does not apply" means the Dockerfile has nothing the rule is
@@ -77,10 +79,14 @@ Use this when the user has a Dockerfile and wants it reviewed, hardened or optim
    differ, which is expected here):
 
    ```sh
-   diff -u --label a/Dockerfile --label b/Dockerfile Dockerfile - <<'EOF'
+   diff -u --label a/<path> --label b/<path> <path> - <<'EOF'
    <the whole fixed Dockerfile>
    EOF
    ```
+
+   `<path>` is the Dockerfile's path from the directory the user works in (for example
+   `services/api/Dockerfile`), so the headers name that file and `git apply` finds it.
+   In the example below the file is `./Dockerfile`.
 
    ```diff
    --- a/Dockerfile
