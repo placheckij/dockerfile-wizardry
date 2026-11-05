@@ -211,8 +211,8 @@ unless the workflow, build script or Compose file that builds this image names a
    `docker build -t <tag> -f <path> <context>` plus every flag of the build that makes
    the image that changes what is built: `--target`, `--build-arg`, `--build-context`,
    `--platform`, `--secret`, `--ssh` and the like, or their Compose keys. Where that
-   build lists several platforms, build one, the host's if it is among them: the local
-   image store holds one platform per tag. A secret that
+   build lists several platforms, build one, the host's if it is among them, so that
+   each side is one image the host can run. A secret that
    build reads from CI is not on this machine, so ask the user for a local source. Add
    `--load` when the builder in use, the one `docker buildx ls` marks with `*`, has a
    driver other than `docker`, which otherwise keeps the image out of the local store.
@@ -235,7 +235,12 @@ unless the workflow, build script or Compose file that builds this image names a
      the leading `/` dropped from `<dir>`. If `docker create` fails, do not export or
      remove anything under that name; otherwise `docker rm -v <container>` whether or
      not the listing worked (`-v` also removes the anonymous volumes `docker create`
-     made for the image's `VOLUME` paths);
+     made for the image's `VOLUME` paths). A dependency tree can hold tens of thousands
+     of files, more than you can compare by reading, so count owners and modes instead,
+     for example by piping the `ls` listing through
+     `awk 'NF >= 9 {print $1, $3, $4}' | sort | uniq -c` (with `tar -tv`, count its
+     mode and owner columns the same way), and look up the paths behind any count that
+     differs between the two images;
    - the image size: `docker image inspect --format '{{.Size}}' <tag>`.
 
    Report each difference with the rule ids it bears on, so the user can still undo a
