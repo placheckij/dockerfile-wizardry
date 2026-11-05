@@ -58,8 +58,8 @@ statement:
   Keep the installer's download cache out of the layer, either by disabling it or by keeping it
   in a cache mount (DW-BUILD-05); configure the installer to use the interpreter already in the
   base image, and pin its version (this repository pins `uv`). For Python, compile
-  bytecode at install time when the runtime user cannot write next to the code: the root
-  filesystem will be read-only, or the code and dependencies are root-owned (DW-USER-02).
+  bytecode at install time when the runtime user cannot write next to the installed packages:
+  the root filesystem will be read-only, or the dependencies are root-owned (DW-USER-02).
 
 why:
   A cache left in a layer adds size that can never be removed, and an unpinned installer makes
@@ -68,8 +68,8 @@ why:
   mount it instead, the mount is created for `uid` 0 by default, so for a non-root build user pass
   `uid=` and `gid=` and target that user's cache directory (`uv cache dir` shows it); a wrong
   `target` leaves the mount unused, so the cache lands in the layer, and a right one the user cannot
-  write to fails the install. With a read-only runtime filesystem, or with code and dependencies
-  the runtime user cannot write (DW-USER-02), Python cannot write its own `.pyc` files into
+  write to fails the install. With a read-only runtime filesystem, or with dependencies the
+  runtime user cannot write (DW-USER-02), Python cannot write its own `.pyc` files into
   `__pycache__`, so without install-time compilation it recompiles every installed module on every
   start (the standard library of the official Python image is not precompiled either, per the uv
   guide, and needs its own `compileall`); in this repository that measured 644 ms against 358 ms
