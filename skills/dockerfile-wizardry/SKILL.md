@@ -211,8 +211,9 @@ unless the workflow, build script or Compose file that builds this image names a
    `docker build -t <tag> -f <path> <context>` plus every flag of the build that makes
    the image that changes what is built: `--target`, `--build-arg`, `--build-context`,
    `--platform`, `--secret`, `--ssh` and the like, or their Compose keys. Where that
-   build lists several platforms, build one, the host's if it is among them, so that
-   each side is one image the host can run. A secret that
+   build lists several platforms, build one, so that each side is a single image to
+   inspect, and take the host's if it is among them, so that the image also runs here.
+   A secret that
    build reads from CI is not on this machine, so ask the user for a local source. Add
    `--load` when the builder in use, the one `docker buildx ls` marks with `*`, has a
    driver other than `docker`, which otherwise keeps the image out of the local store.
