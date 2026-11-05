@@ -19,6 +19,7 @@ Each pull request that changes `skills/` or `.claude-plugin/` adds a line under 
 - Audit mode reports a finding that only a trade-off can fix, such as DW-BUILD-10 on the package manager a distribution base ships, at its severity without a diff, naming the options, and asks which fixes to apply by rule id, also where one diff covers several rules.
 - Audit mode checks the Compose healthchecks, Kubernetes exec probes and scripts it read before a diff removes a package or binary they call.
 - Audit mode does not count a scan of the copied files, by a secret scanner or a search it wrote itself, as reading them: it reports what the scan found, keeps the files it did not open under Limits and lists neither DW-SECRET-01 nor DW-BUILD-03 as passing.
+- DW-DEPS-02 asks for install-time bytecode also when the installed dependencies are root-owned (DW-USER-02), not only on a read-only root filesystem, and says the size cost grows with the dependencies and should be measured instead of quoting 8 MB as typical. DW-USER-02 points back to it.
 - DW-BUILD-07 notes that a persistent self-hosted runner keeps its local cache without an export, and that a no-cache rebuild then has to get past that cache (DW-SUPPLY-04).
 
 ## [0.1.2] - 2026-11-04
