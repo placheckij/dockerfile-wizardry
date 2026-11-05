@@ -319,7 +319,8 @@ Strength: SHOULD. Last verified: 2026-11-03.
 Keep the installer's download cache out of the layer, either by disabling it or by keeping it
 in a cache mount (DW-BUILD-05); configure the installer to use the interpreter already in the
 base image, and pin its version (this repository pins `uv`). For Python, compile
-bytecode at install time when the root filesystem will be read-only.
+bytecode at install time when the runtime user cannot write next to the code: the root
+filesystem will be read-only, or the code and dependencies are root-owned (DW-USER-02).
 
 Why: A cache left in a layer adds size that can never be removed, and an unpinned installer makes
 builds differ over time. The uv Docker guide shows both ways: a cache mount, and `--no-cache` or
@@ -327,13 +328,15 @@ builds differ over time. The uv Docker guide shows both ways: a cache mount, and
 mount it instead, the mount is created for `uid` 0 by default, so for a non-root build user pass
 `uid=` and `gid=` and target that user's cache directory (`uv cache dir` shows it); a wrong
 `target` leaves the mount unused, so the cache lands in the layer, and a right one the user cannot
-write to fails the install. With a read-only runtime filesystem Python cannot write its own `.pyc`
-files, so without install-time compilation it recompiles every installed module on every start
-(the standard library of the official Python image is not precompiled either, per the uv guide,
-and needs its own `compileall`); in this repository that measured 644 ms against 358 ms for
-dependency imports, for about 8 MB more image. Python writes hash-based `.pyc` files when
-`SOURCE_DATE_EPOCH` is set, which makes the bytecode reproducible. Turn compilation off if size
-matters more than start-up time.
+write to fails the install. With a read-only runtime filesystem, or with code and dependencies
+the runtime user cannot write (DW-USER-02), Python cannot write its own `.pyc` files into
+`__pycache__`, so without install-time compilation it recompiles every installed module on every
+start (the standard library of the official Python image is not precompiled either, per the uv
+guide, and needs its own `compileall`); in this repository that measured 644 ms against 358 ms
+for dependency imports. The size cost grows with the installed dependencies: 8 MB here, tens of
+megabytes for a large dependency set, so compare the image size with and without it. Python
+writes hash-based `.pyc` files when `SOURCE_DATE_EPOCH` is set, which makes the bytecode
+reproducible. Turn compilation off if size matters more than start-up time.
 
 How to check: manual. Hadolint DL3042 reports a `pip install` that keeps pip's download cache in the layer; it
 checks pip only, and not whether the installer is pinned.
@@ -686,7 +689,8 @@ Why: An owner can always `chmod` its own files back to writable, and a writable 
 entries be renamed or replaced, so a compromised process could tamper with its own code. OWASP
 Rule 8 asks for a read-only filesystem at runtime; making the files root-owned is this
 repository's build-time complement, which keeps the protection even when the runtime flag is
-missing. The runtime flag remains the primary control.
+missing. The runtime flag remains the primary control. With the code root-owned,
+Python cannot write `__pycache__` at runtime, so compile bytecode at build time (DW-DEPS-02).
 
 How to check: manual. This repository's CI runs a check that the application user cannot write, `chmod` or
 replace anything under the application directory.

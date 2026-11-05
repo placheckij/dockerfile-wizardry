@@ -69,7 +69,8 @@ why:
   entries be renamed or replaced, so a compromised process could tamper with its own code. OWASP
   Rule 8 asks for a read-only filesystem at runtime; making the files root-owned is this
   repository's build-time complement, which keeps the protection even when the runtime flag is
-  missing. The runtime flag remains the primary control.
+  missing. The runtime flag remains the primary control. With the code root-owned,
+  Python cannot write `__pycache__` at runtime, so compile bytecode at build time (DW-DEPS-02).
 
 how_to_check:
   manual. This repository's CI runs a check that the application user cannot write, `chmod` or
