@@ -39,12 +39,13 @@ unless the workflow, build script or Compose file that builds this image names a
    wrapper script it runs (DW-HEALTH-05 needs the `exec` in it checked by reading).
    Open the copied files, not only their names: a secret sits inside a config file
    whose name gives nothing away. If there are too many to read, say which you did not
-   open and list them under Limits. A secret scanner run over them (Trivy's secret
-   scanning, for one) counts as reading them for secrets; a search you wrote yourself for
-   file names or a few patterns does not, so the files it covered still go under Limits,
-   and DW-SECRET-01 is not listed as passing. For a secret you find, report the file,
-   the line and what kind of secret it is, never its value: the report is often pasted
-   into a pull request or an issue.
+   open and list them under Limits. A scan is not a read: a secret scanner (Trivy's
+   secret scanning, for one) or a search you wrote yourself finds only the formats it
+   looks for, and a password in a config file often matches none of them. Run one if you
+   can and report what it found, but the files you did not open still go under Limits,
+   and DW-SECRET-01 is then not listed as passing. For a secret you find, report the
+   file, the line and what kind of secret it is, never its value: the report is often
+   pasted into a pull request or an issue.
    Also read the files that settle rules beyond the Dockerfile when they are in the
    repository, whether or not the user named them: CI workflows (`.github/workflows/`,
    `.gitlab-ci.yml` and the like) and build scripts for the CI pipeline rules listed under
