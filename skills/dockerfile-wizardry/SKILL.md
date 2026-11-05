@@ -207,7 +207,9 @@ unless the workflow, build script or Compose file that builds this image names a
    show, such as the megabytes install-time bytecode adds (DW-DEPS-02). Building runs
    the file's `RUN` steps and may need network access or build secrets, so build only if
    the user agrees. Then build the original before you edit any file (the Dockerfile or
-   the `.dockerignore`) and the fixed one after, each with the `--target` and build arguments of the build that makes the image
+   the `.dockerignore`) and the fixed one after, each with the `--target`, build
+   arguments, `--secret` and `--ssh` flags of the build that makes the image; a secret
+   that build reads from CI is not on this machine, so ask the user for a local source
    (`docker build -t <tag> -f <path> <context>`; add `--load` when the builder in use,
    the one `docker buildx ls` marks with `*`, has a driver other than `docker`, which
    otherwise keeps the image out of the local store). Give the two builds their own new
