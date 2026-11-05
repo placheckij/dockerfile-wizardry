@@ -208,20 +208,25 @@ unless the workflow, build script or Compose file that builds this image names a
    the file's `RUN` steps and may need network access or build secrets, so build only if
    the user agrees. Then build the original before you edit the file and the fixed one
    after, each with the `--target` and build arguments of the build that makes the image
-   (`docker build -t <tag> -f <path> <context>`), and compare:
+   (`docker build -t <tag> -f <path> <context>`). Give the two builds their own new tags,
+   such as `dw-audit-before` and `dw-audit-after`, that no existing image has: a tag the
+   project already uses would replace the user's image, and a shared tag would leave you
+   comparing the fixed image with itself. Compare:
    - the user it runs as and its PID 1 (DW-USER-01, DW-HEALTH-04, DW-HEALTH-05):
      `docker image inspect --format '{{.Config.User}} {{json .Config.Entrypoint}} {{json .Config.Cmd}}' <tag>`;
    - who owns the application files (DW-USER-02):
-     `docker run --rm --entrypoint ls <tag> -ln <app dir>`, or, in an image without
-     `ls`, `docker create --name <container> <tag>`, then
+     `docker run --rm --user 0 --entrypoint ls <tag> -ln <app dir>` (as root, since the
+     image's user may not be able to list the directory), or, in an image without `ls`,
+     `docker create --name <container> <tag> x` (the placeholder command is never run,
+     but an image with no `CMD` or `ENTRYPOINT` needs one), then
      `docker export <container> | tar -tv --numeric-owner -f - <app dir>` with the
      leading `/` dropped from `<app dir>`, and `docker rm <container>`;
    - the image size: `docker image inspect --format '{{.Size}}' <tag>`.
 
    Report each difference with the rule ids it bears on, so the user can still undo a
-   fix whose cost they do not want. If a build fails, quote its error rather than
-   guessing its cause, and say whether the original builds. Offer to remove the images
-   afterwards.
+   fix whose cost they do not want. If a build fails, quote its error, with secret
+   values redacted as in step 4, rather than guessing its cause, and say whether the
+   original builds. Offer to remove the two images afterwards, and remove no others.
 6. **Close** with two lists. First, the rules the Dockerfile passes now, under the words
    "passes the listed checks". Use those words only for rules that actually pass. Second,
    the rules that do not pass: every must-fix or should-fix finding still open, including
