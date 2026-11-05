@@ -43,9 +43,10 @@ unless the workflow, build script or Compose file that builds this image names a
    secret scanning, for one) or a search you wrote yourself finds only the formats it
    looks for, and a password in a config file often matches none of them. Run one if you
    can and report what it found, but the files you did not open still go under Limits,
-   and DW-SECRET-01 is then not listed as passing. For a secret you find, report the
-   file, the line and what kind of secret it is, never its value: the report is often
-   pasted into a pull request or an issue.
+   and neither DW-SECRET-01 nor DW-BUILD-03, which keeps secrets out of the image too, is
+   then listed as passing. For a secret you find, report the file, the line and what
+   kind of secret it is, never its value: the report is often pasted into a pull request
+   or an issue.
    Also read the files that settle rules beyond the Dockerfile when they are in the
    repository, whether or not the user named them: CI workflows (`.github/workflows/`,
    `.gitlab-ci.yml` and the like) and build scripts for the CI pipeline rules listed under
