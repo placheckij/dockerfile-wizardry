@@ -201,6 +201,27 @@ unless the workflow, build script or Compose file that builds this image names a
    after the first one the others may no longer match. Re-run the linters
    afterwards if they were available, and show what changed, with secret values
    redacted as in step 4.
+
+   If you can run `docker`, offer in the same message, as an option, to build the image
+   before and after the fixes and compare the two: a fix can cost what its diff does not
+   show, such as the megabytes install-time bytecode adds (DW-DEPS-02). Building runs
+   the file's `RUN` steps and may need network access or build secrets, so build only if
+   the user agrees. Then build the original before you edit the file and the fixed one
+   after, each with the `--target` and build arguments of the build that makes the image
+   (`docker build -t <tag> -f <path> <context>`), and compare:
+   - the user it runs as and its PID 1 (DW-USER-01, DW-HEALTH-04, DW-HEALTH-05):
+     `docker image inspect --format '{{.Config.User}} {{json .Config.Entrypoint}} {{json .Config.Cmd}}' <tag>`;
+   - who owns the application files (DW-USER-02):
+     `docker run --rm --entrypoint ls <tag> -ln <app dir>`, or, in an image without
+     `ls`, `docker create --name <container> <tag>`, then
+     `docker export <container> | tar -tv --numeric-owner -f - <app dir>` with the
+     leading `/` dropped from `<app dir>`, and `docker rm <container>`;
+   - the image size: `docker image inspect --format '{{.Size}}' <tag>`.
+
+   Report each difference with the rule ids it bears on, so the user can still undo a
+   fix whose cost they do not want. If a build fails, quote its error rather than
+   guessing its cause, and say whether the original builds. Offer to remove the images
+   afterwards.
 6. **Close** with two lists. First, the rules the Dockerfile passes now, under the words
    "passes the listed checks". Use those words only for rules that actually pass. Second,
    the rules that do not pass: every must-fix or should-fix finding still open, including
