@@ -208,21 +208,25 @@ unless the workflow, build script or Compose file that builds this image names a
    the file's `RUN` steps and may need network access or build secrets, so build only if
    the user agrees. Then build the original before you edit the file and the fixed one
    after, each with the `--target` and build arguments of the build that makes the image
-   (`docker build --load -t <tag> -f <path> <context>`; without `--load`, a builder with
-   the `docker-container` driver keeps the image out of the local store). Give the two
-   builds their own new tags, such as `dw-audit-before` and `dw-audit-after`, that no
-   existing image has: a tag the project already uses would replace the user's image,
-   and a shared tag would leave you comparing the fixed image with itself. Compare:
+   (`docker build -t <tag> -f <path> <context>`; add `--load` when the builder in use,
+   the one `docker buildx ls` marks with `*`, has the `docker-container` driver, which
+   otherwise keeps the image out of the local store). Give the two builds their own new
+   tags, such as `dw-audit-before` and `dw-audit-after`, that no existing image has: a
+   tag the project already uses would replace the user's image, and a shared tag would
+   leave you comparing the fixed image with itself. Compare:
    - the user it runs as and its PID 1 (DW-USER-01, DW-HEALTH-04, DW-HEALTH-05):
      `docker image inspect --format '{{.Config.User}} {{json .Config.Entrypoint}} {{json .Config.Cmd}}' <tag>`;
-   - who owns the application files (DW-USER-02):
-     `docker run --rm --user 0 --entrypoint ls <tag> -lnaR <app dir>` (as root, since the
+   - who owns the application code and dependencies (DW-USER-02), for each `<dir>` they
+     are in (the application directory, and a virtual environment, `site-packages` or
+     `node_modules` outside it):
+     `docker run --rm --user 0 --entrypoint ls <tag> -lnaR <dir>` (as root, since the
      image's user may not be able to list the directory; the first `.` line is the
      directory itself, which DW-USER-02 covers too), or, in an image without `ls`,
-     `docker create --name dw-audit-files <tag> x` (the placeholder command is never run,
-     but an image with no `CMD` or `ENTRYPOINT` needs one), then
-     `docker export dw-audit-files | tar -tv --numeric-owner -f - <app dir>` with the
-     leading `/` dropped from `<app dir>`, and `docker rm dw-audit-files` whether or not
+     `docker create --name <container> <tag> x` with a name no container has yet (the
+     placeholder command is never run, but an image with no `CMD` or `ENTRYPOINT` needs
+     one), then `docker export <container> | tar -tv --numeric-owner -f - <dir>` with
+     the leading `/` dropped from `<dir>`. If `docker create` fails, do not export or
+     remove anything under that name; otherwise `docker rm <container>` whether or not
      the listing worked;
    - the image size: `docker image inspect --format '{{.Size}}' <tag>`.
 
