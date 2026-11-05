@@ -201,6 +201,54 @@ unless the workflow, build script or Compose file that builds this image names a
    after the first one the others may no longer match. Re-run the linters
    afterwards if they were available, and show what changed, with secret values
    redacted as in step 4.
+
+   If you can run `docker`, offer in the same message, as an option, to build the image
+   before and after the fixes and compare the two: a fix can cost what its diff does not
+   show, such as the megabytes install-time bytecode adds (DW-DEPS-02). Building runs
+   the file's `RUN` steps and may need network access or build secrets, so build only if
+   the user agrees. Then build the original before you edit any file (the Dockerfile or
+   the `.dockerignore`) and the fixed one after, with
+   `docker build -t <tag> -f <path> <context>` plus every flag of the build that makes
+   the image that changes what is built: `--target`, `--build-arg`, `--build-context`,
+   `--platform`, `--secret`, `--ssh` and the like, or their Compose keys. Where that
+   build lists several platforms, build one, so that each side is a single image to
+   inspect, and take the host's if it is among them, so that the image also runs here.
+   A secret that build reads from CI is not on this machine, so ask the user for a
+   local source. Add `--load` when the builder in use, the one `docker buildx ls` marks
+   with `*`, has a driver other than `docker`, which otherwise keeps the image out of
+   the local store.
+   Give the two builds their own new tags, such as `dw-audit-before` and
+   `dw-audit-after`, that no existing image has: a tag the project already uses would
+   replace the user's image, and a shared tag would leave you comparing the fixed image
+   with itself. Compare:
+   - the user it runs as and its PID 1 (DW-USER-01, DW-HEALTH-04, DW-HEALTH-05):
+     `docker image inspect --format '{{.Config.User}} {{json .Config.Entrypoint}} {{json .Config.Cmd}}' <tag>`;
+   - who owns the application code and dependencies (DW-USER-02), for each `<dir>` they
+     are in (the application directory, and a virtual environment, `site-packages` or
+     `node_modules` outside it):
+     `docker run --rm --user 0 --entrypoint ls <tag> -lnaR <dir>` (as root, since the
+     image's user may not be able to list the directory; the first `.` line is the
+     directory itself, which DW-USER-02 covers too), or, in an image without `ls` or
+     one the host cannot run (`exec format error` for another platform), which this
+     way runs nothing from, `docker create --name <container> <tag> x` with a name no
+     container has yet (the placeholder command is never run, but an image with no
+     `CMD` or `ENTRYPOINT` needs one), then `docker export <container> | tar -tv --numeric-owner -f - <dir>` with
+     the leading `/` dropped from `<dir>`. If `docker create` fails, do not export or
+     remove anything under that name; otherwise `docker rm -v <container>` whether or
+     not the listing worked (`-v` also removes the anonymous volumes `docker create`
+     made for the image's `VOLUME` paths). A dependency tree can hold tens of thousands
+     of files, more than you can compare by reading, so count owners and modes instead,
+     for example by piping the `ls` listing through
+     `awk 'NF >= 9 {print $1, $3, $4}' | sort | uniq -c` (with `tar -tv`, count its
+     mode and owner columns the same way), and look up the paths behind any count that
+     differs between the two images;
+   - the image size: `docker image inspect --format '{{.Size}}' <tag>`.
+
+   Report each difference with the rule ids it bears on, so the user can still undo a
+   fix whose cost they do not want. Redact secret values as in step 4 in everything you
+   show from the builds and images, a `Cmd` or `Entrypoint` included. If a build fails,
+   quote its error rather than guessing its cause, and say whether the original builds.
+   Offer to remove the two images afterwards, and remove no others.
 6. **Close** with two lists. First, the rules the Dockerfile passes now, under the words
    "passes the listed checks". Use those words only for rules that actually pass. Second,
    the rules that do not pass: every must-fix or should-fix finding still open, including
