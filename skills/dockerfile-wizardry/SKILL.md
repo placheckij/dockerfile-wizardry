@@ -213,10 +213,10 @@ unless the workflow, build script or Compose file that builds this image names a
    `--platform`, `--secret`, `--ssh` and the like, or their Compose keys. Where that
    build lists several platforms, build one, so that each side is a single image to
    inspect, and take the host's if it is among them, so that the image also runs here.
-   A secret that
-   build reads from CI is not on this machine, so ask the user for a local source. Add
-   `--load` when the builder in use, the one `docker buildx ls` marks with `*`, has a
-   driver other than `docker`, which otherwise keeps the image out of the local store.
+   A secret that build reads from CI is not on this machine, so ask the user for a
+   local source. Add `--load` when the builder in use, the one `docker buildx ls` marks
+   with `*`, has a driver other than `docker`, which otherwise keeps the image out of
+   the local store.
    Give the two builds their own new tags, such as `dw-audit-before` and
    `dw-audit-after`, that no existing image has: a tag the project already uses would
    replace the user's image, and a shared tag would leave you comparing the fixed image
@@ -230,9 +230,9 @@ unless the workflow, build script or Compose file that builds this image names a
      image's user may not be able to list the directory; the first `.` line is the
      directory itself, which DW-USER-02 covers too), or, in an image without `ls` or
      one the host cannot run (`exec format error` for another platform), which this
-     way runs nothing from, `docker create --name <container> <tag> x` with a name no container has yet (the
-     placeholder command is never run, but an image with no `CMD` or `ENTRYPOINT` needs
-     one), then `docker export <container> | tar -tv --numeric-owner -f - <dir>` with
+     way runs nothing from, `docker create --name <container> <tag> x` with a name no
+     container has yet (the placeholder command is never run, but an image with no
+     `CMD` or `ENTRYPOINT` needs one), then `docker export <container> | tar -tv --numeric-owner -f - <dir>` with
      the leading `/` dropped from `<dir>`. If `docker create` fails, do not export or
      remove anything under that name; otherwise `docker rm -v <container>` whether or
      not the listing worked (`-v` also removes the anonymous volumes `docker create`
