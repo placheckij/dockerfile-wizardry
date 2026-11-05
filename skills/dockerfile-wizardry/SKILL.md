@@ -39,9 +39,12 @@ unless the workflow, build script or Compose file that builds this image names a
    wrapper script it runs (DW-HEALTH-05 needs the `exec` in it checked by reading).
    Open the copied files, not only their names: a secret sits inside a config file
    whose name gives nothing away. If there are too many to read, say which you did not
-   open and list them under Limits. For a secret you find, report the file, the line
-   and what kind of secret it is, never its value: the report is often pasted into a
-   pull request or an issue.
+   open and list them under Limits. A secret scanner run over them (Trivy's secret
+   scanning, for one) counts as reading them for secrets; a search you wrote yourself for
+   file names or a few patterns does not, so the files it covered still go under Limits,
+   and DW-SECRET-01 is not listed as passing. For a secret you find, report the file,
+   the line and what kind of secret it is, never its value: the report is often pasted
+   into a pull request or an issue.
    Also read the files that settle rules beyond the Dockerfile when they are in the
    repository, whether or not the user named them: CI workflows (`.github/workflows/`,
    `.gitlab-ci.yml` and the like) and build scripts for the CI pipeline rules listed under
@@ -146,13 +149,20 @@ unless the workflow, build script or Compose file that builds this image names a
    Then, for each finding: the reason (a sentence or two from the rule's "Why"), one
    source link from the rule's "Sources", and a unified diff against the user's file
    as it is now, with file headers and line numbers, so that each diff applies on its
-   own. Where fixes change the same lines, or lines within three of each other (a hunk
+   own. A finding that only a trade-off can fix keeps its severity but gets no diff: for
+   DW-BUILD-10 on a distribution base, name the options (a base without a package
+   manager, trade-offs §6, or pruning, DW-BUILD-04) and leave the choice to the user.
+   Where fixes change the same lines, or lines within three of each other (a hunk
    carries three lines of context, so a nearby change breaks the other diff), give one
-   diff and name the rules it covers. Where a line the diff shows, removed or context,
-   holds a secret value, replace the value with `<redacted>` and say so: that diff no
-   longer applies with `git apply`, and the fix is made by editing the file (step 5).
+   diff and name the rules it covers; the user still chooses by rule (step 5). Where a
+   line the diff shows, removed or context, holds a secret value, replace the value with
+   `<redacted>` and say so: that diff no longer applies with `git apply`, and the fix is
+   made by editing the file (step 5).
    Place comments as in create mode (section 3, step 4). A diff must not call a binary
-   the image lacks: if it adds `tini` as the entrypoint, it also installs `tini`.
+   the image lacks: if it adds `tini` as the entrypoint, it also installs `tini`. Nor may
+   it remove one that something outside the Dockerfile still calls: before a diff drops a
+   package or binary (`wget` once a `HEALTHCHECK` uses the language runtime), check the
+   Compose healthchecks, Kubernetes exec probes and scripts read in step 1.
    Do not count hunk lines by hand; if you can run commands, let `diff` write the hunk
    from the fixed file, without writing it to disk (`diff` exits 1 when the files
    differ, which is expected here):
@@ -182,9 +192,10 @@ unless the workflow, build script or Compose file that builds this image names a
    if not, the same diff also creates them, as DW-USER-01 asks.
 
    After the findings, list the rules that pass and the rules that do not apply, by id.
-5. **Ask which fixes to apply.** Apply only the ones the user chooses, by editing the
-   file, not by applying the diffs one after another: each diff was made against the
-   original, so after the first one the others may no longer match. Re-run the linters
+5. **Ask which fixes to apply**, by rule id from the table, also where one diff covers
+   several rules. Apply only the ones the user chooses, by editing the file, not by
+   applying the diffs one after another: each diff was made against the original, so
+   after the first one the others may no longer match. Re-run the linters
    afterwards if they were available, and show what changed, with secret values
    redacted as in step 4.
 6. **Close** with two lists. First, the rules the Dockerfile passes now, under the words

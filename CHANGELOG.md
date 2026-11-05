@@ -14,6 +14,13 @@ Each pull request that changes `skills/` or `.claude-plugin/` adds a line under 
 
 ## [Unreleased]
 
+### Changed
+
+- Audit mode reports a finding that only a trade-off can fix, such as DW-BUILD-10 on a distribution base, at its severity without a diff, naming the options, and asks which fixes to apply by rule id, also where one diff covers several rules.
+- Audit mode checks the Compose healthchecks, Kubernetes exec probes and scripts it read before a diff removes a package or binary they call.
+- Audit mode counts a secret scanner run over the copied files as reading them for secrets, but not a search for names or patterns it wrote itself; files covered only by such a search stay under Limits and DW-SECRET-01 is not listed as passing.
+- DW-BUILD-07 notes that a persistent self-hosted runner keeps its local cache without an export, and that a no-cache rebuild then has to get past that cache (DW-SUPPLY-04).
+
 ## [0.1.2] - 2026-11-04
 
 ### Changed

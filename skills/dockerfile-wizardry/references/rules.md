@@ -207,7 +207,9 @@ larger export can raise the cache hit rate but costs storage and upload time, an
 anything you removed only in a later stage, see DW-BUILD-04) end up in the cache. Our suggestion
 is to give the cache reference at least the access control of the most sensitive build stage,
 which for a public image usually means keeping the cache private (this repository uses
-`type=gha`). It does not carry cache mounts (DW-BUILD-05).
+`type=gha`). It does not carry cache mounts (DW-BUILD-05). A persistent self-hosted runner
+keeps its builder's local cache between runs, so it can do without an export; that kept cache
+is then what a periodic no-cache rebuild has to get past (DW-SUPPLY-04).
 
 How to check: manual
 
