@@ -209,7 +209,7 @@ unless the workflow, build script or Compose file that builds this image names a
    the user agrees. Then build the original before you edit the file and the fixed one
    after, each with the `--target` and build arguments of the build that makes the image
    (`docker build -t <tag> -f <path> <context>`; add `--load` when the builder in use,
-   the one `docker buildx ls` marks with `*`, has the `docker-container` driver, which
+   the one `docker buildx ls` marks with `*`, has a driver other than `docker`, which
    otherwise keeps the image out of the local store). Give the two builds their own new
    tags, such as `dw-audit-before` and `dw-audit-after`, that no existing image has: a
    tag the project already uses would replace the user's image, and a shared tag would
@@ -226,8 +226,9 @@ unless the workflow, build script or Compose file that builds this image names a
      placeholder command is never run, but an image with no `CMD` or `ENTRYPOINT` needs
      one), then `docker export <container> | tar -tv --numeric-owner -f - <dir>` with
      the leading `/` dropped from `<dir>`. If `docker create` fails, do not export or
-     remove anything under that name; otherwise `docker rm <container>` whether or not
-     the listing worked;
+     remove anything under that name; otherwise `docker rm -v <container>` whether or
+     not the listing worked (`-v` also removes the anonymous volumes `docker create`
+     made for the image's `VOLUME` paths);
    - the image size: `docker image inspect --format '{{.Size}}' <tag>`.
 
    Report each difference with the rule ids it bears on, so the user can still undo a
