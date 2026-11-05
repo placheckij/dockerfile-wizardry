@@ -210,7 +210,9 @@ unless the workflow, build script or Compose file that builds this image names a
    the `.dockerignore`) and the fixed one after, with
    `docker build -t <tag> -f <path> <context>` plus every flag of the build that makes
    the image that changes what is built: `--target`, `--build-arg`, `--build-context`,
-   `--platform`, `--secret`, `--ssh` and the like, or their Compose keys. A secret that
+   `--platform`, `--secret`, `--ssh` and the like, or their Compose keys. Where that
+   build lists several platforms, build one, the host's if it is among them: the local
+   image store holds one platform per tag. A secret that
    build reads from CI is not on this machine, so ask the user for a local source. Add
    `--load` when the builder in use, the one `docker buildx ls` marks with `*`, has a
    driver other than `docker`, which otherwise keeps the image out of the local store.
@@ -225,8 +227,9 @@ unless the workflow, build script or Compose file that builds this image names a
      `node_modules` outside it):
      `docker run --rm --user 0 --entrypoint ls <tag> -lnaR <dir>` (as root, since the
      image's user may not be able to list the directory; the first `.` line is the
-     directory itself, which DW-USER-02 covers too), or, in an image without `ls`,
-     `docker create --name <container> <tag> x` with a name no container has yet (the
+     directory itself, which DW-USER-02 covers too), or, in an image without `ls` or
+     one the host cannot run (`exec format error` for another platform), which this
+     way runs nothing from, `docker create --name <container> <tag> x` with a name no container has yet (the
      placeholder command is never run, but an image with no `CMD` or `ENTRYPOINT` needs
      one), then `docker export <container> | tar -tv --numeric-owner -f - <dir>` with
      the leading `/` dropped from `<dir>`. If `docker create` fails, do not export or
