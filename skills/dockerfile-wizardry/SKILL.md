@@ -151,8 +151,9 @@ unless the workflow, build script or Compose file that builds this image names a
    source link from the rule's "Sources", and a unified diff against the user's file
    as it is now, with file headers and line numbers, so that each diff applies on its
    own. A finding that only a trade-off can fix keeps its severity but gets no diff: for
-   DW-BUILD-10 on a distribution base, name the options (a base without a package
-   manager, trade-offs §6, or pruning, DW-BUILD-04) and leave the choice to the user.
+   DW-BUILD-10 on the package manager a distribution base ships, name the options (a
+   base without one, trade-offs §6, or pruning, DW-BUILD-04) and leave the choice to the
+   user. A tool the Dockerfile installs itself, such as `openssh-server`, gets a diff.
    Where fixes change the same lines, or lines within three of each other (a hunk
    carries three lines of context, so a nearby change breaks the other diff), give one
    diff and name the rules it covers; the user still chooses by rule (step 5). Where a
