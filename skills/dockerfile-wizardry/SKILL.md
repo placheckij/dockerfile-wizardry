@@ -204,11 +204,12 @@ unless the workflow, build script or Compose file that builds this image names a
    commit is the one ending in `^{}`; the other is the tag object, which `uses:` must
    not name. If it prints nothing, the ref may be a branch (`main`, `release/v1`): run
    `git ls-remote https://github.com/<owner>/<repo> refs/heads/<ref>`, which prints the
-   branch's commit, and say that the pin no longer follows the branch. Write
-   `@<full 40-character SHA> # <version>`, so that Dependabot and Renovate can keep
-   updating the pin. `<version>` is the ref, or, for a major tag that moves such as
-   `v6`, the full version whose tag points to the same commit (list `'refs/tags/v6.*'`
-   the same way); if none does, use the ref. A `uses: docker://<image>:<tag>` step is
+   branch's commit. Write `@<full 40-character SHA> # <version>`. `<version>` is the
+   ref, or, for a major tag that moves such as `v6`, the full version whose tag points
+   to the same commit (list `'refs/tags/v6.*'` the same way); if none does, use the
+   ref. A version comment lets Dependabot and Renovate keep updating the pin; with a
+   branch name they may not, so for a branch say that the pin no longer follows it and
+   that keeping it current may be up to the user. A `uses: docker://<image>:<tag>` step is
    pinned by digest instead, as in section 4. Never invent a SHA: if the lookups fail or
    print nothing, keep the ref, add `# TODO: pin to a commit SHA` and quote the error,
    as for digests (section 4). A pin freezes the commit the ref names today; it does
