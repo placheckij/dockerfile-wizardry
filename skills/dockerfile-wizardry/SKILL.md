@@ -361,6 +361,19 @@ Use this when the user wants a new Dockerfile for a project.
 These apply in both modes unless the user says otherwise. Each is a choice the user may
 reverse, so name it in the summary.
 
+- **Check that the base tag is still rebuilt** (DW-BASE-03) before resolving its digest,
+  also for a `FROM` that already has one: a pin of a tag that no longer moves looks
+  current forever. Print when the image was built with
+  `docker buildx imagetools inspect <image>:<tag> --format '{{ (index .Image "linux/amd64").Created }}'`
+  (the platform you build for; `{{ .Image.Created }}` for a single-platform image), and
+  resolve the digest of a broader tag of the same variant (`3.12-slim-bookworm` for
+  `3.12.4-slim-bookworm`). A build date months old, or a broader tag on a different
+  digest, means the tag is no longer rebuilt: report DW-BASE-03 with both values and
+  propose the broader tag, pinned by its own digest (DW-BASE-01). If no broader tag is
+  newer either, the whole release line may be out of support; moving to a newer minor or
+  major version can change behaviour, so put it to the user as a decision. A date is
+  evidence, not proof: say what you compared. If the lookups cannot run, say that
+  DW-BASE-03 was not checked.
 - **Pin base images by digest** (DW-BASE-01): `FROM <image>:<tag>@sha256:<digest>`, with
   the version in an `ARG`. Resolve the digest with
   `docker buildx imagetools inspect <image>:<tag>` and use the top-level `Digest:` it

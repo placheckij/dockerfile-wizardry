@@ -1,7 +1,7 @@
 # Base image
 
-Which image you build on, and how you identify it. Rules in this file are written from the
-README's Spell #1 and Spell #2; the code is in the
+Which image you build on, and how you identify it. DW-BASE-01 and DW-BASE-02 are written from
+the README's Spell #1 and Spell #2; the code is in the
 [Dockerfile](../../Dockerfile).
 
 ## DW-BASE-01: Pin the base image by digest
@@ -22,7 +22,8 @@ why:
   A tag can be republished, so the same Dockerfile can build on different bytes tomorrow. A digest
   names exactly one image. The cost is that pinning freezes the base: patches stop arriving on
   their own, so pair the pin with something that proposes new digests (Dependabot or Renovate) or
-  with a CI job that fails when the tag has moved. See the trade-offs on [tag or
+  with a CI job that fails when the tag has moved. Neither helps when the tag itself is no longer
+  rebuilt, so pin a tag that still is (DW-BASE-03). See the trade-offs on [tag or
   digest](tradeoffs.md#1-tag-or-digest-for-the-base-image).
 
 how_to_check:
@@ -60,3 +61,36 @@ how_to_check:
 sources:
 - https://github.com/opencontainers/image-spec/blob/main/annotations.md#pre-defined-annotation-keys
 - https://docs.docker.com/reference/dockerfile/#label
+
+## DW-BASE-03: Build on a tag that is still rebuilt
+
+strength: SHOULD
+
+last_verified: 2026-11-06
+
+statement:
+  Base the image on a tag its publisher still maintains: the current release, or a tag that
+  follows it (`3.12-slim` rather than `3.12.4-slim` once 3.12.5 is out). Check this before
+  pinning the tag by digest (DW-BASE-01).
+
+why:
+  The Docker Official Images FAQ says a release stops being supported once the next one ships,
+  and that its tag is typically left available for pulling but "will simply never get rebuilt
+  after that point". Such a tag no longer moves, so `--pull` finds nothing newer, a digest pin of
+  it looks current forever, and checks that compare the pinned digest with the tag's current one
+  pass: Docker Scout's `No outdated base images` policy flags an image only when the tag it was
+  built from points to a different digest. The base then misses every fix shipped since.
+
+how_to_check:
+  manual. Print when the base image was built with
+  `docker buildx imagetools inspect <image>:<tag> --format '{{ (index .Image "linux/amd64").Created }}'`
+  (name the platform you build for; use `{{ .Image.Created }}` for a single-platform image). The
+  FAQ says Debian-based Official Images are republished at least monthly, so one that is months
+  older is most likely no longer rebuilt; other bases follow their own schedules. A tag missing
+  from the supported tags on its Docker Hub page, or a broader tag of the same variant that
+  resolves to a different digest, points the same way.
+
+sources:
+- https://github.com/docker-library/faq#what-do-you-mean-by-supported
+- https://github.com/docker-library/faq#why-does-my-security-scanner-show-that-an-image-has-cves
+- https://docs.docker.com/scout/policy/#no-outdated-base-images

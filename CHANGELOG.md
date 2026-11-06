@@ -14,6 +14,10 @@ Each pull request that changes `skills/` or `.claude-plugin/` adds a line under 
 
 ## [Unreleased]
 
+### Added
+
+- DW-BASE-03 (SHOULD): build on a base tag its publisher still rebuilds. A tag for a release that is no longer supported, such as an old patch version, stays pullable but is never rebuilt, so `--pull`, a digest pin and digest-versus-tag checks such as Docker Scout's `No outdated base images` policy all miss that it is stale. Both modes check the base image's build date with `docker buildx imagetools inspect` and compare a broader tag of the same variant before resolving a digest (DW-BASE-01), also for a `FROM` already pinned by digest, and propose the broader tag; moving to a newer minor or major version is put to the user as a decision. DW-BASE-01 points to the new rule.
+
 ### Changed
 
 - Audit mode reports a finding that only a trade-off can fix, such as DW-BUILD-10 on the package manager a distribution base ships, at its severity without a diff, naming the options, and asks which fixes to apply by rule id, also where one diff covers several rules.
