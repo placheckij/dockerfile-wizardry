@@ -86,6 +86,9 @@ class Inventory:
         self.language_packages = []
         # package entries left out because a name or version had unexpected characters
         self.skipped = 0
+        # Python and npm packages the OS package manager installed: its own advisories
+        # cover them (with any backported fix), so they are not looked up again
+        self.os_owned = 0
 
 
 def parse_os_release(text):
@@ -134,6 +137,17 @@ def parse_apk_installed(text):
         if "P" in fields and "V" in fields:
             packages.append((fields.get("o") or fields["P"], fields["V"], fields["P"]))
     return packages
+
+
+def apk_owned_files(text):
+    """The paths apk installed: each `F:` directory line, then its `R:` file lines."""
+    owned, directory = set(), ""
+    for line in text.splitlines():
+        if line.startswith("F:"):
+            directory = line[2:]
+        elif line.startswith("R:"):
+            owned.add(f"{directory}/{line[2:]}" if directory else line[2:])
+    return owned
 
 
 def parse_dpkg_status(text, require_status=True):
@@ -194,7 +208,9 @@ def read_inventory(archive):
     """Read an Inventory from an open tarfile of the image's filesystem, in one pass."""
     inventory = Inventory()
     os_release = {}
-    language = set()
+    # (path the package was read from, (ecosystem, name, version))
+    language = []
+    owned = set()
     dpkg_status_d = []
     for member in archive:
         path = re.sub(r"^(?:\./|/)+", "", member.name)
@@ -217,6 +233,7 @@ def read_inventory(archive):
         elif path in APK_DB_PATHS:
             inventory.package_database = path
             inventory.os_packages.extend(parse_apk_installed(text))
+            owned |= apk_owned_files(text)
         elif path == DPKG_STATUS:
             inventory.package_database = path
             inventory.os_packages.extend(parse_dpkg_status(text))
@@ -226,13 +243,13 @@ def read_inventory(archive):
         elif DIST_INFO.search(path):
             package = parse_metadata(text)
             if package:
-                language.add(("PyPI",) + package)
+                language.append((path, ("PyPI",) + package))
         elif PIP_VENDOR.search(path):
-            language.update(("PyPI",) + package for package in parse_pip_vendor(text))
+            language += [(path, ("PyPI",) + p) for p in parse_pip_vendor(text)]
         else:
             try:
                 manifest = json.loads(text)
-            except ValueError:
+            except (ValueError, RecursionError):
                 continue
             if not isinstance(manifest, dict):
                 continue
@@ -242,14 +259,23 @@ def read_inventory(archive):
                 and isinstance(version, str)
                 and name == NPM_PACKAGE.search(path).group(1)
             ):
-                language.add(("npm", name, version))
+                language.append((path, ("npm", name, version)))
     inventory.os_packages.extend(dpkg_status_d)
+    # Debian and Ubuntu keep dist-packages under /usr/lib/python3 for their own
+    # packages (pip installs under /usr/local); apk lists the files it installed
+    by_os = {
+        package
+        for path, package in language
+        if path in owned or path.startswith("usr/lib/python3/dist-packages/")
+    }
+    found = {package for _, package in language} - by_os
+    inventory.os_owned = len(by_os)
     safe_os = [
         p for p in inventory.os_packages if all(SAFE_TOKEN.fullmatch(t) for t in p)
     ]
-    safe_language = {p for p in language if all(SAFE_TOKEN.fullmatch(t) for t in p[1:])}
+    safe_language = {p for p in found if all(SAFE_TOKEN.fullmatch(t) for t in p[1:])}
     inventory.skipped = (
-        len(inventory.os_packages) - len(safe_os) + len(language - safe_language)
+        len(inventory.os_packages) - len(safe_os) + len(found - safe_language)
     )
     inventory.os_packages = safe_os
     for path in OS_RELEASE_PATHS:
@@ -297,14 +323,23 @@ def query_osv(queries, post):
                 if pending[index]:
                     query["page_token"] = pending[index]
                 body["queries"].append(query)
-            results = post(body).get("results", [])
-            if len(results) != len(order):
+            response = post(body)
+            results = response.get("results") if isinstance(response, dict) else None
+            if not isinstance(results, list) or len(results) != len(order):
                 raise CheckError(
-                    "OSV.dev returned a different number of results than queries"
+                    "OSV.dev returned a response that does not match the queries"
                 )
             pending = {}
             for index, result in zip(order, results):
-                for vuln in result.get("vulns") or []:
+                vulns = (
+                    (result.get("vulns") or []) if isinstance(result, dict) else None
+                )
+                if not isinstance(vulns, list) or not all(
+                    isinstance(vuln, dict) and isinstance(vuln.get("id"), str)
+                    for vuln in vulns
+                ):
+                    raise CheckError("OSV.dev returned a result without advisory ids")
+                for vuln in vulns:
                     if vuln["id"] not in hits[index]:
                         hits[index].append(vuln["id"])
                 if result.get("next_page_token"):
@@ -475,6 +510,12 @@ def not_covered(inventory, missing=0):
         )
     elif not inventory.package_database:
         gaps.append(f"OS packages: no package database found for {name}.")
+    if inventory.os_owned:
+        gaps.append(
+            f"{inventory.os_owned} Python or npm packages that the OS package manager "
+            "installed are left to its own advisories (the OS lookup above), which know "
+            "its backported fixes, and are not looked up again on PyPI or npm."
+        )
     if missing:
         gaps.append(
             f"{missing} advisories OSV.dev returned could not be fetched, so their fix "
@@ -646,9 +687,12 @@ def osv_post(body):
 
 def osv_get(vuln_id):
     """The advisory, or None if OSV.dev no longer has it (404)."""
-    return _request(
+    record = _request(
         f"{OSV_API}/vulns/{urllib.parse.quote(vuln_id)}", None, missing_ok=True
     )
+    if record is not None and not isinstance(record, dict):
+        raise CheckError(f"OSV.dev returned an advisory for {vuln_id} that is not one")
+    return record
 
 
 def _request(
@@ -703,9 +747,21 @@ class DockerExport:
                 stderr=subprocess.PIPE,
             )
         except OSError as error:
-            _docker(["rm", "-v", self.container])
+            self._remove()
             raise CheckError(f"could not run docker export: {error}") from error
         return self.process.stdout
+
+    def _remove(self):
+        # a failed removal must not hide the check's own result or error: say what to
+        # remove by hand instead
+        try:
+            _docker(["rm", "-v", self.container])
+        except CheckError as error:
+            print(
+                f"Could not remove the container this check created ({error}); "
+                f"remove it with: docker rm -v {self.container}",
+                file=sys.stderr,
+            )
 
     def __exit__(self, kind, value, traceback):
         try:
@@ -718,7 +774,7 @@ class DockerExport:
             if self.process.wait() != 0:
                 raise CheckError(f"docker export failed: {error[:300]}") from value
         finally:
-            _docker(["rm", "-v", self.container])
+            self._remove()
         return False
 
 
@@ -771,12 +827,19 @@ def main(argv=None, export=DockerExport, post=osv_post, get=osv_get):
         # a large Debian base returns hundreds of advisories; fetch them in parallel
         with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
             records = dict(zip(ids, pool.map(get, ids)))
+        report = make_report(
+            args.image, args.platform, inventory, queries, hits, records, queried_at
+        )
     except (CheckError, tarfile.TarError) as error:
         print(f"Could not check {args.image}: {error}", file=sys.stderr)
         return EXIT_ERROR
-    report = make_report(
-        args.image, args.platform, inventory, queries, hits, records, queried_at
-    )
+    except Exception as error:  # noqa: BLE001 - safety net: the image and the advisories are untrusted input, and a crash must still read as "could not check"
+        print(
+            f"Could not check {args.image}: unexpected {type(error).__name__}: "
+            f"{clean(error, 200)}",
+            file=sys.stderr,
+        )
+        return EXIT_ERROR
     if args.format == "json":
         print(json.dumps(report, indent=2))
     else:

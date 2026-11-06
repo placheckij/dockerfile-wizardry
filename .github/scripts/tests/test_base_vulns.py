@@ -251,6 +251,29 @@ class InventoryTest(unittest.TestCase):
         self.assertEqual(inventory.language_packages, [])
         self.assertEqual(inventory.skipped, 1)
 
+    def test_python_packages_the_os_installed_are_not_looked_up_on_pypi(self):
+        apk_db = (
+            "P:py3-urllib3\nV:2.0.0-r1\no:py3-urllib3\n"
+            "F:usr/lib/python3.12/site-packages/urllib3-2.0.0.dist-info\nR:METADATA\n"
+        )
+        inventory = inventory_of(
+            {
+                "etc/os-release": ALPINE_OS_RELEASE,
+                "lib/apk/db/installed": apk_db,
+                "usr/lib/python3.12/site-packages/urllib3-2.0.0.dist-info/METADATA": "Name: urllib3\nVersion: 2.0.0\n",
+                "usr/lib/python3.12/site-packages/six-1.16.0.dist-info/METADATA": "Name: six\nVersion: 1.16.0\n",
+                "usr/lib/python3/dist-packages/idna-3.3.dist-info/METADATA": "Name: idna\nVersion: 3.3\n",
+            }
+        )
+        self.assertEqual(inventory.language_packages, [("PyPI", "six", "1.16.0")])
+        self.assertEqual(inventory.os_owned, 2)
+        gaps = base_vulns.not_covered(inventory)
+        self.assertTrue(any("OS package manager installed" in g for g in gaps))
+
+    def test_a_deeply_nested_package_json_is_ignored(self):
+        inventory = inventory_of({"usr/lib/node_modules/x/package.json": "[" * 100000})
+        self.assertEqual(inventory.language_packages, [])
+
     def test_a_package_json_that_is_not_an_object_is_ignored(self):
         inventory = inventory_of(
             {
@@ -446,6 +469,18 @@ class RecordTest(unittest.TestCase):
         }
         self.assertEqual(
             base_vulns.fixed_versions(record, "PyPI", "foo", "4.0"), ["5.1"]
+        )
+
+    def test_last_affected_ranges(self):
+        events = [{"introduced": "0"}, {"last_affected": "1.5"}]
+        self.assertEqual(
+            base_vulns._range_status(events, "1.3", "PyPI"), ("unfixed", None)
+        )
+        self.assertEqual(
+            base_vulns._range_status(events, "1.5", "PyPI"), ("unfixed", None)
+        )
+        self.assertEqual(
+            base_vulns._range_status(events, "1.6", "PyPI"), ("outside", None)
         )
 
     def test_a_pre_release_is_fixed_by_its_release(self):
@@ -832,16 +867,19 @@ class FakeProcess:
 
 
 class DockerExportTest(unittest.TestCase):
-    def run_export(self, popen):
+    def run_export(self, popen, rm_fails=False):
         calls = []
 
         def docker(arguments):
             calls.append(arguments)
+            if arguments[0] == "rm" and rm_fails:
+                raise base_vulns.CheckError("docker rm failed: daemon gone")
             return "cid\n" if arguments[0] == "create" else ""
 
         with (
             mock.patch.object(base_vulns, "_docker", docker),
             mock.patch.object(base_vulns.subprocess, "Popen", popen),
+            contextlib.redirect_stderr(io.StringIO()) as self.stderr,
         ):
             try:
                 return base_vulns.read_image(
@@ -849,6 +887,24 @@ class DockerExportTest(unittest.TestCase):
                 ), calls
             except base_vulns.CheckError as error:
                 return error, calls
+
+    def test_a_failed_removal_keeps_the_export_error_and_says_what_to_remove(self):
+        error, _ = self.run_export(
+            lambda *a, **k: FakeProcess(b"not a tar", b"export broke", 1),
+            rm_fails=True,
+        )
+        self.assertIn("export broke", str(error))
+        self.assertIn("docker rm -v cid", self.stderr.getvalue())
+
+    def test_a_failed_removal_after_a_good_export_does_not_fail_the_check(self):
+        archive = tar_bytes(
+            {"etc/os-release": ALPINE_OS_RELEASE, "lib/apk/db/installed": APK_INSTALLED}
+        ).getvalue()
+        inventory, _ = self.run_export(
+            lambda *a, **k: FakeProcess(archive), rm_fails=True
+        )
+        self.assertEqual(inventory.ecosystem, "Alpine:v3.24")
+        self.assertIn("docker rm -v cid", self.stderr.getvalue())
 
     def test_reads_the_image_and_removes_the_container(self):
         archive = tar_bytes(
@@ -914,6 +970,32 @@ class MainTest(unittest.TestCase):
             [("ALPINE-CVE-2024-5535", ["3.1.6-r0"]), ("GONE-1", None)],
         )
         self.assertTrue(any("could not be fetched" in g for g in report["not_covered"]))
+
+    def test_a_malformed_osv_response_is_reported_not_a_traceback(self):
+        def export(image, platform):
+            return tar_bytes(
+                {
+                    "etc/os-release": ALPINE_OS_RELEASE,
+                    "lib/apk/db/installed": APK_INSTALLED,
+                }
+            )
+
+        def post(body):
+            return {"results": [{"vulns": [{"no_id": 1}]} for _ in body["queries"]]}
+
+        code, out, err = self.run_main(["alpine:3.24"], export, post)
+        self.assertEqual(code, base_vulns.EXIT_ERROR)
+        self.assertEqual(out, "")
+        self.assertIn("Could not check", err)
+
+    def test_an_unexpected_error_is_reported_not_a_traceback(self):
+        def export(image, platform):
+            raise RuntimeError("boom")
+
+        code, _, err = self.run_main(["alpine:3.24"], export, None)
+        self.assertEqual(code, base_vulns.EXIT_ERROR)
+        self.assertIn("Could not check", err)
+        self.assertNotIn("Traceback", err)
 
     def test_nothing_to_check_fails(self):
         def export(image, platform):
