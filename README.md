@@ -92,13 +92,15 @@ The Dockerfile in this repository applies 14 of the practices, numbered as "spel
 
 ### ⚙️ Spell #1: Parameterized Builds, Pinned by Digest (CIS 4.2, 5.28)
 ```dockerfile
-ARG PYTHON_VERSION=3.14.10
+ARG PYTHON_VERSION=3.14
 ARG ALPINE_VERSION=3.24
-FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION}@sha256:eb2c6265... AS base
+FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION}@sha256:a18b20ad... AS base
 ```
 Use ARG for flexible, maintainable version management. The tag says what you intend; the `@sha256:` digest says exactly which bytes you get, so a republished or tampered tag can't change your build.
 
 **Pinning freezes the base image**, so patches stop arriving on their own. A weekly CI job compares the pinned digest with what the tag points to today and fails - with the new digest in the log - when the tag has moved. Bump the digest, rebuild, run the tests.
+
+**The tag names the release line** (`3.14`), not a patch (`3.14.10`). A patch tag is rebuilt only until the next patch ships; after that it never moves, so the weekly check would report the pin as current forever.
 
 **Source:** [CIS Docker Benchmark 4.2](https://www.cisecurity.org/benchmark/docker) - Ensure that containers use only trusted base images | [CIS Docker Benchmark 5.28](https://www.cisecurity.org/benchmark/docker) - Ensure that Docker commands always make use of the latest version of their image (its remediation calls for version pinning of base images) | [Dockerfile reference - Understand how ARG and FROM interact](https://docs.docker.com/reference/dockerfile/#understand-how-arg-and-from-interact) | [Docker Best Practices - Pin base image versions](https://docs.docker.com/build/building/best-practices/#pin-base-image-versions)
 
@@ -273,8 +275,8 @@ Example size and build time comparison for a Python application from this repo, 
 | Approach | Image Size | Build Time (no-cache) |
 |----------|-----------|----------------------|
 | Single-stage (python:3.14-slim) | 253 MB | 5s |
-| Single-stage (python:3.14.10-alpine3.24) | 157 MB | 5s |
-| Multi-stage, pruned and flattened (python:3.14.10-alpine3.24) | 81 MB | 10s |
+| Single-stage (python:3.14-alpine3.24) | 157 MB | 5s |
+| Multi-stage, pruned and flattened (python:3.14-alpine3.24) | 81 MB | 10s |
 
 Build times vary from run to run and with the machine, so compare the sizes, not the seconds.
 
