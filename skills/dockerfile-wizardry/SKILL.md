@@ -199,22 +199,27 @@ unless the workflow, build script or Compose file that builds this image names a
    above for when it does not), the diff is against that file, made the same way with
    its path. For DW-SUPPLY-03, pin each action the finding names to the commit its ref
    points to now. For `uses: <owner>/<repo>@<ref>` (or `<owner>/<repo>/<path>@<ref>`),
-   run `git ls-remote https://github.com/<owner>/<repo> refs/tags/<ref> 'refs/tags/<ref>^{}'`.
+   run `GIT_TERMINAL_PROMPT=0 git ls-remote https://github.com/<owner>/<repo> refs/tags/<ref> 'refs/tags/<ref>^{}'`
+   (the variable makes a private or misspelled repository fail instead of asking for a
+   password; for a workflow on GitHub Enterprise Server, use its host, not `github.com`).
    A lightweight tag prints one line, its commit. An annotated tag prints two, and the
    commit is the one ending in `^{}`; the other is the tag object, which `uses:` must
    not name. If it prints nothing, the ref may be a branch (`main`, `release/v1`): run
-   `git ls-remote https://github.com/<owner>/<repo> refs/heads/<ref>`, which prints the
-   branch's commit. Write `@<full 40-character SHA> # <version>`. `<version>` is the
+   the same command with `refs/heads/<ref>` as the only ref, which prints the branch's
+   commit. Write `@<full 40-character SHA> # <version>`, with the comment at the end of
+   the line, after any closing quote or brace (`uses: "<owner>/<repo>@<SHA>" # v6.8.0`),
+   where YAML reads it as a comment and not as part of the value. `<version>` is the
    ref, or, for a major tag that moves such as `v6`, the full version whose tag points
    to the same commit (list `'refs/tags/v6.*'` the same way); if none does, use the
    ref. A version comment lets Dependabot and Renovate keep updating the pin; with a
    branch name they may not, so for a branch say that the pin no longer follows it and
-   that keeping it current may be up to the user. A `uses: docker://<image>:<tag>` step is
-   pinned by digest instead, as in section 4. Never invent a SHA: if the lookups fail or
-   print nothing, keep the ref, add `# TODO: pin to a commit SHA` and quote the error,
-   as for digests (section 4). A pin freezes the commit the ref names today; it does
-   not show that commit is safe, since a tag can be moved to a malicious commit, as in
-   DW-SUPPLY-03's source. Say that the pinned commits were not reviewed.
+   that keeping it current may be up to the user. A `uses: docker://<image>:<tag>` step
+   is pinned by digest instead, as in section 4. Never invent a SHA: if the lookups fail
+   or print nothing, keep the ref, add `# TODO: pin to a commit SHA` in the same place
+   and quote the error, as for digests (section 4). A pin freezes the commit the ref
+   names today; it does not show that commit is safe, since a tag can be moved to a
+   malicious commit, as in DW-SUPPLY-03's source. Say that the pinned commits were not
+   reviewed.
 
    After the findings, list the rules that pass and the rules that do not apply, by id.
 5. **Ask which fixes to apply**, by rule id from the table, also where one diff covers
