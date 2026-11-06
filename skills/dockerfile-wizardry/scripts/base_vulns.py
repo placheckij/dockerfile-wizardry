@@ -1,13 +1,18 @@
 """List known vulnerabilities in an image's packages, from OSV.dev, without a scanner.
 
-Usage: python3 base_vulns.py <image>[:<tag>][@<digest>] [--platform linux/amd64]
+Usage: python3 base_vulns.py <image>:<tag>@<digest> --platform <os/arch>
                             [--format markdown|json]
+
+The platform is required: it is the one the image is built for, not the host's. Pass
+the digest too: for a tag alone, `docker create` may pull that platform's image and
+point the local tag at it.
 
 The image is never run: `docker create` and `docker export` stream its filesystem, from
 which this reads the OS package database (apk on Alpine, dpkg on Debian and Ubuntu,
 including distroless `status.d`) and the Python (`*.dist-info`, `*.egg-info`, pip's
-vendored packages) and npm (`node_modules/*/package.json`) packages. It asks OSV.dev for each package by
-ecosystem, name and version, OS packages under their source package (`openssl`, not
+vendored packages) and npm (`node_modules/*/package.json`) packages. It asks OSV.dev
+for each package by ecosystem, name and version, OS packages under their source
+package (`openssl`, not
 `libssl3`), as the OSV schema requires, then fetches each advisory it gets back for the
 fixed version and severity. The report names its source and the query time, and lists
 what it could not see; an empty result is not a clean bill of health.
@@ -214,10 +219,12 @@ def parse_metadata(text):
 def parse_pip_vendor(text):
     packages = []
     for line in text.splitlines():
-        requirement = line.split("#", 1)[0].strip()
+        # requirement syntax: drop a comment and an environment marker (`; python...`)
+        requirement = line.split("#", 1)[0].split(";", 1)[0].strip()
         name, sep, version = requirement.partition("==")
-        if sep and name.strip() and version.strip():
-            packages.append((normalize_pypi(name.strip()), version.strip()))
+        version = version.strip().split(" ", 1)[0] if sep else ""
+        if name.strip() and version:
+            packages.append((normalize_pypi(name.strip()), version))
     return packages
 
 
@@ -918,12 +925,21 @@ def read_image(export, image, platform):
 def main(argv=None, export=DockerExport, post=osv_post, get=osv_get):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("image", help="image reference, ideally <image>:<tag>@<digest>")
-    parser.add_argument("--platform", default="linux/amd64")
+    parser.add_argument(
+        "--platform", required=True, help="the platform the image is built for"
+    )
     parser.add_argument("--format", choices=("markdown", "json"), default="markdown")
     try:
         args = parser.parse_args(argv)
     except SystemExit as exit_:
         return EXIT_USAGE if exit_.code else 0
+    if "@sha256:" not in args.image:
+        print(
+            f"Note: {args.image} has no digest. If this tag is local for another "
+            "platform, docker may pull the requested one and point the tag at it; "
+            "pass <image>:<tag>@<digest> to avoid that.",
+            file=sys.stderr,
+        )
     try:
         inventory = read_image(export, args.image, args.platform)
         queries = build_queries(inventory)

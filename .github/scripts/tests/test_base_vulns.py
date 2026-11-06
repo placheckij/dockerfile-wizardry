@@ -166,6 +166,21 @@ class InventoryTest(unittest.TestCase):
             inventory.os_packages, [("tzdata", "2024a-0+deb12u1", "tzdata")]
         )
 
+    def test_pip_vendor_lines_with_markers_or_indents(self):
+        self.assertEqual(
+            base_vulns.parse_pip_vendor(
+                "requests==2.32.3\n    certifi==2024.8.30\n"
+                'truststore==0.8.0; python_version >= "3.10"\n'
+                "# a comment\nsix==1.16.0  # trailing\n"
+            ),
+            [
+                ("requests", "2.32.3"),
+                ("certifi", "2024.8.30"),
+                ("truststore", "0.8.0"),
+                ("six", "1.16.0"),
+            ],
+        )
+
     def test_reads_python_and_npm_packages(self):
         inventory = inventory_of(
             {
@@ -1199,11 +1214,28 @@ class DockerExportTest(unittest.TestCase):
 
 
 class MainTest(unittest.TestCase):
-    def run_main(self, argv, export, post, get=None):
+    def run_main(self, argv, export, post, get=None, platform="linux/amd64"):
+        if platform:
+            argv = argv + ["--platform", platform]
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             code = base_vulns.main(argv, export=export, post=post, get=get)
         return code, out.getvalue(), err.getvalue()
+
+    def test_the_platform_must_be_given(self):
+        code, _, err = self.run_main(["alpine:3.24"], None, None, platform=None)
+        self.assertEqual(code, base_vulns.EXIT_USAGE)
+        self.assertIn("--platform", err)
+
+    def test_a_reference_without_a_digest_is_warned_about(self):
+        def export(image, platform):
+            return tar_bytes({"app/server": "binary"})
+
+        _, _, err = self.run_main(["alpine:3.24"], export, None)
+        self.assertIn("no digest", err)
+        digest = "sha256:" + "a" * 64
+        _, _, err = self.run_main([f"alpine:3.24@{digest}"], export, None)
+        self.assertNotIn("no digest", err)
 
     def test_findings_are_fetched_and_a_missing_one_does_not_stop_the_report(self):
         def export(image, platform):
@@ -1284,7 +1316,8 @@ class MainTest(unittest.TestCase):
         def export(image, platform):
             raise base_vulns.CheckError("docker create failed: bad\n| injected |")
 
-        code, _, err = self.run_main(["alpine:3.24"], export, None)
+        # with a digest, so that the only line is the error
+        code, _, err = self.run_main(["alpine:3.24@sha256:" + "a" * 64], export, None)
         self.assertEqual(code, base_vulns.EXIT_ERROR)
         self.assertNotIn("|", err)
         self.assertEqual(err.count("\n"), 1)
