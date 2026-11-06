@@ -379,18 +379,19 @@ reverse, so name it in the summary.
   In audit mode, a version pin the file already has is reported as a **decide** item and
   not removed by a diff unless the user asks.
 - **Hadolint ignore lines only where Hadolint runs.** Write a `# hadolint ignore=...`
-  line only when the repository runs Hadolint: it has a `.hadolint.yaml` or
-  `.hadolint.yml`, a CI workflow, build script, Makefile or `.pre-commit-config.yaml`
-  runs it (the `hadolint` command, image, action or pre-commit hook, or a linter suite
-  that includes it, such as super-linter, MegaLinter or Trunk), or the user says it runs
-  elsewhere. Look in those files in both modes, even where step 1 would not read them.
-  Even then, ignore only a code that run would report: DL3057 is off by default, so it
-  needs an ignore only when the repository turns it on, in its config or with a flag
-  such as `--info DL3057`; the skill's own linter run (audit step 2) does not count.
-  Elsewhere an ignore line does nothing; leave it out
-  and name the code and its reason in the summary (create mode) or as a note in the
-  report (audit mode). Say which case applied, and leave the ignore lines a Dockerfile
-  already has as they are.
+  line only when the repository runs Hadolint on this Dockerfile (in create mode, on the
+  path it will have): a CI workflow, build script, Makefile, `.pre-commit-config.yaml`
+  or `.trunk/trunk.yaml` runs the `hadolint` command, image, action or hook on that
+  path, or a linter suite whose settings have Hadolint on (super-linter, MegaLinter,
+  Trunk) covers it, or the user says it runs elsewhere. A `.hadolint.yaml` or
+  `.hadolint.yml` counts too: someone runs it, if only in an editor. Look in those files
+  in both modes, even where step 1 would not read them. Even then, ignore only a code
+  that run would report: DL3057 is off by default, so it needs an ignore only when the
+  repository turns it on, in its config or with a flag such as `--info DL3057`; the
+  skill's own linter run (audit step 2) does not count. Elsewhere an ignore line does
+  nothing; leave it out and name the code and its reason in the summary (create mode)
+  or as a note in the report (audit mode). Say which case applied, and leave the ignore
+  lines a Dockerfile already has as they are.
 - **Base image family** (slim, default, distroless, or a vendor's hardened image) is a
   decision to put to the user with trade-offs §6. When the user has no preference, use
   the language's official slim variant (for a compiled binary, a slim distribution image
