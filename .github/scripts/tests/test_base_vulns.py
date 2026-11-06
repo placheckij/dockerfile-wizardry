@@ -300,10 +300,21 @@ class InventoryTest(unittest.TestCase):
         )
         self.assertEqual(inventory.os_owned, 3)
 
+    def test_dist_packages_are_looked_up_when_no_os_packages_were_read(self):
+        inventory = inventory_of(
+            {
+                "etc/os-release": DEBIAN_OS_RELEASE,
+                "usr/lib/python3/dist-packages/urllib3-1.26.12.dist-info/METADATA": "Name: urllib3\nVersion: 1.26.12\n",
+            }
+        )
+        self.assertEqual(inventory.language_packages, [("PyPI", "urllib3", "1.26.12")])
+        self.assertEqual(inventory.os_owned, 0)
+
     def test_a_copy_the_os_does_not_own_is_still_looked_up(self):
         inventory = inventory_of(
             {
                 "etc/os-release": DEBIAN_OS_RELEASE,
+                "var/lib/dpkg/status": DPKG_STATUS,
                 "usr/lib/python3/dist-packages/urllib3-1.26.12.dist-info/METADATA": "Name: urllib3\nVersion: 1.26.12\n",
                 "app/.venv/lib/python3.11/site-packages/urllib3-1.26.12.dist-info/METADATA": "Name: urllib3\nVersion: 1.26.12\n",
             }

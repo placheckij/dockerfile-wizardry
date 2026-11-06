@@ -278,13 +278,18 @@ def read_inventory(archive):
             }
             break
     inventory.ecosystem = os_ecosystem(inventory.os_release)
+    safe_os = [
+        p for p in inventory.os_packages if all(SAFE_TOKEN.fullmatch(t) for t in p)
+    ]
     # Debian and Ubuntu keep dist-packages under /usr/lib/python3 for their own
     # packages (pip installs under /usr/local); apk lists the files it installed.
     # Decided per file, so another copy of the same version is still looked up, and
-    # only when the OS lookup runs: otherwise PyPI or npm is the only lookup left.
+    # only when the OS lookup runs (a known release and OS packages to ask about):
+    # otherwise PyPI or npm is the only lookup left.
+    os_lookup = bool(inventory.ecosystem and safe_os)
     found, by_os = set(), set()
     for path, package in language:
-        if inventory.ecosystem and (
+        if os_lookup and (
             path in owned or path.startswith("usr/lib/python3/dist-packages/")
         ):
             # per package: one vendor.txt lists many
@@ -292,9 +297,6 @@ def read_inventory(archive):
         else:
             found.add(package)
     inventory.os_owned = len(by_os)
-    safe_os = [
-        p for p in inventory.os_packages if all(SAFE_TOKEN.fullmatch(t) for t in p)
-    ]
     safe_language = {p for p in found if all(SAFE_TOKEN.fullmatch(t) for t in p[1:])}
     inventory.skipped = (
         len(inventory.os_packages) - len(safe_os) + len(found - safe_language)
