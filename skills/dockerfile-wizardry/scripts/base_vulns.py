@@ -314,54 +314,64 @@ def query_osv(queries, post):
 
 # pre-release markers sort before the release they lead to (apk `_rc1`, semver `-rc.1`)
 PRE_RELEASE = {"dev": 0, "alpha": 1, "beta": 2, "pre": 3, "rc": 4}
+# PEP 440 also spells them a, b and c (2.0b1); elsewhere a trailing letter is later
+PYPI_PRE_RELEASE = dict(PRE_RELEASE, a=1, b=2, c=4, preview=4)
 
 
-def _version_parts(text):
+def _version_parts(text, pre_release):
     parts = []
     for token in re.findall(r"\d+|[A-Za-z]+|~", text):
         if token == "~":
             parts.append((-2, 0, ""))
         elif token.isdigit():
             parts.append((2, int(token), ""))
-        elif token.lower() in PRE_RELEASE:
-            parts.append((-1, PRE_RELEASE[token.lower()], ""))
+        elif token.lower() in pre_release:
+            parts.append((-1, pre_release[token.lower()], ""))
         else:
             parts.append((1, 0, token))
     parts.append((0, 0, ""))
     return parts
 
 
-def version_key(version):
+def version_key(version, ecosystem=None):
     """A sort key good enough to tell which range of an advisory holds a version:
     the epoch, then the version, then the revision after the last `-` (Debian's
     `-1~deb12u2`, apk's `-r0`). Numbers and letters compare in turn; Debian's `~`
     and pre-release markers come before the end."""
+    pre_release = PYPI_PRE_RELEASE if ecosystem == "PyPI" else PRE_RELEASE
     epoch, sep, rest = version.partition(":")
     if not (sep and epoch.isdigit()):
         epoch, rest = "0", version
     upstream, _, revision = rest.rpartition("-")
     if not upstream:
         upstream, revision = rest, ""
-    return (int(epoch), _version_parts(upstream), _version_parts(revision))
+    return (
+        int(epoch),
+        _version_parts(upstream, pre_release),
+        _version_parts(revision, pre_release),
+    )
 
 
-def _range_status(events, installed):
+def _range_status(events, installed, ecosystem):
     """("fixed", version) if `installed` falls in a part of the range that a later
     version fixes, ("unfixed", None) if it falls in a part with no fix, else
     ("outside", None). Events come in version order, as OSV lists them."""
-    key = version_key(installed)
+    key = version_key(installed, ecosystem)
     affected = False
     for event in events:
         if "introduced" in event:
-            if event["introduced"] != "0" and version_key(event["introduced"]) > key:
+            if (
+                event["introduced"] != "0"
+                and version_key(event["introduced"], ecosystem) > key
+            ):
                 break
             affected = True
         elif "fixed" in event:
-            if version_key(event["fixed"]) > key:
+            if version_key(event["fixed"], ecosystem) > key:
                 return ("fixed", event["fixed"]) if affected else ("outside", None)
             affected = False
         elif "last_affected" in event:
-            if version_key(event["last_affected"]) >= key:
+            if version_key(event["last_affected"], ecosystem) >= key:
                 return ("unfixed", None) if affected else ("outside", None)
             affected = False
     return ("unfixed", None) if affected else ("outside", None)
@@ -388,7 +398,7 @@ def fixed_versions(record, ecosystem, name, installed):
             if affected_range.get("type") == "GIT":
                 continue
             events = affected_range.get("events", [])
-            status, version = _range_status(events, installed)
+            status, version = _range_status(events, installed, ecosystem)
             if status == "fixed" and version not in fixed:
                 fixed.append(version)
             unfixed = unfixed or status == "unfixed"
@@ -396,7 +406,8 @@ def fixed_versions(record, ecosystem, name, installed):
                 event["fixed"]
                 for event in events
                 if "fixed" in event
-                and version_key(event["fixed"]) > version_key(installed)
+                and version_key(event["fixed"], ecosystem)
+                > version_key(installed, ecosystem)
             ]
     if fixed or unfixed:
         return fixed
@@ -438,20 +449,32 @@ def severity(record, ecosystem, name):
     return "not given"
 
 
+def os_name(os_release):
+    """`<ID> <VERSION_ID>` as strict tokens, or None. The free-text fields
+    (PRETTY_NAME, NAME) come from the untrusted image and are never shown."""
+    parts = [
+        os_release[key]
+        for key in ("ID", "VERSION_ID")
+        if os_release.get(key) and SAFE_TOKEN.fullmatch(os_release[key])
+    ]
+    return " ".join(parts) or None
+
+
 def not_covered(inventory, missing=0):
     gaps = []
     distro = inventory.os_release.get("ID")
+    name = os_name(inventory.os_release) or "an unrecognised distribution"
     if not inventory.os_release:
         gaps.append(
             "OS packages: the image has no os-release file, so its distribution is unknown."
         )
     elif not inventory.ecosystem:
         gaps.append(
-            f"OS packages: {distro} {inventory.os_release.get('VERSION_ID', '')} is not a "
-            "release this script can look up (Alpine, Debian and Ubuntu releases only)."
+            f"OS packages: {name} is not a release this script can look up (Alpine, "
+            "Debian and Ubuntu releases only)."
         )
     elif not inventory.package_database:
-        gaps.append(f"OS packages: no package database found for {distro}.")
+        gaps.append(f"OS packages: no package database found for {name}.")
     if missing:
         gaps.append(
             f"{missing} advisories OSV.dev returned could not be fetched, so their fix "
@@ -554,7 +577,7 @@ def make_report(image, platform, inventory, queries, hits, records, queried_at):
         "platform": platform,
         "source": "OSV.dev (https://api.osv.dev)",
         "queried_at": queried_at,
-        "os": inventory.os_release.get("PRETTY_NAME") or inventory.os_release.get("ID"),
+        "os": os_name(inventory.os_release),
         "ecosystem": inventory.ecosystem,
         "package_database": inventory.package_database,
         "os_packages": len(inventory.os_packages) if inventory.ecosystem else 0,
