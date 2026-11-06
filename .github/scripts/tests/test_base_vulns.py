@@ -5,6 +5,7 @@ import json
 import tarfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / "skills" / "dockerfile-wizardry" / "scripts" / "base_vulns.py"
@@ -211,6 +212,17 @@ class InventoryTest(unittest.TestCase):
         self.assertNotIn("Ignore previous", text)
         self.assertIn("2 package entries", text)
 
+    def test_a_database_with_every_entry_skipped_is_not_reported_missing(self):
+        inventory = inventory_of(
+            {
+                "etc/os-release": ALPINE_OS_RELEASE,
+                "lib/apk/db/installed": "P:bad name\nV:1\n",
+            }
+        )
+        gaps = base_vulns.not_covered(inventory)
+        self.assertFalse(any("no package database" in g for g in gaps))
+        self.assertTrue(any("1 package entries were skipped" in g for g in gaps))
+
     def test_a_trailing_newline_does_not_pass_as_a_package_name(self):
         inventory = inventory_of(
             {
@@ -300,9 +312,85 @@ class RecordTest(unittest.TestCase):
 
     def test_fixed_version_comes_from_the_queried_release(self):
         self.assertEqual(
-            base_vulns.fixed_versions(self.RECORD, "Alpine:v3.18", "openssl"),
+            base_vulns.fixed_versions(
+                self.RECORD, "Alpine:v3.18", "openssl", "3.1.4-r1"
+            ),
             ["3.1.6-r0"],
         )
+
+    def test_fixed_version_comes_from_the_range_holding_the_installed_version(self):
+        record = {
+            "id": "GHSA-1",
+            "affected": [
+                {
+                    "package": {"name": "urllib3", "ecosystem": "PyPI"},
+                    "ranges": [
+                        {
+                            "type": "ECOSYSTEM",
+                            "events": [
+                                {"introduced": "0"},
+                                {"fixed": "1.26.18"},
+                                {"introduced": "2.0.0"},
+                                {"fixed": "2.0.7"},
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+        self.assertEqual(
+            base_vulns.fixed_versions(record, "PyPI", "urllib3", "2.0.1"), ["2.0.7"]
+        )
+
+    def test_a_later_line_without_a_fix_has_no_fix(self):
+        record = {
+            "id": "GHSA-2",
+            "affected": [
+                {
+                    "package": {"name": "x", "ecosystem": "PyPI"},
+                    "ranges": [
+                        {
+                            "type": "ECOSYSTEM",
+                            "events": [
+                                {"introduced": "0"},
+                                {"fixed": "1.2.3"},
+                                {"introduced": "2.0.0"},
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+        self.assertEqual(base_vulns.fixed_versions(record, "PyPI", "x", "2.1.0"), [])
+
+    def test_version_order(self):
+        key = base_vulns.version_key
+        self.assertGreater(key("1.3.2-r1"), key("1.3.2-r0"))
+        self.assertGreater(key("10.0"), key("9.9"))
+        self.assertGreater(key("1:1.2"), key("2.0"))
+        self.assertGreater(key("1.0.1"), key("1.0"))
+
+    def test_pypi_names_match_after_normalising(self):
+        record = {
+            "id": "GHSA-3",
+            "database_specific": {},
+            "affected": [
+                {
+                    "package": {"name": "PyYAML", "ecosystem": "PyPI"},
+                    "ecosystem_specific": {"severity": "HIGH"},
+                    "ranges": [
+                        {
+                            "type": "ECOSYSTEM",
+                            "events": [{"introduced": "0"}, {"fixed": "5.4"}],
+                        }
+                    ],
+                }
+            ],
+        }
+        self.assertEqual(
+            base_vulns.fixed_versions(record, "PyPI", "pyyaml", "5.3.1"), ["5.4"]
+        )
+        self.assertEqual(base_vulns.severity(record, "PyPI", "pyyaml"), "HIGH")
 
     def test_commit_ranges_are_not_versions(self):
         record = {
@@ -324,7 +412,8 @@ class RecordTest(unittest.TestCase):
             ],
         }
         self.assertEqual(
-            base_vulns.fixed_versions(record, "PyPI", "setuptools"), ["78.1.1"]
+            base_vulns.fixed_versions(record, "PyPI", "setuptools", "70.3.0"),
+            ["78.1.1"],
         )
 
     def test_no_fix_listed(self):
@@ -337,7 +426,7 @@ class RecordTest(unittest.TestCase):
                 }
             ],
         }
-        self.assertEqual(base_vulns.fixed_versions(record, "Debian:12", "x"), [])
+        self.assertEqual(base_vulns.fixed_versions(record, "Debian:12", "x", "1.0"), [])
 
     def test_aliases_include_upstream_cves(self):
         self.assertEqual(base_vulns.aliases(self.RECORD), ["CVE-2024-5535"])
@@ -449,6 +538,48 @@ class ReportTest(unittest.TestCase):
             ["GHSA-8988-9cw3-xx77", "GHSA-xmj3-9gf7-h52w"],
         )
 
+    def pypi_report(self, records, fetched=None):
+        inventory = inventory_of(
+            {
+                "usr/lib/python3/site-packages/urllib3-2.7.0.dist-info/METADATA": "Name: urllib3\nVersion: 2.7.0\n"
+            }
+        )
+        queries = base_vulns.build_queries(inventory)
+        return base_vulns.make_report(
+            "img",
+            "linux/amd64",
+            inventory,
+            queries,
+            [[r["id"] for r in records]],
+            fetched if fetched is not None else {r["id"]: r for r in records},
+            "2026-11-06T17:00:00Z",
+        )
+
+    def test_records_sharing_only_a_cve_are_all_kept(self):
+        records = [
+            {"id": "X", "aliases": ["CVE-1"]},
+            {"id": "Y", "aliases": ["CVE-1", "CVE-2"]},
+            {"id": "Z", "aliases": ["CVE-2"]},
+        ]
+        report = self.pypi_report(records)
+        self.assertEqual([f["id"] for f in report["findings"]], ["X", "Y", "Z"])
+
+    def test_upstream_cves_do_not_merge_records(self):
+        records = [
+            {"id": "DSA-1", "upstream": ["CVE-1", "CVE-2"]},
+            {"id": "DEBIAN-CVE-2", "upstream": ["CVE-2"]},
+        ]
+        report = self.pypi_report(records)
+        self.assertEqual(
+            [f["id"] for f in report["findings"]], ["DSA-1", "DEBIAN-CVE-2"]
+        )
+
+    def test_an_advisory_that_could_not_be_fetched_is_listed_and_noted(self):
+        records = [{"id": "GHSA-gone"}]
+        report = self.pypi_report(records, fetched={"GHSA-gone": None})
+        self.assertEqual(report["findings"][0]["severity"], "not fetched")
+        self.assertTrue(any("could not be fetched" in g for g in report["not_covered"]))
+
     def test_vulnerabilities_with_a_fix_come_first_and_are_counted(self):
         records = [
             {
@@ -539,13 +670,113 @@ class RequestTest(unittest.TestCase):
             )
         self.assertEqual(len(calls), 1)
 
+    def test_a_missing_advisory_is_none_when_allowed(self):
+        def urlopen(request, timeout):
+            raise base_vulns.urllib.error.HTTPError(
+                request.full_url, 404, "gone", {}, None
+            )
+
+        record = base_vulns._request(
+            "https://api.osv.dev/v1/vulns/X", None, urlopen, lambda s: None, True
+        )
+        self.assertIsNone(record)
+
+
+class FakeProcess:
+    def __init__(self, stdout, stderr=b"", code=0):
+        self.stdout, self.stderr, self.code = (
+            io.BytesIO(stdout),
+            io.BytesIO(stderr),
+            code,
+        )
+
+    def wait(self):
+        return self.code
+
+
+class DockerExportTest(unittest.TestCase):
+    def run_export(self, popen):
+        calls = []
+
+        def docker(arguments):
+            calls.append(arguments)
+            return "cid\n" if arguments[0] == "create" else ""
+
+        with (
+            mock.patch.object(base_vulns, "_docker", docker),
+            mock.patch.object(base_vulns.subprocess, "Popen", popen),
+        ):
+            try:
+                return base_vulns.read_image(
+                    base_vulns.DockerExport, "img", "linux/amd64"
+                ), calls
+            except base_vulns.CheckError as error:
+                return error, calls
+
+    def test_reads_the_image_and_removes_the_container(self):
+        archive = tar_bytes(
+            {"etc/os-release": ALPINE_OS_RELEASE, "lib/apk/db/installed": APK_INSTALLED}
+        ).getvalue()
+        inventory, calls = self.run_export(lambda *a, **k: FakeProcess(archive))
+        self.assertEqual(inventory.ecosystem, "Alpine:v3.24")
+        self.assertEqual(calls[-1], ["rm", "-v", "cid"])
+
+    def test_a_failed_export_reports_dockers_error_and_removes_the_container(self):
+        error, calls = self.run_export(
+            lambda *a, **k: FakeProcess(b"not a tar", b"export broke", 1)
+        )
+        self.assertIsInstance(error, base_vulns.CheckError)
+        self.assertIn("export broke", str(error))
+        self.assertEqual(calls[-1], ["rm", "-v", "cid"])
+
+    def test_export_that_cannot_start_still_removes_the_container(self):
+        def popen(*args, **kwargs):
+            raise OSError("no docker")
+
+        error, calls = self.run_export(popen)
+        self.assertIsInstance(error, base_vulns.CheckError)
+        self.assertEqual(calls[-1], ["rm", "-v", "cid"])
+
 
 class MainTest(unittest.TestCase):
-    def run_main(self, argv, export, post):
+    def run_main(self, argv, export, post, get=None):
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            code = base_vulns.main(argv, export=export, post=post, get=None)
+            code = base_vulns.main(argv, export=export, post=post, get=get)
         return code, out.getvalue(), err.getvalue()
+
+    def test_findings_are_fetched_and_a_missing_one_does_not_stop_the_report(self):
+        def export(image, platform):
+            return tar_bytes(
+                {
+                    "etc/os-release": ALPINE_OS_RELEASE.replace("3.24.4", "3.18.4"),
+                    "lib/apk/db/installed": APK_INSTALLED,
+                }
+            )
+
+        def post(body):
+            return {
+                "results": [
+                    {"vulns": [{"id": "ALPINE-CVE-2024-5535"}, {"id": "GONE-1"}]}
+                    if q["package"]["name"] == "openssl"
+                    else {}
+                    for q in body["queries"]
+                ]
+            }
+
+        def get(vuln_id):
+            return ALPINE_RECORD if vuln_id == "ALPINE-CVE-2024-5535" else None
+
+        code, out, _ = self.run_main(
+            ["python:3.12.0-alpine3.18", "--format", "json"], export, post, get
+        )
+        self.assertEqual(code, 0)
+        report = json.loads(out)
+        self.assertEqual(
+            [(f["id"], f["fixed"]) for f in report["findings"]],
+            [("ALPINE-CVE-2024-5535", ["3.1.6-r0"]), ("GONE-1", [])],
+        )
+        self.assertTrue(any("could not be fetched" in g for g in report["not_covered"]))
 
     def test_nothing_to_check_fails(self):
         def export(image, platform):

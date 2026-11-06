@@ -418,7 +418,8 @@ reverse, so name it in the summary.
   build uses (`<image>:<tag>@<digest>` once the digest is resolved) and the platform you
   build for:
   `python3 <this skill's directory>/scripts/base_vulns.py <image>:<tag>@<digest> --platform linux/amd64`
-  (`python` where there is no `python3`). It creates a container from the image without
+  (`python` where there is no `python3`; on a large image it can take a few minutes, so
+  allow the command up to ten). It creates a container from the image without
   starting it, reads the OS, Python and npm packages from its files, asks OSV.dev about
   each, and prints the vulnerabilities with their fixed version and the severity as the
   source gives it, then what it did not cover. Exit 3 means it found nothing it could

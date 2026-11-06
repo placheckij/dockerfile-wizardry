@@ -30,12 +30,14 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 OSV_API = "https://api.osv.dev/v1"
 BATCH_SIZE = 1000
 TIMEOUT = 60
 RETRIES = 3
+FETCH_WORKERS = 8
 
 EXIT_ERROR = 1
 EXIT_USAGE = 2
@@ -307,20 +309,82 @@ def query_osv(queries, post):
     return hits
 
 
-def fixed_versions(record, ecosystem, name):
-    fixed = []
+def version_key(version):
+    """A sort key good enough to tell which range of an advisory holds a version:
+    epoch first, then numbers and letters in turn, `~` before the end (Debian)."""
+    epoch, sep, rest = version.partition(":")
+    if not (sep and epoch.isdigit()):
+        epoch, rest = "0", version
+    parts = []
+    for token in re.findall(r"\d+|[A-Za-z]+|~", rest):
+        if token == "~":
+            parts.append((-1, 0, ""))
+        elif token.isdigit():
+            parts.append((2, int(token), ""))
+        else:
+            parts.append((1, 0, token))
+    parts.append((0, 0, ""))
+    return (int(epoch), parts)
+
+
+def _range_status(events, installed):
+    """("fixed", version) if `installed` falls in a part of the range that a later
+    version fixes, ("unfixed", None) if it falls in a part with no fix, else
+    ("outside", None). Events come in version order, as OSV lists them."""
+    key = version_key(installed)
+    affected = False
+    for event in events:
+        if "introduced" in event:
+            if event["introduced"] != "0" and version_key(event["introduced"]) > key:
+                break
+            affected = True
+        elif "fixed" in event:
+            if version_key(event["fixed"]) > key:
+                return ("fixed", event["fixed"]) if affected else ("outside", None)
+            affected = False
+        elif "last_affected" in event:
+            if version_key(event["last_affected"]) >= key:
+                return ("unfixed", None) if affected else ("outside", None)
+            affected = False
+    return ("unfixed", None) if affected else ("outside", None)
+
+
+def same_package(package, ecosystem, name):
+    if package.get("ecosystem") != ecosystem:
+        return False
+    # advisories may spell a PyPI name as published (PyYAML); the query normalized it
+    if ecosystem == "PyPI":
+        return normalize_pypi(package.get("name", "")) == name
+    return package.get("name") == name
+
+
+def fixed_versions(record, ecosystem, name, installed):
+    """The versions that fix this advisory for the installed version: from the range
+    that holds it, so a fix on another release line does not count."""
+    fixed, other, unfixed = [], [], False
     for affected in record.get("affected", []):
-        package = affected.get("package", {})
-        if package.get("ecosystem") != ecosystem or package.get("name") != name:
+        if not same_package(affected.get("package", {}), ecosystem, name):
             continue
         for affected_range in affected.get("ranges", []):
             # a GIT range's events are commits, not versions
             if affected_range.get("type") == "GIT":
                 continue
-            for event in affected_range.get("events", []):
-                if "fixed" in event and event["fixed"] not in fixed:
-                    fixed.append(event["fixed"])
-    return fixed
+            events = affected_range.get("events", [])
+            status, version = _range_status(events, installed)
+            if status == "fixed" and version not in fixed:
+                fixed.append(version)
+            unfixed = unfixed or status == "unfixed"
+            other += [
+                event["fixed"]
+                for event in events
+                if "fixed" in event
+                and version_key(event["fixed"]) > version_key(installed)
+            ]
+    if fixed or unfixed:
+        return fixed
+    # OSV says the version is affected but no range seemed to hold it: the ordering
+    # here is approximate, so fall back to the fixes above the installed version
+    return list(dict.fromkeys(other))
 
 
 def aliases(record):
@@ -337,8 +401,7 @@ def severity(record, ecosystem, name):
     entries = [
         affected
         for affected in record.get("affected", [])
-        if affected.get("package", {}).get("ecosystem") == ecosystem
-        and affected.get("package", {}).get("name") == name
+        if same_package(affected.get("package", {}), ecosystem, name)
     ]
     for affected in entries:
         specific = affected.get("ecosystem_specific") or {}
@@ -357,7 +420,7 @@ def severity(record, ecosystem, name):
     return "not given"
 
 
-def not_covered(inventory):
+def not_covered(inventory, missing=0):
     gaps = []
     distro = inventory.os_release.get("ID")
     if not inventory.os_release:
@@ -369,8 +432,13 @@ def not_covered(inventory):
             f"OS packages: {distro} {inventory.os_release.get('VERSION_ID', '')} is not a "
             "release this script can look up (Alpine, Debian and Ubuntu releases only)."
         )
-    elif not inventory.os_packages:
+    elif not inventory.package_database:
         gaps.append(f"OS packages: no package database found for {distro}.")
+    if missing:
+        gaps.append(
+            f"{missing} advisories OSV.dev returned could not be fetched, so their fix "
+            "and severity are unknown."
+        )
     if inventory.skipped:
         gaps.append(
             f"{inventory.skipped} package entries were skipped because a name or version "
@@ -406,18 +474,23 @@ def make_report(image, platform, inventory, queries, hits, records, queried_at):
         if binary not in binaries[(source, version)]:
             binaries[(source, version)].append(binary)
     findings = []
+    missing = set()
     for query, ids in zip(queries, hits):
         name, ecosystem = query["package"]["name"], query["package"]["ecosystem"]
-        seen = set()
+        kept_ids, kept_aliases = set(), set()
         for vuln_id in ids:
-            record = records.get(vuln_id, {"id": vuln_id})
-            # the same vulnerability can come back under several ids that alias each
-            # other (GHSA-... and PYSEC-...); keep the first
-            names = {vuln_id} | set(aliases(record))
-            if names & seen:
-                seen |= names
+            record = records.get(vuln_id)
+            if record is None:
+                missing.add(vuln_id)
+                record = {"id": vuln_id}
+            # the same vulnerability can come back under ids that name each other as
+            # aliases (GHSA-... and PYSEC-...); keep the first. A shared CVE alone, or
+            # an `upstream` list, does not make two records the same.
+            own_aliases = set(record.get("aliases", []))
+            if vuln_id in kept_aliases or own_aliases & kept_ids:
                 continue
-            seen |= names
+            kept_ids.add(vuln_id)
+            kept_aliases |= own_aliases
             findings.append(
                 {
                     "package": name,
@@ -430,9 +503,13 @@ def make_report(image, platform, inventory, queries, hits, records, queried_at):
                     "aliases": [clean(alias) for alias in aliases(record)],
                     "fixed": [
                         clean(version)
-                        for version in fixed_versions(record, ecosystem, name)
+                        for version in fixed_versions(
+                            record, ecosystem, name, query["version"]
+                        )
                     ],
-                    "severity": clean(severity(record, ecosystem, name), 200),
+                    "severity": "not fetched"
+                    if vuln_id in missing
+                    else clean(severity(record, ecosystem, name), 200),
                 }
             )
     # what a newer base or package version can fix comes first
@@ -451,7 +528,7 @@ def make_report(image, platform, inventory, queries, hits, records, queried_at):
         "with_fix": with_fix,
         "without_fix": len(findings) - with_fix,
         "findings": findings,
-        "not_covered": not_covered(inventory),
+        "not_covered": not_covered(inventory, len(missing)),
     }
 
 
@@ -501,12 +578,17 @@ def osv_post(body):
 
 
 def osv_get(vuln_id):
-    return _request(f"{OSV_API}/vulns/{urllib.parse.quote(vuln_id)}", None)
+    """The advisory, or None if OSV.dev no longer has it (404)."""
+    return _request(
+        f"{OSV_API}/vulns/{urllib.parse.quote(vuln_id)}", None, missing_ok=True
+    )
 
 
-def _request(url, data, urlopen=urllib.request.urlopen, sleep=time.sleep):
+def _request(
+    url, data, urlopen=urllib.request.urlopen, sleep=time.sleep, missing_ok=False
+):
     """JSON from OSV.dev, retrying a rate limit (429), a server error (5xx) or a network
-    error a few times."""
+    error a few times. With `missing_ok`, a 404 gives None."""
     for attempt in range(RETRIES + 1):
         request = urllib.request.Request(
             url,
@@ -521,6 +603,8 @@ def _request(url, data, urlopen=urllib.request.urlopen, sleep=time.sleep):
                 return json.load(response)
         except urllib.error.HTTPError as error:
             failure = error
+            if error.code == 404 and missing_ok:
+                return None
             if error.code != 429 and error.code < 500:
                 break
         except (urllib.error.URLError, OSError) as error:
@@ -544,11 +628,15 @@ class DockerExport:
     def __enter__(self):
         created = _docker(["create", "--platform", self.platform, self.image, "x"])
         self.container = created.strip()
-        self.process = subprocess.Popen(
-            ["docker", "export", self.container],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+        try:
+            self.process = subprocess.Popen(
+                ["docker", "export", self.container],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+        except OSError as error:
+            _docker(["rm", "-v", self.container])
+            raise CheckError(f"could not run docker export: {error}") from error
         return self.process.stdout
 
     def __exit__(self, kind, value, traceback):
@@ -558,8 +646,9 @@ class DockerExport:
                 pass
             self.process.stdout.close()
             error = self.process.stderr.read().decode("utf-8", "replace").strip()
-            if self.process.wait() != 0 and kind is None:
-                raise CheckError(f"docker export failed: {error[:300]}")
+            # a failed export is the cause of any tar error it led to, so report it
+            if self.process.wait() != 0:
+                raise CheckError(f"docker export failed: {error[:300]}") from value
         finally:
             _docker(["rm", "-v", self.container])
         return False
@@ -610,11 +699,10 @@ def main(argv=None, export=DockerExport, post=osv_post, get=osv_get):
             return EXIT_NOTHING
         queried_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         hits = query_osv(queries, post)
-        records = {}
-        for ids in hits:
-            for vuln_id in ids:
-                if vuln_id not in records:
-                    records[vuln_id] = get(vuln_id)
+        ids = list(dict.fromkeys(vuln_id for found in hits for vuln_id in found))
+        # a large Debian base returns hundreds of advisories; fetch them in parallel
+        with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
+            records = dict(zip(ids, pool.map(get, ids)))
     except (CheckError, tarfile.TarError) as error:
         print(f"Could not check {args.image}: {error}", file=sys.stderr)
         return EXIT_ERROR
