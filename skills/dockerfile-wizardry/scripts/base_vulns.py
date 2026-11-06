@@ -21,6 +21,7 @@ so nothing was checked.
 """
 
 import argparse
+import http.client
 import json
 import re
 import subprocess
@@ -233,6 +234,8 @@ def read_inventory(archive):
                 manifest = json.loads(text)
             except ValueError:
                 continue
+            if not isinstance(manifest, dict):
+                continue
             name, version = manifest.get("name"), manifest.get("version")
             if (
                 isinstance(name, str)
@@ -309,22 +312,37 @@ def query_osv(queries, post):
     return hits
 
 
-def version_key(version):
-    """A sort key good enough to tell which range of an advisory holds a version:
-    epoch first, then numbers and letters in turn, `~` before the end (Debian)."""
-    epoch, sep, rest = version.partition(":")
-    if not (sep and epoch.isdigit()):
-        epoch, rest = "0", version
+# pre-release markers sort before the release they lead to (apk `_rc1`, semver `-rc.1`)
+PRE_RELEASE = {"dev": 0, "alpha": 1, "beta": 2, "pre": 3, "rc": 4}
+
+
+def _version_parts(text):
     parts = []
-    for token in re.findall(r"\d+|[A-Za-z]+|~", rest):
+    for token in re.findall(r"\d+|[A-Za-z]+|~", text):
         if token == "~":
-            parts.append((-1, 0, ""))
+            parts.append((-2, 0, ""))
         elif token.isdigit():
             parts.append((2, int(token), ""))
+        elif token.lower() in PRE_RELEASE:
+            parts.append((-1, PRE_RELEASE[token.lower()], ""))
         else:
             parts.append((1, 0, token))
     parts.append((0, 0, ""))
-    return (int(epoch), parts)
+    return parts
+
+
+def version_key(version):
+    """A sort key good enough to tell which range of an advisory holds a version:
+    the epoch, then the version, then the revision after the last `-` (Debian's
+    `-1~deb12u2`, apk's `-r0`). Numbers and letters compare in turn; Debian's `~`
+    and pre-release markers come before the end."""
+    epoch, sep, rest = version.partition(":")
+    if not (sep and epoch.isdigit()):
+        epoch, rest = "0", version
+    upstream, _, revision = rest.rpartition("-")
+    if not upstream:
+        upstream, revision = rest, ""
+    return (int(epoch), _version_parts(upstream), _version_parts(revision))
 
 
 def _range_status(events, installed):
@@ -478,16 +496,26 @@ def make_report(image, platform, inventory, queries, hits, records, queried_at):
     for query, ids in zip(queries, hits):
         name, ecosystem = query["package"]["name"], query["package"]["ecosystem"]
         kept_ids, kept_aliases = set(), set()
+        returned = set(ids)
         for vuln_id in ids:
             record = records.get(vuln_id)
             if record is None:
                 missing.add(vuln_id)
                 record = {"id": vuln_id}
             # the same vulnerability can come back under ids that name each other as
-            # aliases (GHSA-... and PYSEC-...); keep the first. A shared CVE alone, or
-            # an `upstream` list, does not make two records the same.
+            # aliases (GHSA-... and PYSEC-...); keep the first. A shared CVE alone does
+            # not make two records the same.
             own_aliases = set(record.get("aliases", []))
             if vuln_id in kept_aliases or own_aliases & kept_ids:
+                continue
+            # a Debian DSA/DLA lists in `upstream` the DEBIAN-CVE records it bundles;
+            # when OSV returned all of them, they already count its vulnerabilities
+            bundled = [
+                name
+                for name in record.get("upstream", [])
+                if not name.startswith("CVE-") and name != vuln_id
+            ]
+            if bundled and all(name in returned for name in bundled):
                 continue
             kept_ids.add(vuln_id)
             kept_aliases |= own_aliases
@@ -501,7 +529,10 @@ def make_report(image, platform, inventory, queries, hits, records, queried_at):
                     "version": query["version"],
                     "id": clean(vuln_id),
                     "aliases": [clean(alias) for alias in aliases(record)],
-                    "fixed": [
+                    # None: the advisory could not be fetched, so the fix is unknown
+                    "fixed": None
+                    if vuln_id in missing
+                    else [
                         clean(version)
                         for version in fixed_versions(
                             record, ecosystem, name, query["version"]
@@ -512,9 +543,12 @@ def make_report(image, platform, inventory, queries, hits, records, queried_at):
                     else clean(severity(record, ecosystem, name), 200),
                 }
             )
-    # what a newer base or package version can fix comes first
-    findings.sort(key=lambda finding: not finding["fixed"])
+    # what a newer base or package version can fix comes first, unknown ones last
+    findings.sort(
+        key=lambda finding: 2 if finding["fixed"] is None else int(not finding["fixed"])
+    )
     with_fix = sum(1 for finding in findings if finding["fixed"])
+    unknown_fix = sum(1 for finding in findings if finding["fixed"] is None)
     return {
         "image": image,
         "platform": platform,
@@ -526,7 +560,8 @@ def make_report(image, platform, inventory, queries, hits, records, queried_at):
         "os_packages": len(inventory.os_packages) if inventory.ecosystem else 0,
         "language_packages": len(inventory.language_packages),
         "with_fix": with_fix,
-        "without_fix": len(findings) - with_fix,
+        "without_fix": len(findings) - with_fix - unknown_fix,
+        "unknown_fix": unknown_fix,
         "findings": findings,
         "not_covered": not_covered(inventory, len(missing)),
     }
@@ -549,7 +584,12 @@ def render_markdown(report):
         lines += [
             (
                 f"{len(report['findings'])} vulnerabilities: {report['with_fix']} with "
-                f"a fix listed, {report['without_fix']} without."
+                f"a fix listed, {report['without_fix']} without"
+                + (
+                    f", {report['unknown_fix']} not fetched."
+                    if report["unknown_fix"]
+                    else "."
+                )
             ),
             "",
             "| Package | Installed | Advisory | Also known as | Fixed in | Severity |",
@@ -562,10 +602,14 @@ def render_markdown(report):
                 package = finding["package"]
             else:
                 package = f"{finding['package']} ({finding['ecosystem']})"
+            if finding["fixed"] is None:
+                fixed = "unknown"
+            else:
+                fixed = ", ".join(finding["fixed"]) or "no fix listed"
             lines.append(
                 f"| {package} | {finding['version']} | {finding['id']} | "
-                f"{', '.join(finding['aliases']) or '-'} | "
-                f"{', '.join(finding['fixed']) or 'no fix listed'} | {finding['severity']} |"
+                f"{', '.join(finding['aliases']) or '-'} | {fixed} | "
+                f"{finding['severity']} |"
             )
     else:
         lines.append("No known vulnerabilities were found in the packages looked up.")
@@ -607,7 +651,8 @@ def _request(
                 return None
             if error.code != 429 and error.code < 500:
                 break
-        except (urllib.error.URLError, OSError) as error:
+        # HTTPException: the connection broke mid-body (IncompleteRead and the like)
+        except (urllib.error.URLError, OSError, http.client.HTTPException) as error:
             failure = error
         except ValueError as error:
             failure = error

@@ -237,6 +237,16 @@ class InventoryTest(unittest.TestCase):
         self.assertEqual(inventory.language_packages, [])
         self.assertEqual(inventory.skipped, 1)
 
+    def test_a_package_json_that_is_not_an_object_is_ignored(self):
+        inventory = inventory_of(
+            {
+                "usr/lib/node_modules/a/package.json": "[]",
+                "usr/lib/node_modules/b/package.json": "null",
+                "usr/lib/node_modules/c/package.json": "not json",
+            }
+        )
+        self.assertEqual(inventory.language_packages, [])
+
     def test_an_image_without_a_package_database_has_nothing_to_query(self):
         inventory = inventory_of({"app/server": "binary"})
         self.assertEqual(base_vulns.build_queries(inventory), [])
@@ -369,6 +379,31 @@ class RecordTest(unittest.TestCase):
         self.assertGreater(key("10.0"), key("9.9"))
         self.assertGreater(key("1:1.2"), key("2.0"))
         self.assertGreater(key("1.0.1"), key("1.0"))
+        # apk pre-releases come before the release, a patch level after it
+        self.assertLess(key("1.2_rc1-r0"), key("1.2-r0"))
+        self.assertLess(key("1.2_alpha2"), key("1.2_beta1"))
+        self.assertGreater(key("1.2_p1-r0"), key("1.2-r0"))
+        self.assertLess(key("1.0~rc1-1"), key("1.0-1"))
+
+    def test_a_pre_release_is_fixed_by_its_release(self):
+        record = {
+            "id": "ALPINE-CVE-1",
+            "affected": [
+                {
+                    "package": {"name": "x", "ecosystem": "Alpine:v3.24"},
+                    "ranges": [
+                        {
+                            "type": "ECOSYSTEM",
+                            "events": [{"introduced": "0"}, {"fixed": "1.2-r0"}],
+                        }
+                    ],
+                }
+            ],
+        }
+        self.assertEqual(
+            base_vulns.fixed_versions(record, "Alpine:v3.24", "x", "1.2_rc1-r0"),
+            ["1.2-r0"],
+        )
 
     def test_pypi_names_match_after_normalising(self):
         record = {
@@ -574,10 +609,36 @@ class ReportTest(unittest.TestCase):
             [f["id"] for f in report["findings"]], ["DSA-1", "DEBIAN-CVE-2"]
         )
 
+    def test_a_debian_advisory_that_bundles_returned_records_is_not_counted_again(
+        self,
+    ):
+        records = [
+            {
+                "id": "DSA-5532-1",
+                "upstream": ["CVE-2023-5363", "DEBIAN-CVE-2023-5363"],
+            },
+            {"id": "DEBIAN-CVE-2023-5363", "upstream": ["CVE-2023-5363"]},
+            {"id": "DSA-9999-1", "upstream": ["CVE-9", "DEBIAN-CVE-9"]},
+        ]
+        report = self.pypi_report(records)
+        # DSA-9999-1 bundles a record OSV did not return here, so it stays
+        self.assertEqual(
+            [f["id"] for f in report["findings"]],
+            ["DEBIAN-CVE-2023-5363", "DSA-9999-1"],
+        )
+
     def test_an_advisory_that_could_not_be_fetched_is_listed_and_noted(self):
         records = [{"id": "GHSA-gone"}]
         report = self.pypi_report(records, fetched={"GHSA-gone": None})
-        self.assertEqual(report["findings"][0]["severity"], "not fetched")
+        finding = report["findings"][0]
+        self.assertEqual((finding["severity"], finding["fixed"]), ("not fetched", None))
+        self.assertEqual(
+            (report["with_fix"], report["without_fix"], report["unknown_fix"]),
+            (0, 0, 1),
+        )
+        text = base_vulns.render_markdown(report)
+        self.assertIn("| unknown | not fetched |", text)
+        self.assertIn("1 not fetched", text)
         self.assertTrue(any("could not be fetched" in g for g in report["not_covered"]))
 
     def test_vulnerabilities_with_a_fix_come_first_and_are_counted(self):
@@ -681,6 +742,19 @@ class RequestTest(unittest.TestCase):
         )
         self.assertIsNone(record)
 
+    def test_a_connection_cut_mid_body_is_retried_then_reported(self):
+        calls = []
+
+        def urlopen(request, timeout):
+            calls.append(1)
+            raise base_vulns.http.client.IncompleteRead(b"{")
+
+        with self.assertRaises(base_vulns.CheckError):
+            base_vulns._request(
+                "https://api.osv.dev/v1/vulns/X", None, urlopen, lambda s: None
+            )
+        self.assertEqual(len(calls), base_vulns.RETRIES + 1)
+
 
 class FakeProcess:
     def __init__(self, stdout, stderr=b"", code=0):
@@ -774,7 +848,7 @@ class MainTest(unittest.TestCase):
         report = json.loads(out)
         self.assertEqual(
             [(f["id"], f["fixed"]) for f in report["findings"]],
-            [("ALPINE-CVE-2024-5535", ["3.1.6-r0"]), ("GONE-1", [])],
+            [("ALPINE-CVE-2024-5535", ["3.1.6-r0"]), ("GONE-1", None)],
         )
         self.assertTrue(any("could not be fetched" in g for g in report["not_covered"]))
 

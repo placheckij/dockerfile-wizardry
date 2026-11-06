@@ -428,9 +428,10 @@ reverse, so name it in the summary.
   it also reports vulnerabilities that have no fix yet, which the script cannot see on
   Alpine. Do not install it or log in for this. If it is missing or fails and the image
   is on Docker Hub, give the user the image's page to open instead,
-  `https://hub.docker.com/layers/<namespace>/<repository>/<tag>/images/sha256-<digest>`
-  (`library` for an official image, and the digest of the platform's own manifest, which
-  `docker buildx imagetools inspect` lists). Do not read that page or the API behind it
+  `https://hub.docker.com/layers/<namespace>/<repository>/<tag>/images/sha256-<hex>`
+  (`library` for an official image; `<hex>` is the digest of the platform's own manifest,
+  which `docker buildx imagetools inspect` lists, without its `sha256:` prefix). Do not
+  read that page or the API behind it
   yourself: Docker's terms allow automated access only through documented APIs. Where
   the sources disagree, show both and say which reported what; the distribution's own
   advisory decides whether an installed version is fixed. When you propose a different
