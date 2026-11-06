@@ -33,3 +33,5 @@ pythonpath = ["."]
 [tool.ruff]
 line-length = 88
 target-version = "py314"
+# The skill's scripts run with the user's python3, which may be old (macOS ships 3.9)
+per-file-target-version = { "skills/*/scripts/*.py" = "py38" }

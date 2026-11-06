@@ -45,7 +45,9 @@ OS_RELEASE_PATHS = ("etc/os-release", "usr/lib/os-release")
 APK_DB_PATHS = ("lib/apk/db/installed", "usr/lib/apk/db/installed")
 DPKG_STATUS = "var/lib/dpkg/status"
 DPKG_STATUS_D = re.compile(r"var/lib/dpkg/status\.d/[^/]+")
-DIST_INFO = re.compile(r"(?:^|/)(?:site|dist)-packages/(?:.+/)?[^/]+\.dist-info/METADATA$")
+DIST_INFO = re.compile(
+    r"(?:^|/)(?:site|dist)-packages/(?:.+/)?[^/]+\.dist-info/METADATA$"
+)
 PIP_VENDOR = re.compile(r"(?:^|/)(?:site|dist)-packages/pip/_vendor/vendor\.txt$")
 NPM_PACKAGE = re.compile(r"(?:^|/)node_modules/((?:@[^/]+/)?[^/@]+)/package\.json$")
 RELEASE = re.compile(r"(\d+)\.(\d+)(?:\.\d+)?")
@@ -237,14 +239,19 @@ def read_inventory(archive):
             ):
                 language.add(("npm", name, version))
     inventory.os_packages.extend(dpkg_status_d)
-    safe_os = [p for p in inventory.os_packages if all(SAFE_TOKEN.fullmatch(t) for t in p)]
+    safe_os = [
+        p for p in inventory.os_packages if all(SAFE_TOKEN.fullmatch(t) for t in p)
+    ]
     safe_language = {p for p in language if all(SAFE_TOKEN.fullmatch(t) for t in p[1:])}
-    inventory.skipped = len(inventory.os_packages) - len(safe_os) + len(language - safe_language)
+    inventory.skipped = (
+        len(inventory.os_packages) - len(safe_os) + len(language - safe_language)
+    )
     inventory.os_packages = safe_os
     for path in OS_RELEASE_PATHS:
         if path in os_release:
             inventory.os_release = {
-                key: clean(value) for key, value in parse_os_release(os_release[path]).items()
+                key: clean(value)
+                for key, value in parse_os_release(os_release[path]).items()
             }
             break
     inventory.ecosystem = os_ecosystem(inventory.os_release)
@@ -258,10 +265,15 @@ def build_queries(inventory):
     if inventory.ecosystem:
         for source, version in sorted({(s, v) for s, v, _ in inventory.os_packages}):
             queries.append(
-                {"package": {"name": source, "ecosystem": inventory.ecosystem}, "version": version}
+                {
+                    "package": {"name": source, "ecosystem": inventory.ecosystem},
+                    "version": version,
+                }
             )
     for ecosystem, name, version in inventory.language_packages:
-        queries.append({"package": {"name": name, "ecosystem": ecosystem}, "version": version})
+        queries.append(
+            {"package": {"name": name, "ecosystem": ecosystem}, "version": version}
+        )
     return queries
 
 
@@ -269,7 +281,9 @@ def query_osv(queries, post):
     """Advisory ids for each query, in query order, following OSV's pagination."""
     hits = [[] for _ in queries]
     for start in range(0, len(queries), BATCH_SIZE):
-        pending = {index: None for index in range(start, min(start + BATCH_SIZE, len(queries)))}
+        pending = {
+            index: None for index in range(start, min(start + BATCH_SIZE, len(queries)))
+        }
         while pending:
             order = list(pending)
             body = {"queries": []}
@@ -280,7 +294,9 @@ def query_osv(queries, post):
                 body["queries"].append(query)
             results = post(body).get("results", [])
             if len(results) != len(order):
-                raise CheckError("OSV.dev returned a different number of results than queries")
+                raise CheckError(
+                    "OSV.dev returned a different number of results than queries"
+                )
             pending = {}
             for index, result in zip(order, results):
                 for vuln in result.get("vulns") or []:
@@ -345,7 +361,9 @@ def not_covered(inventory):
     gaps = []
     distro = inventory.os_release.get("ID")
     if not inventory.os_release:
-        gaps.append("OS packages: the image has no os-release file, so its distribution is unknown.")
+        gaps.append(
+            "OS packages: the image has no os-release file, so its distribution is unknown."
+        )
     elif not inventory.ecosystem:
         gaps.append(
             f"OS packages: {distro} {inventory.os_release.get('VERSION_ID', '')} is not a "
@@ -410,7 +428,10 @@ def make_report(image, platform, inventory, queries, hits, records, queried_at):
                     "version": query["version"],
                     "id": clean(vuln_id),
                     "aliases": [clean(alias) for alias in aliases(record)],
-                    "fixed": [clean(version) for version in fixed_versions(record, ecosystem, name)],
+                    "fixed": [
+                        clean(version)
+                        for version in fixed_versions(record, ecosystem, name)
+                    ],
                     "severity": clean(severity(record, ecosystem, name), 200),
                 }
             )
@@ -441,14 +462,18 @@ def render_markdown(report):
         f"- Source: {report['source']}, queried {report['queried_at']}",
         f"- OS: {report['os'] or 'unknown'}"
         + (f" (OSV ecosystem {report['ecosystem']})" if report["ecosystem"] else ""),
-        f"- Packages looked up: {report['os_packages']} OS, "
-        f"{report['language_packages']} Python and npm",
+        (
+            f"- Packages looked up: {report['os_packages']} OS, "
+            f"{report['language_packages']} Python and npm"
+        ),
         "",
     ]
     if report["findings"]:
         lines += [
-            f"{len(report['findings'])} vulnerabilities: {report['with_fix']} with a fix "
-            f"listed, {report['without_fix']} without.",
+            (
+                f"{len(report['findings'])} vulnerabilities: {report['with_fix']} with "
+                f"a fix listed, {report['without_fix']} without."
+            ),
             "",
             "| Package | Installed | Advisory | Also known as | Fixed in | Severity |",
             "| --- | --- | --- | --- | --- | --- |",
@@ -486,7 +511,10 @@ def _request(url, data, urlopen=urllib.request.urlopen, sleep=time.sleep):
         request = urllib.request.Request(
             url,
             data=data,
-            headers={"Content-Type": "application/json", "User-Agent": "dockerfile-wizardry"},
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": "dockerfile-wizardry",
+            },
         )
         try:
             with urlopen(request, timeout=TIMEOUT) as response:
@@ -517,7 +545,9 @@ class DockerExport:
         created = _docker(["create", "--platform", self.platform, self.image, "x"])
         self.container = created.strip()
         self.process = subprocess.Popen(
-            ["docker", "export", self.container], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            ["docker", "export", self.container],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         return self.process.stdout
 
@@ -538,13 +568,23 @@ class DockerExport:
 def _docker(arguments):
     try:
         result = subprocess.run(
-            ["docker"] + arguments, capture_output=True, text=True, timeout=600, check=False
+            ["docker"] + arguments,
+            capture_output=True,
+            text=True,
+            timeout=600,
+            check=False,
         )
     except (subprocess.TimeoutExpired, OSError) as error:
         raise CheckError(f"could not run docker {arguments[0]}: {error}") from error
     if result.returncode != 0:
         raise CheckError(f"docker {arguments[0]} failed: {result.stderr.strip()[:300]}")
     return result.stdout
+
+
+def read_image(export, image, platform):
+    with export(image, platform) as stream:  # noqa: SIM117 - one `with` needs 3.10 parentheses
+        with tarfile.open(fileobj=stream, mode="r|") as archive:
+            return read_inventory(archive)
 
 
 def main(argv=None, export=DockerExport, post=osv_post, get=osv_get):
@@ -557,9 +597,7 @@ def main(argv=None, export=DockerExport, post=osv_post, get=osv_get):
     except SystemExit as exit_:
         return EXIT_USAGE if exit_.code else 0
     try:
-        with export(args.image, args.platform) as stream:
-            with tarfile.open(fileobj=stream, mode="r|") as archive:
-                inventory = read_inventory(archive)
+        inventory = read_image(export, args.image, args.platform)
         queries = build_queries(inventory)
         if not queries:
             print(
@@ -580,7 +618,9 @@ def main(argv=None, export=DockerExport, post=osv_post, get=osv_get):
     except (CheckError, tarfile.TarError) as error:
         print(f"Could not check {args.image}: {error}", file=sys.stderr)
         return EXIT_ERROR
-    report = make_report(args.image, args.platform, inventory, queries, hits, records, queried_at)
+    report = make_report(
+        args.image, args.platform, inventory, queries, hits, records, queried_at
+    )
     if args.format == "json":
         print(json.dumps(report, indent=2))
     else:
