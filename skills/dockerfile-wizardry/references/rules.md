@@ -59,11 +59,13 @@ it looks current forever, and checks that compare the pinned digest with the tag
 pass: Docker Scout's `No outdated base images` policy flags an image only when the tag it was
 built from points to a different digest. The base then misses every fix shipped since.
 
-How to check: For a tag that names a patch release (`3.12.4-slim-bookworm`), compare its current digest with
-that of its release-line tag, the same tag with the patch number dropped and any variant kept
-(`3.12-slim-bookworm`); different digests mean it is no longer rebuilt. A tag that already names
-a release line (`alpine:3.23`) has no such comparison, and a broader tag (`3-slim`) moving to a
-newer minor or major version says nothing about the release line you use. To check the release
+How to check: The release line is the version series the publisher keeps patching: the minor version for
+Python and Alpine, the major version for Node; the image's supported tags show it. For a tag
+below its release line, compare its current digest with that of the same tag cut down to the
+release line, any variant kept (`3.12-slim-bookworm` for `3.12.4-slim-bookworm`, `node:24-slim`
+for `node:24.11-slim`); different digests mean it is no longer rebuilt. A tag that names a
+release line (`alpine:3.23`) has no such comparison, and a broader tag (`3-slim`) moving to a
+newer release line says nothing about the one you use. To check the release
 line itself, print when the base image was built with
 `docker buildx imagetools inspect <image>:<tag> --format '{{ (index .Image "linux/amd64").Created }}'`
 (name the platform you build for; use `{{ .Image.Created }}` for a single-platform image). The

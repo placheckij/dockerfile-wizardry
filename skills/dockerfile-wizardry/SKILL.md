@@ -363,24 +363,29 @@ reverse, so name it in the summary.
 
 - **Check that the base tag is still rebuilt** (DW-BASE-03) before resolving its digest,
   also for a `FROM` that already has one: a pin of a tag that no longer moves looks
-  current forever. If the tag names a patch release of the image's own version
-  (`python:3.12.4-slim-bookworm`, `alpine:3.23.2`), resolve the current digest of that
-  tag and of its release-line tag: the same tag with the patch number dropped and any
-  variant kept (`3.12-slim-bookworm`; `3.14-alpine3.24` for `3.14.10-alpine3.24`).
-  Compare those two, not the digest pinned in the file: a pin that has only fallen
-  behind its own tag is not DW-BASE-03 but a digest left un-updated (DW-SUPPLY-04).
-  Different digests mean the tag is no longer
+  current forever. The release line is the version series the publisher keeps
+  patching, and it differs by image: the minor version for Python and Alpine, the major
+  version for Node. Take it from the supported tags on the image's Docker Hub page or
+  the publisher's release policy; if you cannot tell, say which line you assumed. If the
+  tag names a version below its release line, resolve the current digest of that tag
+  and of its release-line tag: the same tag cut down to the release line, any variant
+  kept (`3.12-slim-bookworm` for `python:3.12.4-slim-bookworm`, `3.14-alpine3.24` for
+  `3.14.10-alpine3.24`, `alpine:3.23` for `alpine:3.23.2`, `24-slim` for both
+  `node:24.11.0-slim` and `node:24.11-slim`). Compare those two, not the digest pinned
+  in the file: a pin that has only fallen behind its own tag is not DW-BASE-03 but a
+  digest left un-updated (DW-SUPPLY-04). Different digests mean the tag is no longer
   rebuilt: report DW-BASE-03 with both digests and propose the release-line tag, pinned
-  by its own digest (DW-BASE-01). Compare no more broadly than that: `3-slim` or
-  `node:slim` pointing at a newer minor or major version is not a finding, and a tag
-  that already names a release line (`alpine:3.23`, `node:24`) has no such comparison;
-  only the build date applies to it. For any tag, also print when the image was built with
+  by its own digest (DW-BASE-01). Compare no more broadly than that: a tag above the
+  release line (`3-slim`, `node:slim`) pointing at a newer release line is not a
+  finding, and a tag that names a release line (`3.12-slim`, `alpine:3.23`, `node:24`)
+  has no such comparison; only the build date applies to it. For any tag, also print
+  when the image was built with
   `docker buildx imagetools inspect <image>:<tag> --format '{{ (index .Image "linux/amd64").Created }}'`
   (the platform you build for; `{{ .Image.Created }}` for a single-platform image). A
   date months old suggests the release line itself is out of support: confirm it with
   the supported tags on the image's Docker Hub page or the publisher's support policy
-  before reporting DW-BASE-03, and put a move to a newer minor or major version to the
-  user as a decision, since it can change behaviour. A date of 1970-01-01 or another
+  before reporting DW-BASE-03, and put a move to a newer release line to the user as a
+  decision, since it can change behaviour. A date of 1970-01-01 or another
   fixed timestamp comes from a reproducible build and says nothing about rebuilds. If
   the lookups cannot run, say that DW-BASE-03 was not checked.
 - **Pin base images by digest** (DW-BASE-01): `FROM <image>:<tag>@sha256:<digest>`, with
