@@ -387,13 +387,14 @@ reverse, so name it in the summary.
   `.trunk/trunk.yaml`) covers it, or the user says it runs elsewhere. A
   `.hadolint.yaml` or `.hadolint.yml`, or a `# hadolint ignore=` line the Dockerfile
   already has, counts too: someone runs it, if only in an editor. Look in those files
-  in both modes, even where step 1 would not read them.
-  Even then, ignore only a code that run would report: DL3057 is off by default, so it
-  needs an ignore only when the repository turns it on, in its config or with a flag
-  such as `--info DL3057`; the skill's own linter run (audit step 2) does not count.
-  Elsewhere an ignore line does nothing; leave it out and name the code and its reason
-  in the summary (create mode) or as a note in the report (audit mode). Say which case
-  applied, and leave the ignore lines a Dockerfile already has as they are.
+  in both modes, even where step 1 would not read them. Even then, ignore only a code
+  that run would report: DL3057 is off by default, so it needs an ignore only when the
+  repository turns it on, in its config or with a flag such as `--info DL3057`, or the
+  Dockerfile already ignores it on another line; the skill's own linter run (audit
+  step 2) does not count. Elsewhere an ignore line does nothing; leave it out and name
+  the code and its reason in the summary (create mode) or as a note in the report
+  (audit mode). Say which case applied, and leave the ignore lines a Dockerfile already
+  has as they are.
 - **Base image family** (slim, default, distroless, or a vendor's hardened image) is a
   decision to put to the user with trade-offs §6. When the user has no preference, use
   the language's official slim variant (for a compiled binary, a slim distribution image
