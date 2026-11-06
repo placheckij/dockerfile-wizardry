@@ -287,7 +287,8 @@ def read_inventory(archive):
         if inventory.ecosystem and (
             path in owned or path.startswith("usr/lib/python3/dist-packages/")
         ):
-            by_os.add(path)
+            # per package: one vendor.txt lists many
+            by_os.add((path, package))
         else:
             found.add(package)
     inventory.os_owned = len(by_os)
@@ -412,11 +413,14 @@ def version_key(version, ecosystem=None):
     upstream, _, revision = rest.rpartition("-")
     if not upstream:
         upstream, revision = rest, ""
-    return (
-        int(epoch),
-        _version_parts(upstream, pre_release),
-        _version_parts(revision, pre_release),
-    )
+    parts = _version_parts(upstream, pre_release)
+    if ecosystem == "PyPI":
+        # PEP 440: trailing zeros of the release segment do not count (2.0 == 2.0.0)
+        end = next(i for i, part in enumerate(parts) if part[0] != 2)
+        while end > 1 and parts[end - 1] == (2, 0, ""):
+            del parts[end - 1]
+            end -= 1
+    return (int(epoch), parts, _version_parts(revision, pre_release))
 
 
 def _range_status(events, installed, ecosystem):

@@ -287,6 +287,19 @@ class InventoryTest(unittest.TestCase):
         gaps = base_vulns.not_covered(inventory)
         self.assertFalse(any("OS package manager installed" in g for g in gaps))
 
+    def test_os_owned_packages_are_counted_by_package_not_by_file(self):
+        vendor = "pip/_vendor/vendor.txt"
+        site = "usr/lib/python3.12/site-packages"
+        apk_db = f"P:py3-pip\nV:24.0-r2\nF:{site}/pip/_vendor\nR:vendor.txt\n"
+        inventory = inventory_of(
+            {
+                "etc/os-release": ALPINE_OS_RELEASE,
+                "lib/apk/db/installed": apk_db,
+                f"{site}/{vendor}": "urllib3==2.2.1\nrequests==2.31.0\nidna==3.6\n",
+            }
+        )
+        self.assertEqual(inventory.os_owned, 3)
+
     def test_a_copy_the_os_does_not_own_is_still_looked_up(self):
         inventory = inventory_of(
             {
@@ -506,6 +519,14 @@ class RecordTest(unittest.TestCase):
         self.assertEqual(
             base_vulns.fixed_versions(record, "npm", "x", "5.0.0-next.3"), ["5.0.0"]
         )
+
+    def test_pypi_trailing_zero_segments_are_equal(self):
+        key = base_vulns.version_key
+        self.assertEqual(key("25.0", "PyPI"), key("25.0.0", "PyPI"))
+        self.assertLess(key("25.0", "PyPI"), key("25.0.1", "PyPI"))
+        self.assertLess(key("25.0b1", "PyPI"), key("25.0.0", "PyPI"))
+        # dpkg and apk do not equate them
+        self.assertLess(key("1.0-1"), key("1.0.0-1"))
 
     def test_a_pypi_beta_is_fixed_by_its_release(self):
         record = {
