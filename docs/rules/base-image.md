@@ -22,9 +22,10 @@ why:
   A tag can be republished, so the same Dockerfile can build on different bytes tomorrow. A digest
   names exactly one image. The cost is that pinning freezes the base: patches stop arriving on
   their own, so pair the pin with something that proposes new digests (Dependabot or Renovate) or
-  with a CI job that fails when the tag has moved. Neither helps when the tag itself is no longer
-  rebuilt, so pin a tag that still is (DW-BASE-03). See the trade-offs on [tag or
-  digest](tradeoffs.md#1-tag-or-digest-for-the-base-image).
+  with a CI job that fails when the tag has moved. A digest update and that CI job both follow the
+  tag, so they miss a tag that is no longer rebuilt; only an update that also moves the tag to a
+  newer version catches it, so pin a tag that is still rebuilt (DW-BASE-03). See the trade-offs
+  on [tag or digest](tradeoffs.md#1-tag-or-digest-for-the-base-image).
 
 how_to_check:
   Hadolint DL3006 (tag the image) and DL3007 (do not use `latest`) catch missing or floating
