@@ -368,7 +368,8 @@ reverse, so name it in the summary.
   tag and of its release-line tag: the same tag with the patch number dropped and any
   variant kept (`3.12-slim-bookworm`; `3.14-alpine3.24` for `3.14.10-alpine3.24`).
   Compare those two, not the digest pinned in the file: a pin that has only fallen
-  behind its own tag is DW-BASE-01's. Different digests mean the tag is no longer
+  behind its own tag is not DW-BASE-03 but a digest left un-updated (DW-SUPPLY-04).
+  Different digests mean the tag is no longer
   rebuilt: report DW-BASE-03 with both digests and propose the release-line tag, pinned
   by its own digest (DW-BASE-01). Compare no more broadly than that: `3-slim` or
   `node:slim` pointing at a newer minor or major version is not a finding, and a tag
