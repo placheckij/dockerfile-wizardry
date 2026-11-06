@@ -49,6 +49,18 @@ DIST_INFO = re.compile(r"(?:^|/)(?:site|dist)-packages/(?:.+/)?[^/]+\.dist-info/
 PIP_VENDOR = re.compile(r"(?:^|/)(?:site|dist)-packages/pip/_vendor/vendor\.txt$")
 NPM_PACKAGE = re.compile(r"(?:^|/)node_modules/((?:@[^/]+/)?[^/@]+)/package\.json$")
 RELEASE = re.compile(r"^(\d+)\.(\d+)(?:\.\d+)?$")
+# The image is untrusted and an agent reads this script's output, so a package name or
+# version from its files is used only if it looks like one: no spaces, pipes, quotes or
+# newlines that could break the table or carry instructions.
+# (a leading dot is apk's virtual package, `.python-rundeps`)
+SAFE_TOKEN = re.compile(r"^[A-Za-z0-9@.][A-Za-z0-9._+~:@/-]{0,127}$")
+UNSAFE_TEXT = re.compile(r"[^A-Za-z0-9._+~:@/ ()-]")
+
+
+def clean(text, limit=80):
+    """Free text from the image or an advisory, with anything but plain characters
+    removed and cut to `limit`."""
+    return UNSAFE_TEXT.sub("", str(text))[:limit].strip()
 
 
 class CheckError(Exception):
@@ -66,6 +78,8 @@ class Inventory:
         self.package_database = None
         # (ecosystem, name, version)
         self.language_packages = []
+        # package entries left out because a name or version had unexpected characters
+        self.skipped = 0
 
 
 def parse_os_release(text):
@@ -222,12 +236,18 @@ def read_inventory(archive):
             ):
                 language.add(("npm", name, version))
     inventory.os_packages.extend(dpkg_status_d)
+    safe_os = [p for p in inventory.os_packages if all(SAFE_TOKEN.match(t) for t in p)]
+    safe_language = {p for p in language if all(SAFE_TOKEN.match(t) for t in p[1:])}
+    inventory.skipped = len(inventory.os_packages) - len(safe_os) + len(language - safe_language)
+    inventory.os_packages = safe_os
     for path in OS_RELEASE_PATHS:
         if path in os_release:
-            inventory.os_release = parse_os_release(os_release[path])
+            inventory.os_release = {
+                key: clean(value) for key, value in parse_os_release(os_release[path]).items()
+            }
             break
     inventory.ecosystem = os_ecosystem(inventory.os_release)
-    inventory.language_packages = sorted(language)
+    inventory.language_packages = sorted(safe_language)
     return inventory
 
 
@@ -332,6 +352,12 @@ def not_covered(inventory):
         )
     elif not inventory.os_packages:
         gaps.append(f"OS packages: no package database found for {distro}.")
+    if inventory.skipped:
+        gaps.append(
+            f"{inventory.skipped} package entries were skipped because a name or version "
+            "had characters a package name does not use; look at the image's package "
+            "database by hand."
+        )
     if distro == "alpine" and inventory.ecosystem:
         gaps.append(
             "Alpine's security database lists a vulnerability only once a fix exists in "
@@ -381,10 +407,10 @@ def make_report(image, platform, inventory, queries, hits, records, queried_at):
                     if ecosystem == inventory.ecosystem
                     else [],
                     "version": query["version"],
-                    "id": vuln_id,
-                    "aliases": aliases(record),
-                    "fixed": fixed_versions(record, ecosystem, name),
-                    "severity": severity(record, ecosystem, name),
+                    "id": clean(vuln_id),
+                    "aliases": [clean(alias) for alias in aliases(record)],
+                    "fixed": [clean(version) for version in fixed_versions(record, ecosystem, name)],
+                    "severity": clean(severity(record, ecosystem, name), 200),
                 }
             )
     # what a newer base or package version can fix comes first
