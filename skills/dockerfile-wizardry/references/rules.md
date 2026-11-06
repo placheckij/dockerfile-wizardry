@@ -13,8 +13,10 @@ what the digest is.
 Why: A tag can be republished, so the same Dockerfile can build on different bytes tomorrow. A digest
 names exactly one image. The cost is that pinning freezes the base: patches stop arriving on
 their own, so pair the pin with something that proposes new digests (Dependabot or Renovate) or
-with a CI job that fails when the tag has moved. See the trade-offs on [tag or
-digest](https://github.com/placheckij/dockerfile-wizardry/blob/main/docs/rules/tradeoffs.md#1-tag-or-digest-for-the-base-image).
+with a CI job that fails when the tag has moved. A digest update and that CI job both follow the
+tag, so they miss a tag that is no longer rebuilt; only an update that also moves the tag to a
+newer version catches it, so pin a tag that is still rebuilt (DW-BASE-03). See the trade-offs
+on [tag or digest](https://github.com/placheckij/dockerfile-wizardry/blob/main/docs/rules/tradeoffs.md#1-tag-or-digest-for-the-base-image).
 
 How to check: Hadolint DL3006 (tag the image) and DL3007 (do not use `latest`) catch missing or floating
 tags; a missing digest is checked manually or by a CI job that compares the pinned digest with
@@ -42,6 +44,42 @@ values are.
 Sources:
 - https://github.com/opencontainers/image-spec/blob/main/annotations.md#pre-defined-annotation-keys
 - https://docs.docker.com/reference/dockerfile/#label
+
+## DW-BASE-03: Build on a tag that is still rebuilt
+
+Strength: SHOULD. Last verified: 2026-11-06.
+
+Base the image on a tag its publisher still maintains: the current release, or a tag that
+follows it (`3.12-slim` rather than `3.12.4-slim` once 3.12.5 is out). Check this before
+pinning the tag by digest (DW-BASE-01).
+
+Why: The Docker Official Images FAQ says a release stops being supported once the next one ships,
+and that its tag is typically left available for pulling but "will simply never get rebuilt
+after that point". Such a tag no longer moves, so `--pull` finds nothing newer, a digest pin of
+it looks current forever, and checks that compare the pinned digest with the tag's current one
+pass: Docker Scout's `No outdated base images` policy flags an image only when the tag it was
+built from points to a different digest. The base then misses every fix shipped since.
+
+How to check: The release line is the version series the publisher keeps patching: the minor version for
+Python and Alpine, the major version for Node; the image's supported tags show it. For a tag
+below its release line, compare its current digest with that of the same tag cut down to the
+release line, any variant kept (`3.12-slim-bookworm` for `3.12.4-slim-bookworm`, `node:24-slim`
+for `node:24.11-slim`); different digests mean it is no longer rebuilt. A tag that names a
+release line (`alpine:3.23`) has no such comparison, and a broader tag (`3-slim`) moving to a
+newer release line says nothing about the one you use. A tag can also freeze because its
+variant's OS release (`-slim-bullseye`) was dropped while the release line goes on. To check
+the release line and the variant themselves, print when the base image was built with
+`docker buildx imagetools inspect <image>:<tag> --format '{{ (index .Image "linux/amd64").Created }}'`
+(name the platform you build for; use `{{ .Image.Created }}` for a single-platform image). The
+FAQ says Debian-based Official Images are republished at least monthly, so one that is months
+older is most likely no longer rebuilt; other bases follow their own schedules, and a
+reproducible build may carry a fixed date such as 1970-01-01. The supported tags on the image's
+Docker Hub page confirm it and show whether the release line or the variant was dropped.
+
+Sources:
+- https://github.com/docker-library/faq#what-do-you-mean-by-supported
+- https://github.com/docker-library/faq#why-does-my-security-scanner-show-that-an-image-has-cves
+- https://docs.docker.com/scout/policy/#no-outdated-base-images
 
 ## DW-BUILD-01: Order layers by how often they change
 

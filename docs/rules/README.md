@@ -39,6 +39,7 @@ out of date. The same command generates the skill's references
 | --- | --- | --- | --- | --- |
 | DW-BASE-01 | Pin the base image by digest | SHOULD | #1 | [base-image](base-image.md) |
 | DW-BASE-02 | Label the image with metadata | SHOULD | #2 | [base-image](base-image.md) |
+| DW-BASE-03 | Build on a tag that is still rebuilt | SHOULD | - | [base-image](base-image.md) |
 | DW-BUILD-01 | Order layers by how often they change | SHOULD | #6 | [build-and-cache](build-and-cache.md) |
 | DW-BUILD-02 | Use multi-stage builds | SHOULD | #7 | [build-and-cache](build-and-cache.md) |
 | DW-BUILD-03 | Copy only what the image needs | MUST | #8 | [build-and-cache](build-and-cache.md) |

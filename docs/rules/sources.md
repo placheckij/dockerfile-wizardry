@@ -59,6 +59,7 @@ of date.
   - [#syntax](<https://docs.docker.com/reference/dockerfile/#syntax>): [DW-SUPPLY-06](supply-chain.md#dw-supply-06-keep-docker-engine-and-buildkit-patched-and-use-only-trusted-frontends)
   - [#understand-how-arg-and-from-interact](<https://docs.docker.com/reference/dockerfile/#understand-how-arg-and-from-interact>): [DW-BASE-01](base-image.md#dw-base-01-pin-the-base-image-by-digest)
   - [#user](<https://docs.docker.com/reference/dockerfile/#user>): [DW-USER-01](users-and-permissions.md#dw-user-01-run-as-a-non-root-user)
+- [docs.docker.com/scout/policy/#no-outdated-base-images](<https://docs.docker.com/scout/policy/#no-outdated-base-images>): [DW-BASE-03](base-image.md#dw-base-03-build-on-a-tag-that-is-still-rebuilt)
 
 ## docs.python.org
 
@@ -79,6 +80,9 @@ of date.
 - [github.com/advisories/GHSA-7236-3392-c5c6](<https://github.com/advisories/GHSA-7236-3392-c5c6>): [DW-SUPPLY-06](supply-chain.md#dw-supply-06-keep-docker-engine-and-buildkit-patched-and-use-only-trusted-frontends)
 - [github.com/aquasecurity/trivy/security/advisories/GHSA-69fq-xp46-6x23](<https://github.com/aquasecurity/trivy/security/advisories/GHSA-69fq-xp46-6x23>): [DW-SUPPLY-03](supply-chain.md#dw-supply-03-pin-github-actions-to-full-commit-shas)
 - [github.com/docker-library/docs/blob/master/python/README.md](<https://github.com/docker-library/docs/blob/master/python/README.md>): [trade-off 6](tradeoffs.md#6-which-base-image-default-slim-alpine-or-distroless)
+- [github.com/docker-library/faq](<https://github.com/docker-library/faq>)
+  - [#what-do-you-mean-by-supported](<https://github.com/docker-library/faq#what-do-you-mean-by-supported>): [DW-BASE-03](base-image.md#dw-base-03-build-on-a-tag-that-is-still-rebuilt)
+  - [#why-does-my-security-scanner-show-that-an-image-has-cves](<https://github.com/docker-library/faq#why-does-my-security-scanner-show-that-an-image-has-cves>): [DW-BASE-03](base-image.md#dw-base-03-build-on-a-tag-that-is-still-rebuilt)
 - [github.com/docker-library/official-images/blob/master/README.md](<https://github.com/docker-library/official-images/blob/master/README.md>): [DW-DEPS-03](dependencies.md#dw-deps-03-verify-what-you-download-during-the-build)
 - [github.com/goodwithtech/dockle/blob/master/CHECKPOINT.md](<https://github.com/goodwithtech/dockle/blob/master/CHECKPOINT.md>): [DW-SECRET-01](secrets.md#dw-secret-01-never-pass-secrets-through-arg-env-or-copy-mount-them), [trade-off 3](tradeoffs.md#3-update-inside-the-image-or-rebuild-from-a-fresh-base), [trade-off 4](tradeoffs.md#4-a-healthcheck-in-the-image-or-probes-in-the-platform), [trade-off 5](tradeoffs.md#5-add-or-copy)
 - [github.com/hadolint/hadolint](<https://github.com/hadolint/hadolint>): [DW-BUILD-05](build-and-cache.md#dw-build-05-keep-package-manager-downloads-in-a-cache-mount), [DW-DEPS-01](dependencies.md#dw-deps-01-install-only-the-packages-you-need-in-one-layer), [DW-DEPS-02](dependencies.md#dw-deps-02-install-language-tooling-pinned-with-its-cache-out-of-the-layer), [DW-HEALTH-02](health-and-signals.md#dw-health-02-add-a-health-check), [DW-HEALTH-05](health-and-signals.md#dw-health-05-use-exec-form-and-exec-in-wrapper-scripts-so-signals-reach-the-application), [DW-SECRET-01](secrets.md#dw-secret-01-never-pass-secrets-through-arg-env-or-copy-mount-them), [DW-USER-01](users-and-permissions.md#dw-user-01-run-as-a-non-root-user), [trade-off 2](tradeoffs.md#2-pinning-operating-system-package-versions), [trade-off 4](tradeoffs.md#4-a-healthcheck-in-the-image-or-probes-in-the-platform), [trade-off 5](tradeoffs.md#5-add-or-copy)
