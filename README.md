@@ -11,6 +11,7 @@
 [![Hadolint](https://img.shields.io/badge/dockerfile-linted-success.svg)](https://github.com/hadolint/hadolint)
 [![Trivy](https://img.shields.io/badge/security-scanned-success.svg)](https://github.com/aquasecurity/trivy)
 [![Docker Image Size](https://img.shields.io/badge/image%20size-~81MB-blue.svg)](https://github.com/placheckij/dockerfile-wizardry)
+[![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/placheckij/badge.svg)](https://hub.xerj.org/contributors/placheckij)
 
 A sourced guide to writing Dockerfiles, with a worked example. The [rulebook](docs/rules/README.md) gives each practice its strength, its reason, how to check it and links to the primary sources it comes from, and says where those sources disagree. The `Dockerfile` in this repository applies fourteen of the practices to a small Python service (the "spells" below), and CI checks the properties it claims. The practices follow the CIS Docker Benchmark, the OWASP Docker Security Cheat Sheet, Docker's own documentation and similar primary sources, and the rulebook is not specific to Python.
 
