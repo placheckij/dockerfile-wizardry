@@ -29,6 +29,10 @@ Each pull request that changes `skills/` or `.claude-plugin/` adds a line under 
 - DW-BUILD-07 notes that a persistent self-hosted runner keeps its local cache without an export, and that a no-cache rebuild then has to get past that cache (DW-SUPPLY-04).
 - `# hadolint ignore=...` lines are written only when Hadolint runs on that Dockerfile: a Hadolint config, a CI workflow, build script, Makefile, git hook or linter suite with Hadolint on that runs it, an ignore or global ignore line the Dockerfile already has, or the user's word; the skill's own linter run does not count. They are written only for codes that run would report, so DL3057, off by default, gets one only when the repository turns it on (in its config, with a flag such as `--info DL3057`, or with an existing ignore line). Elsewhere the code and its reason go in the summary or report, and existing ignore lines are left as they are. This covers DL3008 and DL3018 for unpinned packages (DW-DEPS-01) in both modes, DL3057 and DL3002 on build stages (DW-HEALTH-02, DW-USER-01) in create mode, and audit mode's suggestion of those two in a note. They used to be added or suggested whether or not Hadolint ran.
 
+### Fixed
+
+- The audit-mode `awk` example that counts file owners and modes when comparing the before and after images (DW-USER-02) writes its fields as `$(1)`, not `$1`: Claude Code replaced `$1` in SKILL.md with the skill's arguments when the skill was invoked with arguments, so the loaded example printed the Dockerfile path instead of the mode column.
+
 ## [0.1.2] - 2026-11-04
 
 ### Changed

@@ -13,6 +13,9 @@ NAME = "dockerfile-wizardry"
 RULE_ID = re.compile(r"DW-[A-Z]+-\d+")
 # the Limits section names the TRADE-OFF rules: "the `TRADE-OFF` rules (DW-..., DW-...)"
 TRADE_OFF_LIST = re.compile(r"the `TRADE-OFF` rules \(([^)]*)\)")
+# Claude Code replaces these in SKILL.md with the skill's arguments when it loads the skill,
+# code spans included, so an awk `$1` would arrive as the user's argument
+ARGUMENT_PLACEHOLDER = re.compile(r"\$(?:ARGUMENTS|[0-9])")
 
 
 def front_matter(text):
@@ -77,6 +80,19 @@ class PluginManifestTest(unittest.TestCase):
         self.assertTrue(cited, "SKILL.md cites no rule ids")
         self.assertEqual(
             sorted(cited - set(known)), [], "SKILL.md cites ids rules.md does not have"
+        )
+
+    def test_skill_has_no_argument_placeholders(self):
+        lines = SKILL.read_text(encoding="utf-8").splitlines()
+        found = [
+            f"line {number}: {line.strip()}"
+            for number, line in enumerate(lines, 1)
+            if ARGUMENT_PLACEHOLDER.search(line)
+        ]
+        self.assertEqual(
+            found,
+            [],
+            "SKILL.md uses $ARGUMENTS or $<n>, which the skill's arguments replace",
         )
 
     def test_skill_trade_off_list_matches_rules(self):

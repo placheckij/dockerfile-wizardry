@@ -269,7 +269,7 @@ unless the workflow, build script or Compose file that builds this image names a
      made for the image's `VOLUME` paths). A dependency tree can hold tens of thousands
      of files, more than you can compare by reading, so count owners and modes instead,
      for example by piping the `ls` listing through
-     `awk 'NF >= 9 {print $1, $3, $4}' | sort | uniq -c` (with `tar -tv`, count its
+     `awk 'NF >= 9 {print $(1), $(3), $(4)}' | sort | uniq -c` (with `tar -tv`, count its
      mode and owner columns the same way), and look up the paths behind any count that
      differs between the two images;
    - the image size: `docker image inspect --format '{{.Size}}' <tag>`.
