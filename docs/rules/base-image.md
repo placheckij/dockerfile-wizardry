@@ -82,10 +82,12 @@ why:
   built from points to a different digest. The base then misses every fix shipped since.
 
 how_to_check:
-  manual. For a tag that names a full version, compare its current digest with that of its
-  release-line tag (`3.12-slim-bookworm` for `3.12.4-slim-bookworm`); different digests mean it is
-  no longer rebuilt. A broader tag (`3-slim`) moving to a newer minor or major version says nothing
-  about the release line you use. For that, print when the base image was built with
+  For a tag that names a patch release (`3.12.4-slim-bookworm`), compare its current digest with
+  that of its release-line tag, the same tag with the patch number dropped and any variant kept
+  (`3.12-slim-bookworm`); different digests mean it is no longer rebuilt. A tag that already names
+  a release line (`alpine:3.23`) has no such comparison, and a broader tag (`3-slim`) moving to a
+  newer minor or major version says nothing about the release line you use. To check the release
+  line itself, print when the base image was built with
   `docker buildx imagetools inspect <image>:<tag> --format '{{ (index .Image "linux/amd64").Created }}'`
   (name the platform you build for; use `{{ .Image.Created }}` for a single-platform image). The
   FAQ says Debian-based Official Images are republished at least monthly, so one that is months

@@ -363,14 +363,17 @@ reverse, so name it in the summary.
 
 - **Check that the base tag is still rebuilt** (DW-BASE-03) before resolving its digest,
   also for a `FROM` that already has one: a pin of a tag that no longer moves looks
-  current forever. If the tag names a full version (`3.12.4-slim-bookworm`), resolve the
-  current digest of that tag and of its release-line tag, the same tag with only the last
-  version part dropped (`3.12-slim-bookworm`). Compare those two, not the digest pinned
-  in the file: a pin that has only fallen behind its own tag is DW-BASE-01's. Different
-  digests mean the tag is no longer rebuilt: report DW-BASE-03 with both digests and
-  propose the release-line tag, pinned by its own digest (DW-BASE-01). Compare no more
-  broadly than that: `3-slim` or `node:slim` pointing at a newer minor or major version
-  is not a finding. For any tag, also print when the image was built with
+  current forever. If the tag names a patch release of the image's own version
+  (`python:3.12.4-slim-bookworm`, `alpine:3.23.2`), resolve the current digest of that
+  tag and of its release-line tag: the same tag with the patch number dropped and any
+  variant kept (`3.12-slim-bookworm`; `3.14-alpine3.24` for `3.14.10-alpine3.24`).
+  Compare those two, not the digest pinned in the file: a pin that has only fallen
+  behind its own tag is DW-BASE-01's. Different digests mean the tag is no longer
+  rebuilt: report DW-BASE-03 with both digests and propose the release-line tag, pinned
+  by its own digest (DW-BASE-01). Compare no more broadly than that: `3-slim` or
+  `node:slim` pointing at a newer minor or major version is not a finding, and a tag
+  that already names a release line (`alpine:3.23`, `node:24`) has no such comparison;
+  only the build date applies to it. For any tag, also print when the image was built with
   `docker buildx imagetools inspect <image>:<tag> --format '{{ (index .Image "linux/amd64").Created }}'`
   (the platform you build for; `{{ .Image.Created }}` for a single-platform image). A
   date months old suggests the release line itself is out of support: confirm it with
