@@ -363,17 +363,22 @@ reverse, so name it in the summary.
 
 - **Check that the base tag is still rebuilt** (DW-BASE-03) before resolving its digest,
   also for a `FROM` that already has one: a pin of a tag that no longer moves looks
-  current forever. Print when the image was built with
+  current forever. If the tag names a full version (`3.12.4-slim-bookworm`), resolve the
+  current digest of that tag and of its release-line tag, the same tag with only the last
+  version part dropped (`3.12-slim-bookworm`). Compare those two, not the digest pinned
+  in the file: a pin that has only fallen behind its own tag is DW-BASE-01's. Different
+  digests mean the tag is no longer rebuilt: report DW-BASE-03 with both digests and
+  propose the release-line tag, pinned by its own digest (DW-BASE-01). Compare no more
+  broadly than that: `3-slim` or `node:slim` pointing at a newer minor or major version
+  is not a finding. For any tag, also print when the image was built with
   `docker buildx imagetools inspect <image>:<tag> --format '{{ (index .Image "linux/amd64").Created }}'`
-  (the platform you build for; `{{ .Image.Created }}` for a single-platform image), and
-  resolve the digest of a broader tag of the same variant (`3.12-slim-bookworm` for
-  `3.12.4-slim-bookworm`). A build date months old, or a broader tag on a different
-  digest, means the tag is no longer rebuilt: report DW-BASE-03 with both values and
-  propose the broader tag, pinned by its own digest (DW-BASE-01). If no broader tag is
-  newer either, the whole release line may be out of support; moving to a newer minor or
-  major version can change behaviour, so put it to the user as a decision. A date is
-  evidence, not proof: say what you compared. If the lookups cannot run, say that
-  DW-BASE-03 was not checked.
+  (the platform you build for; `{{ .Image.Created }}` for a single-platform image). A
+  date months old suggests the release line itself is out of support: confirm it with
+  the supported tags on the image's Docker Hub page or the publisher's support policy
+  before reporting DW-BASE-03, and put a move to a newer minor or major version to the
+  user as a decision, since it can change behaviour. A date of 1970-01-01 or another
+  fixed timestamp comes from a reproducible build and says nothing about rebuilds. If
+  the lookups cannot run, say that DW-BASE-03 was not checked.
 - **Pin base images by digest** (DW-BASE-01): `FROM <image>:<tag>@sha256:<digest>`, with
   the version in an `ARG`. Resolve the digest with
   `docker buildx imagetools inspect <image>:<tag>` and use the top-level `Digest:` it

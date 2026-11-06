@@ -82,13 +82,16 @@ why:
   built from points to a different digest. The base then misses every fix shipped since.
 
 how_to_check:
-  manual. Print when the base image was built with
+  manual. For a tag that names a full version, compare its current digest with that of its
+  release-line tag (`3.12-slim-bookworm` for `3.12.4-slim-bookworm`); different digests mean it is
+  no longer rebuilt. A broader tag (`3-slim`) moving to a newer minor or major version says nothing
+  about the release line you use. For that, print when the base image was built with
   `docker buildx imagetools inspect <image>:<tag> --format '{{ (index .Image "linux/amd64").Created }}'`
   (name the platform you build for; use `{{ .Image.Created }}` for a single-platform image). The
   FAQ says Debian-based Official Images are republished at least monthly, so one that is months
-  older is most likely no longer rebuilt; other bases follow their own schedules. A tag missing
-  from the supported tags on its Docker Hub page, or a broader tag of the same variant that
-  resolves to a different digest, points the same way.
+  older is most likely no longer rebuilt; other bases follow their own schedules, and a
+  reproducible build may carry a fixed date such as 1970-01-01. Confirm with the supported tags
+  on the image's Docker Hub page.
 
 sources:
 - https://github.com/docker-library/faq#what-do-you-mean-by-supported

@@ -16,7 +16,7 @@ Each pull request that changes `skills/` or `.claude-plugin/` adds a line under 
 
 ### Added
 
-- DW-BASE-03 (SHOULD): build on a base tag its publisher still rebuilds. A tag for a release that is no longer supported, such as an old patch version, stays pullable but is never rebuilt, so `--pull`, a digest pin and digest-versus-tag checks such as Docker Scout's `No outdated base images` policy all miss that it is stale. Both modes check the base image's build date with `docker buildx imagetools inspect` and compare a broader tag of the same variant before resolving a digest (DW-BASE-01), also for a `FROM` already pinned by digest, and propose the broader tag; moving to a newer minor or major version is put to the user as a decision. DW-BASE-01 points to the new rule.
+- DW-BASE-03 (SHOULD): build on a base tag its publisher still rebuilds. A tag for a release that is no longer supported, such as an old patch version, stays pullable but is never rebuilt, so `--pull`, a digest pin and digest-versus-tag checks such as Docker Scout's `No outdated base images` policy all miss that it is stale. Before resolving a digest (DW-BASE-01), also for a `FROM` already pinned by digest, both modes compare a full-version tag with its release-line tag (`3.12-slim-bookworm` for `3.12.4-slim-bookworm`) and propose the release-line tag when they differ; a broader tag moving to a newer minor or major version is not a finding. They also read the base image's build date with `docker buildx imagetools inspect`: a date months old leads to checking the publisher's supported tags, a fixed date from a reproducible build (1970-01-01) is ignored, and moving to a newer minor or major version is put to the user as a decision. DW-BASE-01 points to the new rule.
 
 ### Changed
 
