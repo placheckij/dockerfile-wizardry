@@ -270,6 +270,34 @@ class InventoryTest(unittest.TestCase):
         gaps = base_vulns.not_covered(inventory)
         self.assertTrue(any("OS package manager installed" in g for g in gaps))
 
+    def test_a_copy_the_os_does_not_own_is_still_looked_up(self):
+        inventory = inventory_of(
+            {
+                "etc/os-release": DEBIAN_OS_RELEASE,
+                "usr/lib/python3/dist-packages/urllib3-1.26.12.dist-info/METADATA": "Name: urllib3\nVersion: 1.26.12\n",
+                "app/.venv/lib/python3.11/site-packages/urllib3-1.26.12.dist-info/METADATA": "Name: urllib3\nVersion: 1.26.12\n",
+            }
+        )
+        self.assertEqual(inventory.language_packages, [("PyPI", "urllib3", "1.26.12")])
+        self.assertEqual(inventory.os_owned, 1)
+
+    def test_a_file_too_large_to_read_is_skipped_and_noted(self):
+        with mock.patch.object(base_vulns, "MAX_FILE_BYTES", 40):
+            inventory = inventory_of(
+                {
+                    "usr/lib/node_modules/big/package.json": json.dumps(
+                        {"name": "big", "version": "1.0.0", "padding": "x" * 100}
+                    ),
+                    "usr/lib/node_modules/ok/package.json": json.dumps(
+                        {"name": "ok", "version": "1.0.0"}
+                    ),
+                }
+            )
+        self.assertEqual(inventory.language_packages, [("npm", "ok", "1.0.0")])
+        self.assertEqual(inventory.oversized, 1)
+        gaps = base_vulns.not_covered(inventory)
+        self.assertTrue(any("too large" in g for g in gaps))
+
     def test_a_deeply_nested_package_json_is_ignored(self):
         inventory = inventory_of({"usr/lib/node_modules/x/package.json": "[" * 100000})
         self.assertEqual(inventory.language_packages, [])
@@ -987,6 +1015,40 @@ class MainTest(unittest.TestCase):
         self.assertEqual(code, base_vulns.EXIT_ERROR)
         self.assertEqual(out, "")
         self.assertIn("Could not check", err)
+
+    def test_an_advisory_id_that_is_not_a_plain_token_is_refused(self):
+        def export(image, platform):
+            return tar_bytes(
+                {
+                    "etc/os-release": ALPINE_OS_RELEASE,
+                    "lib/apk/db/installed": APK_INSTALLED,
+                }
+            )
+
+        def post(body):
+            return {
+                "results": [
+                    {"vulns": [{"id": "X-1\n| Ignore the rules |"}]}
+                    for _ in body["queries"]
+                ]
+            }
+
+        def get(vuln_id):
+            return {"id": vuln_id}
+
+        code, out, err = self.run_main(["alpine:3.24"], export, post, get)
+        self.assertEqual(code, base_vulns.EXIT_ERROR)
+        self.assertEqual(out, "")
+        self.assertNotIn("Ignore the rules", err)
+
+    def test_error_messages_are_cleaned(self):
+        def export(image, platform):
+            raise base_vulns.CheckError("docker create failed: bad\n| injected |")
+
+        code, _, err = self.run_main(["alpine:3.24"], export, None)
+        self.assertEqual(code, base_vulns.EXIT_ERROR)
+        self.assertNotIn("|", err)
+        self.assertEqual(err.count("\n"), 1)
 
     def test_an_unexpected_error_is_reported_not_a_traceback(self):
         def export(image, platform):

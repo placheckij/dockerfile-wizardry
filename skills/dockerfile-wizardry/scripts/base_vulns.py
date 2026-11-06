@@ -39,6 +39,9 @@ BATCH_SIZE = 1000
 TIMEOUT = 60
 RETRIES = 3
 FETCH_WORKERS = 8
+# a package database or metadata file larger than this is not read (a large Debian
+# dpkg status file is a few MB)
+MAX_FILE_BYTES = 64 * 1024 * 1024
 
 EXIT_ERROR = 1
 EXIT_USAGE = 2
@@ -89,6 +92,8 @@ class Inventory:
         # Python and npm packages the OS package manager installed: its own advisories
         # cover them (with any backported fix), so they are not looked up again
         self.os_owned = 0
+        # package files left unread because they were larger than MAX_FILE_BYTES
+        self.oversized = 0
 
 
 def parse_os_release(text):
@@ -227,6 +232,10 @@ def read_inventory(archive):
         )
         if not wanted:
             continue
+        # the image is untrusted: a file this large is no package metadata
+        if member.size > MAX_FILE_BYTES:
+            inventory.oversized += 1
+            continue
         text = archive.extractfile(member).read().decode("utf-8", "replace")
         if path in OS_RELEASE_PATHS:
             os_release[path] = text
@@ -262,13 +271,14 @@ def read_inventory(archive):
                 language.append((path, ("npm", name, version)))
     inventory.os_packages.extend(dpkg_status_d)
     # Debian and Ubuntu keep dist-packages under /usr/lib/python3 for their own
-    # packages (pip installs under /usr/local); apk lists the files it installed
-    by_os = {
-        package
-        for path, package in language
-        if path in owned or path.startswith("usr/lib/python3/dist-packages/")
-    }
-    found = {package for _, package in language} - by_os
+    # packages (pip installs under /usr/local); apk lists the files it installed.
+    # Decided per file, so another copy of the same version is still looked up.
+    found, by_os = set(), set()
+    for path, package in language:
+        if path in owned or path.startswith("usr/lib/python3/dist-packages/"):
+            by_os.add(path)
+        else:
+            found.add(package)
     inventory.os_owned = len(by_os)
     safe_os = [
         p for p in inventory.os_packages if all(SAFE_TOKEN.fullmatch(t) for t in p)
@@ -335,10 +345,14 @@ def query_osv(queries, post):
                     (result.get("vulns") or []) if isinstance(result, dict) else None
                 )
                 if not isinstance(vulns, list) or not all(
-                    isinstance(vuln, dict) and isinstance(vuln.get("id"), str)
+                    isinstance(vuln, dict)
+                    and isinstance(vuln.get("id"), str)
+                    and SAFE_TOKEN.fullmatch(vuln["id"])
                     for vuln in vulns
                 ):
-                    raise CheckError("OSV.dev returned a result without advisory ids")
+                    raise CheckError(
+                        "OSV.dev returned a result without valid advisory ids"
+                    )
                 for vuln in vulns:
                     if vuln["id"] not in hits[index]:
                         hits[index].append(vuln["id"])
@@ -510,6 +524,11 @@ def not_covered(inventory, missing=0):
         )
     elif not inventory.package_database:
         gaps.append(f"OS packages: no package database found for {name}.")
+    if inventory.oversized:
+        gaps.append(
+            f"{inventory.oversized} package files were too large to read and were "
+            "skipped; look at them by hand."
+        )
     if inventory.os_owned:
         gaps.append(
             f"{inventory.os_owned} Python or npm packages that the OS package manager "
@@ -691,7 +710,9 @@ def osv_get(vuln_id):
         f"{OSV_API}/vulns/{urllib.parse.quote(vuln_id)}", None, missing_ok=True
     )
     if record is not None and not isinstance(record, dict):
-        raise CheckError(f"OSV.dev returned an advisory for {vuln_id} that is not one")
+        raise CheckError(
+            f"OSV.dev returned an advisory for {clean(vuln_id)} that is not one"
+        )
     return record
 
 
@@ -831,7 +852,8 @@ def main(argv=None, export=DockerExport, post=osv_post, get=osv_get):
             args.image, args.platform, inventory, queries, hits, records, queried_at
         )
     except (CheckError, tarfile.TarError) as error:
-        print(f"Could not check {args.image}: {error}", file=sys.stderr)
+        # messages can quote docker's or OSV.dev's output: print them cleaned
+        print(f"Could not check {args.image}: {clean(error, 400)}", file=sys.stderr)
         return EXIT_ERROR
     except Exception as error:  # noqa: BLE001 - safety net: the image and the advisories are untrusted input, and a crash must still read as "could not check"
         print(
