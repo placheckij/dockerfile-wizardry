@@ -265,10 +265,42 @@ class InventoryTest(unittest.TestCase):
                 "usr/lib/python3/dist-packages/idna-3.3.dist-info/METADATA": "Name: idna\nVersion: 3.3\n",
             }
         )
-        self.assertEqual(inventory.language_packages, [("PyPI", "six", "1.16.0")])
-        self.assertEqual(inventory.os_owned, 2)
+        # idna sits where Debian keeps its own packages, but on Alpine apk does not
+        # own it, so it is looked up
+        self.assertEqual(
+            inventory.language_packages,
+            [("PyPI", "idna", "3.3"), ("PyPI", "six", "1.16.0")],
+        )
+        self.assertEqual(inventory.os_owned, 1)
         gaps = base_vulns.not_covered(inventory)
         self.assertTrue(any("OS package manager installed" in g for g in gaps))
+
+    def test_dpkg_file_lists_decide_what_debian_owns(self):
+        site = "usr/lib/python3/dist-packages"
+        inventory = inventory_of(
+            {
+                "etc/os-release": DEBIAN_OS_RELEASE,
+                "var/lib/dpkg/status": DPKG_STATUS,
+                "var/lib/dpkg/info/python3-urllib3.list": f"/{site}/urllib3-1.26.12.dist-info\n/{site}/urllib3-1.26.12.dist-info/METADATA\n",
+                f"{site}/urllib3-1.26.12.dist-info/METADATA": "Name: urllib3\nVersion: 1.26.12\n",
+                # pip --target into dist-packages: no package lists it
+                f"{site}/requests-2.31.0.dist-info/METADATA": "Name: requests\nVersion: 2.31.0\n",
+            }
+        )
+        self.assertEqual(inventory.language_packages, [("PyPI", "requests", "2.31.0")])
+        self.assertEqual(inventory.os_owned, 1)
+
+    def test_distroless_without_file_lists_falls_back_to_the_path(self):
+        site = "usr/lib/python3/dist-packages"
+        inventory = inventory_of(
+            {
+                "etc/os-release": DEBIAN_OS_RELEASE,
+                "var/lib/dpkg/status.d/python3-urllib3": "Package: python3-urllib3\nVersion: 1.26.12-1\n",
+                f"{site}/urllib3-1.26.12.dist-info/METADATA": "Name: urllib3\nVersion: 1.26.12\n",
+            }
+        )
+        self.assertEqual(inventory.language_packages, [])
+        self.assertEqual(inventory.os_owned, 1)
 
     def test_os_installed_packages_are_looked_up_when_the_os_cannot_be(self):
         apk_db = (
@@ -315,6 +347,7 @@ class InventoryTest(unittest.TestCase):
             {
                 "etc/os-release": DEBIAN_OS_RELEASE,
                 "var/lib/dpkg/status": DPKG_STATUS,
+                "var/lib/dpkg/info/python3-urllib3.list": "/usr/lib/python3/dist-packages/urllib3-1.26.12.dist-info/METADATA\n",
                 "usr/lib/python3/dist-packages/urllib3-1.26.12.dist-info/METADATA": "Name: urllib3\nVersion: 1.26.12\n",
                 "app/.venv/lib/python3.11/site-packages/urllib3-1.26.12.dist-info/METADATA": "Name: urllib3\nVersion: 1.26.12\n",
             }
@@ -936,6 +969,19 @@ class RequestTest(unittest.TestCase):
                 "https://api.osv.dev/v1/querybatch", b"{}", urlopen, lambda s: None
             )
         self.assertEqual(len(calls), 1)
+
+    def test_an_advisory_id_cannot_reach_another_api_path(self):
+        urls = []
+
+        def request(url, data, **kwargs):
+            urls.append(url)
+            return {"id": "x"}
+
+        with mock.patch.object(base_vulns, "_request", request):
+            base_vulns.osv_get("x/../../v1/querybatch")
+        self.assertEqual(
+            urls, ["https://api.osv.dev/v1/vulns/x%2F..%2F..%2Fv1%2Fquerybatch"]
+        )
 
     def test_a_missing_advisory_is_none_when_allowed(self):
         def urlopen(request, timeout):

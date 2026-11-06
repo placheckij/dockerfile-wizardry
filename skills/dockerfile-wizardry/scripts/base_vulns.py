@@ -51,6 +51,8 @@ OS_RELEASE_PATHS = ("etc/os-release", "usr/lib/os-release")
 APK_DB_PATHS = ("lib/apk/db/installed", "usr/lib/apk/db/installed")
 DPKG_STATUS = "var/lib/dpkg/status"
 DPKG_STATUS_D = re.compile(r"var/lib/dpkg/status\.d/[^/]+")
+# the files each dpkg package installed, one absolute path per line
+DPKG_INFO_LIST = re.compile(r"var/lib/dpkg/info/[^/]+\.list")
 DIST_INFO = re.compile(
     r"(?:^|/)(?:site|dist)-packages/(?:.+/)?[^/]+\.dist-info/METADATA$"
 )
@@ -215,7 +217,9 @@ def read_inventory(archive):
     os_release = {}
     # (path the package was read from, (ecosystem, name, version))
     language = []
+    # files the OS package manager installed: apk's database, dpkg's info/*.list
     owned = set()
+    dpkg_lists = False
     dpkg_status_d = []
     for member in archive:
         path = re.sub(r"^(?:\./|/)+", "", member.name)
@@ -226,6 +230,7 @@ def read_inventory(archive):
             or path in APK_DB_PATHS
             or path == DPKG_STATUS
             or (DPKG_STATUS_D.fullmatch(path) and not path.endswith(".md5sums"))
+            or DPKG_INFO_LIST.fullmatch(path)
             or DIST_INFO.search(path)
             or PIP_VENDOR.search(path)
             or NPM_PACKAGE.search(path)
@@ -249,6 +254,11 @@ def read_inventory(archive):
         elif DPKG_STATUS_D.fullmatch(path):
             inventory.package_database = "var/lib/dpkg/status.d"
             dpkg_status_d.extend(parse_dpkg_status(text, require_status=False))
+        elif DPKG_INFO_LIST.fullmatch(path):
+            dpkg_lists = True
+            owned |= {
+                line.strip().lstrip("/") for line in text.splitlines() if line.strip()
+            }
         elif DIST_INFO.search(path):
             package = parse_metadata(text)
             if package:
@@ -281,16 +291,20 @@ def read_inventory(archive):
     safe_os = [
         p for p in inventory.os_packages if all(SAFE_TOKEN.fullmatch(t) for t in p)
     ]
-    # Debian and Ubuntu keep dist-packages under /usr/lib/python3 for their own
-    # packages (pip installs under /usr/local); apk lists the files it installed.
-    # Decided per file, so another copy of the same version is still looked up, and
-    # only when the OS lookup runs (a known release and OS packages to ask about):
-    # otherwise PyPI or npm is the only lookup left.
+    # Whether the OS package manager installed a file comes from its own records:
+    # apk's database and dpkg's info/*.list. Distroless Debian images keep neither
+    # list, so there the path decides: Debian and Ubuntu put only their own packages
+    # under /usr/lib/python3/dist-packages (pip installs under /usr/local). Decided per
+    # file, so another copy of the same version is still looked up, and only when the
+    # OS lookup runs (a known release and OS packages to ask about): otherwise PyPI
+    # or npm is the only lookup left.
     os_lookup = bool(inventory.ecosystem and safe_os)
+    by_path = inventory.os_release.get("ID") in ("debian", "ubuntu") and not dpkg_lists
     found, by_os = set(), set()
     for path, package in language:
         if os_lookup and (
-            path in owned or path.startswith("usr/lib/python3/dist-packages/")
+            path in owned
+            or (by_path and path.startswith("usr/lib/python3/dist-packages/"))
         ):
             # per package: one vendor.txt lists many
             by_os.add((path, package))
@@ -731,7 +745,10 @@ def osv_post(body):
 def osv_get(vuln_id):
     """The advisory, or None if OSV.dev no longer has it (404)."""
     record = _request(
-        f"{OSV_API}/vulns/{urllib.parse.quote(vuln_id)}", None, missing_ok=True
+        # safe="": a `/` in the id must not reach another API path
+        f"{OSV_API}/vulns/{urllib.parse.quote(vuln_id, safe='')}",
+        None,
+        missing_ok=True,
     )
     if record is not None and not isinstance(record, dict):
         raise CheckError(
