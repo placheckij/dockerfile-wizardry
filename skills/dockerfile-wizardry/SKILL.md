@@ -194,14 +194,16 @@ unless the workflow, build script or Compose file that builds this image names a
    This example assumes an earlier stage or the base already has user and group 10001;
    if not, the same diff also creates them, as DW-USER-01 asks.
 
-   A finding judged against a CI workflow or build script (the CI pipeline rules in
-   section 5) is reported like one in the Dockerfile, and where it gets a diff (see
-   above for when it does not), the diff is against that file, made the same way with
-   its path. For DW-SUPPLY-03, pin each action the finding names to the commit its ref
-   points to now. For `uses: <owner>/<repo>@<ref>` (or `<owner>/<repo>/<path>@<ref>`),
-   run `GIT_TERMINAL_PROMPT=0 git ls-remote https://github.com/<owner>/<repo> refs/tags/<ref> 'refs/tags/<ref>^{}'`
-   (the variable makes a private or misspelled repository fail instead of asking for a
-   password; for a workflow on GitHub Enterprise Server, use its host, not `github.com`).
+   A finding judged against a CI workflow or build script (step 3, and the CI pipeline
+   rules in section 5) is reported like one in the Dockerfile, and where it gets a diff
+   (see above for when it does not), the diff is against that file, made the same way
+   with its path. For DW-SUPPLY-03, pin each action the finding names to the commit its
+   ref points to now. For `uses: <owner>/<repo>@<ref>` (or
+   `<owner>/<repo>/<path>@<ref>`), run
+   `GIT_TERMINAL_PROMPT=0 git ls-remote https://github.com/<owner>/<repo> refs/tags/<ref> 'refs/tags/<ref>^{}'`
+   (the variable stops git asking for a password in the terminal for a private or
+   misspelled repository, though a credential helper may still ask; for a workflow on
+   GitHub Enterprise Server, use its host, not `github.com`).
    A lightweight tag prints one line, its commit. An annotated tag prints two, and the
    commit is the one ending in `^{}`; the other is the tag object, which `uses:` must
    not name. If it prints nothing, the ref may be a branch (`main`, `release/v1`): run
