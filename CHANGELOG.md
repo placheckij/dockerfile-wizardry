@@ -14,6 +14,10 @@ Each pull request that changes `skills/` or `.claude-plugin/` adds a line under 
 
 ## [Unreleased]
 
+### Added
+
+- Both modes look up known vulnerabilities in the base image (DW-SUPPLY-05) without a scanner, with a bundled script, `scripts/base_vulns.py`, that needs only Python 3 and Docker. It creates a container from the image without starting it, reads the OS packages (apk, dpkg, distroless `status.d`) under their source package names and the Python and npm packages, asks OSV.dev about each, and prints the fixed version, the severity as the source gives it (Debian's urgency where there is one), the source and time of the lookup, and what it did not cover. When `docker scout` is installed the skill also runs `docker scout cves`, which reports the vulnerabilities without a fix that Alpine's security database leaves out; otherwise it gives the user the image's Docker Hub page to open, without reading it itself. A vulnerability with a fix listed is a should-fix DW-SUPPLY-05 finding, fixed by a newer base where the lookup on it shows the fix; one without a fix is a note. The skill never names a vulnerability from memory. A proposed new base is looked up too, and audit mode's before-and-after builds compare their known vulnerabilities. DW-SUPPLY-05's "How to check" names OSV.dev, the source-package lookup and what Alpine's security database misses, with six new sources.
+
 ## [0.2.0] - 2026-11-06
 
 ### Added
