@@ -270,6 +270,23 @@ class InventoryTest(unittest.TestCase):
         gaps = base_vulns.not_covered(inventory)
         self.assertTrue(any("OS package manager installed" in g for g in gaps))
 
+    def test_os_installed_packages_are_looked_up_when_the_os_cannot_be(self):
+        apk_db = (
+            "P:py3-urllib3\nV:2.0.0-r1\n"
+            "F:usr/lib/python3.12/site-packages/urllib3-2.0.0.dist-info\nR:METADATA\n"
+        )
+        inventory = inventory_of(
+            {
+                "etc/os-release": "ID=alpine\nVERSION_ID=3.25_alpha20261001\n",
+                "lib/apk/db/installed": apk_db,
+                "usr/lib/python3.12/site-packages/urllib3-2.0.0.dist-info/METADATA": "Name: urllib3\nVersion: 2.0.0\n",
+            }
+        )
+        self.assertEqual(inventory.language_packages, [("PyPI", "urllib3", "2.0.0")])
+        self.assertEqual(inventory.os_owned, 0)
+        gaps = base_vulns.not_covered(inventory)
+        self.assertFalse(any("OS package manager installed" in g for g in gaps))
+
     def test_a_copy_the_os_does_not_own_is_still_looked_up(self):
         inventory = inventory_of(
             {
@@ -458,6 +475,37 @@ class RecordTest(unittest.TestCase):
         self.assertGreater(key("2.0.post1", "PyPI"), key("2.0", "PyPI"))
         # elsewhere a trailing letter is a later version (Debian 1.0a)
         self.assertGreater(key("1.0a-1"), key("1.0-1"))
+
+    def test_npm_pre_releases_sort_before_their_release(self):
+        key = base_vulns.version_key
+        for pre in ("5.0.0-next.3", "5.0.0-canary.1", "5.0.0-0", "5.0.0-rc.1"):
+            self.assertLess(key(pre, "npm"), key("5.0.0", "npm"), pre)
+        self.assertLess(key("5.0.0-alpha.0", "npm"), key("5.0.0-next.3", "npm"))
+        self.assertLess(key("5.0.0-next.2", "npm"), key("5.0.0-next.10", "npm"))
+        self.assertGreater(key("5.0.1", "npm"), key("5.0.0", "npm"))
+        self.assertEqual(key("5.0.0+build.7", "npm"), key("5.0.0", "npm"))
+
+    def test_an_npm_pre_release_is_fixed_by_its_release(self):
+        record = {
+            "id": "GHSA-6",
+            "affected": [
+                {
+                    "package": {"name": "x", "ecosystem": "npm"},
+                    "ranges": [
+                        {
+                            "type": "SEMVER",
+                            "events": [
+                                {"introduced": "5.0.0-alpha.0"},
+                                {"fixed": "5.0.0"},
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+        self.assertEqual(
+            base_vulns.fixed_versions(record, "npm", "x", "5.0.0-next.3"), ["5.0.0"]
+        )
 
     def test_a_pypi_beta_is_fixed_by_its_release(self):
         record = {

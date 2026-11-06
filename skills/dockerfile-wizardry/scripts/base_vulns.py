@@ -270,12 +270,23 @@ def read_inventory(archive):
             ):
                 language.append((path, ("npm", name, version)))
     inventory.os_packages.extend(dpkg_status_d)
+    for path in OS_RELEASE_PATHS:
+        if path in os_release:
+            inventory.os_release = {
+                key: clean(value)
+                for key, value in parse_os_release(os_release[path]).items()
+            }
+            break
+    inventory.ecosystem = os_ecosystem(inventory.os_release)
     # Debian and Ubuntu keep dist-packages under /usr/lib/python3 for their own
     # packages (pip installs under /usr/local); apk lists the files it installed.
-    # Decided per file, so another copy of the same version is still looked up.
+    # Decided per file, so another copy of the same version is still looked up, and
+    # only when the OS lookup runs: otherwise PyPI or npm is the only lookup left.
     found, by_os = set(), set()
     for path, package in language:
-        if path in owned or path.startswith("usr/lib/python3/dist-packages/"):
+        if inventory.ecosystem and (
+            path in owned or path.startswith("usr/lib/python3/dist-packages/")
+        ):
             by_os.add(path)
         else:
             found.add(package)
@@ -288,14 +299,6 @@ def read_inventory(archive):
         len(inventory.os_packages) - len(safe_os) + len(found - safe_language)
     )
     inventory.os_packages = safe_os
-    for path in OS_RELEASE_PATHS:
-        if path in os_release:
-            inventory.os_release = {
-                key: clean(value)
-                for key, value in parse_os_release(os_release[path]).items()
-            }
-            break
-    inventory.ecosystem = os_ecosystem(inventory.os_release)
     inventory.language_packages = sorted(safe_language)
     return inventory
 
@@ -382,11 +385,26 @@ def _version_parts(text, pre_release):
     return parts
 
 
+def _semver_key(version):
+    """Semantic versioning: build metadata after `+` is ignored, and any pre-release
+    after `-` (`5.0.0-next.3`, `5.0.0-0`) comes before its release; its identifiers
+    compare one by one, numbers before words."""
+    main = version.partition("+")[0]
+    core, sep, pre = main.partition("-")
+    identifiers = [
+        (0, int(part), "") if part.isdigit() else (1, 0, part)
+        for part in (pre.split(".") if sep else [])
+    ]
+    return (0, _version_parts(core, {}), (0 if sep else 1, identifiers))
+
+
 def version_key(version, ecosystem=None):
     """A sort key good enough to tell which range of an advisory holds a version:
     the epoch, then the version, then the revision after the last `-` (Debian's
     `-1~deb12u2`, apk's `-r0`). Numbers and letters compare in turn; Debian's `~`
-    and pre-release markers come before the end."""
+    and pre-release markers come before the end. npm versions are semver."""
+    if ecosystem == "npm":
+        return _semver_key(version)
     pre_release = PYPI_PRE_RELEASE if ecosystem == "PyPI" else PRE_RELEASE
     epoch, sep, rest = version.partition(":")
     if not (sep and epoch.isdigit()):
