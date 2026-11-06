@@ -70,14 +70,15 @@ unless the workflow, build script or Compose file that builds this image names a
    (DW-BUILD-05 does this for DL3009, DL3019 and DL3042), use that rule. A code
    that no rule names is reported separately, marked "not from the rulebook". DL3057 on a
    build stage's `FROM` is not a DW-HEALTH-02 finding: Hadolint asks every stage for a
-   `HEALTHCHECK`, but only the final stage runs as a container. At most, suggest a
-   `# hadolint ignore=DL3057` above that `FROM`, as in create mode (step 5). Likewise,
-   DL3002 and DL3066 are DW-USER-01 findings only on the `USER` the container runs as:
-   the final stage's last `USER`, or, if the final stage sets none, the last `USER`
-   along the chain of stages it is built `FROM`. On any other `USER` they are not
-   findings, though the rule names them: at most, add a note, suggesting for DL3066 that
-   the `USER` be written by number, and for DL3002 a `# hadolint ignore=DL3002` above
-   that `USER` with the reason that the stage never runs as a container. DL3025 and
+   `HEALTHCHECK`, but only the final stage runs as a container. At most, add a note,
+   suggesting a `# hadolint ignore=DL3057` above that `FROM` only where Defaults allow
+   one (Hadolint ignore lines). Likewise, DL3002 and DL3066 are DW-USER-01 findings only
+   on the `USER` the container runs as: the final stage's last `USER`, or, if the final
+   stage sets none, the last `USER` along the chain of stages it is built `FROM`. On any
+   other `USER` they are not findings, though the rule names them: at most, add a note,
+   suggesting for DL3066 that the `USER` be written by number, and for DL3002, where
+   Defaults allow one, a `# hadolint ignore=DL3002` above that `USER` with the reason
+   that the stage never runs as a container. DL3025 and
    JSONArgsRecommended on a `CMD` or `ENTRYPOINT` that never reaches the image (step 3)
    are not DW-HEALTH-05 findings either: at most, add a note.
 
@@ -336,12 +337,13 @@ Use this when the user wants a new Dockerfile for a project.
      with its reason on the line above it; Hadolint applies it to the next line only.
 5. **Check your own output.** Run the linters as in audit mode, then go through the
    rules once and fix or report what remains. Hadolint asks every stage for a
-   `HEALTHCHECK` (DL3057), but a build stage never runs as a container, so put
-   `# hadolint ignore=DL3057` above its `FROM` with that reason. Write every `USER` by
-   number, a build-time root as `USER 0`: Hadolint v2.15.1 reports DL3066 on every
-   `USER` given by name. A build stage that ends as `USER 0` still gets DL3002, which is
-   not a finding there; put `# hadolint ignore=DL3002` above that `USER` with the
-   reason that a build stage never runs as a container.
+   `HEALTHCHECK` (DL3057), but a build stage never runs as a container; where Defaults
+   allow one (Hadolint ignore lines), put `# hadolint ignore=DL3057` above its `FROM`
+   with that reason. Write every `USER` by number, a build-time root as `USER 0`:
+   Hadolint v2.15.1 reports DL3066 on every `USER` given by name. A build stage that ends
+   as `USER 0` still gets DL3002, which is not a finding there; where Defaults allow one,
+   put `# hadolint ignore=DL3002` above that `USER` with the reason that a build stage
+   never runs as a container.
 6. **Offer a runtime example.** Offer a hardened Compose service or Kubernetes Pod spec,
    adapted from `references/examples/compose.yaml` or `references/examples/pod.yaml`:
    change the image name, port, user and group IDs and health check notes to fit, and
@@ -370,11 +372,30 @@ reverse, so name it in the summary.
   a value you have verified, or leave a `TODO`. A digest freezes the base, so mention
   automated updates (Dependabot or Renovate) and periodic rebuilds (DW-SUPPLY-04,
   trade-offs §1).
-- **Do not pin apt or apk package versions** (DW-DEPS-01, trade-offs §2). Hadolint will
-  report DL3008 (apt) or DL3018 (apk); add `# hadolint ignore=DL3008` (or `DL3018`)
-  directly above that `RUN`, with a one-line reason above the ignore line, and say in
-  the summary that this was a choice. In audit mode, a version pin the file already has
-  is reported as a **decide** item and not removed by a diff unless the user asks.
+- **Do not pin apt or apk package versions** (DW-DEPS-01, trade-offs §2). Hadolint
+  reports DL3008 (apt) or DL3018 (apk); where the next item allows an ignore line, add
+  `# hadolint ignore=DL3008` (or `DL3018`) directly above that `RUN`, with a one-line
+  reason above the ignore line. Either way, say in the summary that this was a choice.
+  In audit mode, a version pin the file already has is reported as a **decide** item and
+  not removed by a diff unless the user asks.
+- **Hadolint ignore lines only where Hadolint runs.** Write a `# hadolint ignore=...`
+  line only when the repository runs Hadolint on this Dockerfile (in create mode, on the
+  path it will have): a file in the repository runs the `hadolint` command, image,
+  action or hook on that path (a CI workflow, build script, Makefile, or git hook config
+  such as `.pre-commit-config.yaml`, `lefthook.yml` or `.husky/`), or a linter suite
+  whose settings have Hadolint on (super-linter, MegaLinter, Trunk's
+  `.trunk/trunk.yaml`) covers it, or the user says it runs elsewhere. A
+  `.hadolint.yaml` or `.hadolint.yml`, or a `# hadolint ignore=` or
+  `# hadolint global ignore=` line the Dockerfile already has, counts too: someone runs
+  it, if only in an editor. Look in those files in both modes, even where step 1 would
+  not read them. Even then, ignore only a code that run would report: DL3057 is off by
+  default, so it needs an ignore only when the repository turns it on, in its config or
+  with a flag such as `--info DL3057`, or the Dockerfile already ignores it on another
+  line (a global ignore means the run does not report it at all); the skill's own
+  linter run (audit step 2) does not count. Elsewhere an ignore line does nothing;
+  leave it out and name the code and its reason in the summary (create mode) or as a
+  note in the report (audit mode). Say which case applied, and leave the ignore lines a
+  Dockerfile already has as they are.
 - **Base image family** (slim, default, distroless, or a vendor's hardened image) is a
   decision to put to the user with trade-offs §6. When the user has no preference, use
   the language's official slim variant (for a compiled binary, a slim distribution image
