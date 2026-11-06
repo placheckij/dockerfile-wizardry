@@ -44,16 +44,17 @@ EXIT_NOTHING = 3
 OS_RELEASE_PATHS = ("etc/os-release", "usr/lib/os-release")
 APK_DB_PATHS = ("lib/apk/db/installed", "usr/lib/apk/db/installed")
 DPKG_STATUS = "var/lib/dpkg/status"
-DPKG_STATUS_D = re.compile(r"^var/lib/dpkg/status\.d/[^/]+$")
+DPKG_STATUS_D = re.compile(r"var/lib/dpkg/status\.d/[^/]+")
 DIST_INFO = re.compile(r"(?:^|/)(?:site|dist)-packages/(?:.+/)?[^/]+\.dist-info/METADATA$")
 PIP_VENDOR = re.compile(r"(?:^|/)(?:site|dist)-packages/pip/_vendor/vendor\.txt$")
 NPM_PACKAGE = re.compile(r"(?:^|/)node_modules/((?:@[^/]+/)?[^/@]+)/package\.json$")
-RELEASE = re.compile(r"^(\d+)\.(\d+)(?:\.\d+)?$")
+RELEASE = re.compile(r"(\d+)\.(\d+)(?:\.\d+)?")
 # The image is untrusted and an agent reads this script's output, so a package name or
 # version from its files is used only if it looks like one: no spaces, pipes, quotes or
 # newlines that could break the table or carry instructions.
 # (a leading dot is apk's virtual package, `.python-rundeps`)
-SAFE_TOKEN = re.compile(r"^[A-Za-z0-9@.][A-Za-z0-9._+~:@/-]{0,127}$")
+# (used with fullmatch: `$` would also accept a trailing newline)
+SAFE_TOKEN = re.compile(r"[A-Za-z0-9@.][A-Za-z0-9._+~:@/-]{0,127}")
 UNSAFE_TEXT = re.compile(r"[^A-Za-z0-9._+~:@/ ()-]")
 
 
@@ -96,7 +97,7 @@ def os_ecosystem(os_release):
     cannot query it."""
     distro = os_release.get("ID", "")
     version = os_release.get("VERSION_ID", "")
-    release = RELEASE.match(version)
+    release = RELEASE.fullmatch(version)
     if distro == "alpine" and release:
         return f"Alpine:v{release.group(1)}.{release.group(2)}"
     if distro == "debian" and re.fullmatch(r"\d+", version):
@@ -198,7 +199,7 @@ def read_inventory(archive):
             path in OS_RELEASE_PATHS
             or path in APK_DB_PATHS
             or path == DPKG_STATUS
-            or (DPKG_STATUS_D.match(path) and not path.endswith(".md5sums"))
+            or (DPKG_STATUS_D.fullmatch(path) and not path.endswith(".md5sums"))
             or DIST_INFO.search(path)
             or PIP_VENDOR.search(path)
             or NPM_PACKAGE.search(path)
@@ -214,7 +215,7 @@ def read_inventory(archive):
         elif path == DPKG_STATUS:
             inventory.package_database = path
             inventory.os_packages.extend(parse_dpkg_status(text))
-        elif DPKG_STATUS_D.match(path):
+        elif DPKG_STATUS_D.fullmatch(path):
             inventory.package_database = "var/lib/dpkg/status.d"
             dpkg_status_d.extend(parse_dpkg_status(text, require_status=False))
         elif DIST_INFO.search(path):
@@ -236,8 +237,8 @@ def read_inventory(archive):
             ):
                 language.add(("npm", name, version))
     inventory.os_packages.extend(dpkg_status_d)
-    safe_os = [p for p in inventory.os_packages if all(SAFE_TOKEN.match(t) for t in p)]
-    safe_language = {p for p in language if all(SAFE_TOKEN.match(t) for t in p[1:])}
+    safe_os = [p for p in inventory.os_packages if all(SAFE_TOKEN.fullmatch(t) for t in p)]
+    safe_language = {p for p in language if all(SAFE_TOKEN.fullmatch(t) for t in p[1:])}
     inventory.skipped = len(inventory.os_packages) - len(safe_os) + len(language - safe_language)
     inventory.os_packages = safe_os
     for path in OS_RELEASE_PATHS:

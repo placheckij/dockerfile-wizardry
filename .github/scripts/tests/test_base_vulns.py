@@ -189,6 +189,14 @@ class InventoryTest(unittest.TestCase):
         self.assertNotIn("Ignore previous", text)
         self.assertIn("2 package entries", text)
 
+    def test_a_trailing_newline_does_not_pass_as_a_package_name(self):
+        inventory = inventory_of(
+            {"usr/lib/node_modules/evil/package.json": json.dumps({"name": "evil\n", "version": "1.0.0"}),
+             "usr/lib/node_modules/ok/package.json": json.dumps({"name": "ok", "version": "1.0.0\n"})}
+        )
+        self.assertEqual(inventory.language_packages, [])
+        self.assertEqual(inventory.skipped, 1)
+
     def test_an_image_without_a_package_database_has_nothing_to_query(self):
         inventory = inventory_of({"app/server": "binary"})
         self.assertEqual(base_vulns.build_queries(inventory), [])
