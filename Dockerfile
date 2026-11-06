@@ -9,9 +9,12 @@
 # The tag says what we intend; the digest says exactly which bytes we get. When
 # the tag is republished with patches, the weekly CI run fails and prints the new
 # digest (see .github/scripts/check_base_image.py).
-ARG PYTHON_VERSION=3.14.10
+# The tag names the release line (3.14), not a patch (3.14.10): a patch tag stops
+# being rebuilt once the next patch ships, and a pin of a frozen tag looks current
+# forever (DW-BASE-03).
+ARG PYTHON_VERSION=3.14
 ARG ALPINE_VERSION=3.24
-FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION}@sha256:eb2c62658b8d51bff0acc408504b76521d02030de56a8a3c1e830083e89b89d2 AS base
+FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION}@sha256:a18b20ad69e74df6cf6d2e1b1a260d7a1ecf5380fd83b310f83ba88c461cf894 AS base
 
 # 🏷️ Spell #2: Metadata Labels
 LABEL maintainer="placheckij" \
@@ -117,12 +120,10 @@ USER 1337:1337
 # a fresh `scratch` image drops them for real (and shrinks the image ~13 MB).
 # scratch starts with no metadata, so ENV, LABEL, USER, ... are declared again.
 FROM scratch AS runtime
-ARG PYTHON_VERSION
 # hadolint ignore=DL3067
 COPY --from=pruned / /
 ENV PATH=/spellbook/.venv/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin \
     LANG=C.UTF-8 \
-    PYTHON_VERSION=${PYTHON_VERSION} \
     PYTHONUNBUFFERED=true
 LABEL maintainer="placheckij" \
       version="1.0.0" \
