@@ -382,10 +382,13 @@ reverse, so name it in the summary.
   when the image was built with
   `docker buildx imagetools inspect <image>:<tag> --format '{{ (index .Image "linux/amd64").Created }}'`
   (the platform you build for; `{{ .Image.Created }}` for a single-platform image). A
-  date months old suggests the release line itself is out of support: confirm it with
-  the supported tags on the image's Docker Hub page or the publisher's support policy
-  before reporting DW-BASE-03, and put a move to a newer release line to the user as a
-  decision, since it can change behaviour. A date of 1970-01-01 or another
+  date months old suggests that the release line or the variant's OS release
+  (`-slim-bullseye`, `-alpine3.20`) is out of support: find which in the supported tags
+  on the image's Docker Hub page or the publisher's support policy before reporting
+  DW-BASE-03. For a dropped variant, propose the same release line on a supported
+  variant (`3.12-slim-bookworm` for `3.12-slim-bullseye`); for a dropped release line,
+  a newer release line. Put either move to the user as a decision, since it can change
+  behaviour. A date of 1970-01-01 or another
   fixed timestamp comes from a reproducible build and says nothing about rebuilds. If
   the lookups cannot run, say that DW-BASE-03 was not checked.
 - **Pin base images by digest** (DW-BASE-01): `FROM <image>:<tag>@sha256:<digest>`, with
