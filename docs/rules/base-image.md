@@ -89,14 +89,15 @@ how_to_check:
   release line, any variant kept (`3.12-slim-bookworm` for `3.12.4-slim-bookworm`, `node:24-slim`
   for `node:24.11-slim`); different digests mean it is no longer rebuilt. A tag that names a
   release line (`alpine:3.23`) has no such comparison, and a broader tag (`3-slim`) moving to a
-  newer release line says nothing about the one you use. To check the release
-  line itself, print when the base image was built with
+  newer release line says nothing about the one you use. A tag can also freeze because its
+  variant's OS release (`-slim-bullseye`) was dropped while the release line goes on. To check
+  the release line and the variant themselves, print when the base image was built with
   `docker buildx imagetools inspect <image>:<tag> --format '{{ (index .Image "linux/amd64").Created }}'`
   (name the platform you build for; use `{{ .Image.Created }}` for a single-platform image). The
   FAQ says Debian-based Official Images are republished at least monthly, so one that is months
   older is most likely no longer rebuilt; other bases follow their own schedules, and a
-  reproducible build may carry a fixed date such as 1970-01-01. Confirm with the supported tags
-  on the image's Docker Hub page.
+  reproducible build may carry a fixed date such as 1970-01-01. The supported tags on the image's
+  Docker Hub page confirm it and show whether the release line or the variant was dropped.
 
 sources:
 - https://github.com/docker-library/faq#what-do-you-mean-by-supported

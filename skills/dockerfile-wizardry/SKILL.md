@@ -375,7 +375,11 @@ reverse, so name it in the summary.
   in the file: a pin that has only fallen behind its own tag is not DW-BASE-03 but a
   digest left un-updated (DW-SUPPLY-04). Different digests mean the tag is no longer
   rebuilt: report DW-BASE-03 with both digests and propose the release-line tag, pinned
-  by its own digest (DW-BASE-01). Compare no more broadly than that: a tag above the
+  by its own digest (DW-BASE-01). If the tag leaves the OS release implicit
+  (`3.12.4-slim`), propose the release-line tag that names the OS release the image was
+  built on (`3.12-slim-bookworm`), since the implicit tag may now point at a newer one;
+  if you cannot tell which, or only a newer OS release is supported, put the move to the
+  user as a decision. Compare no more broadly than that: a tag above the
   release line (`3-slim`, `node:slim`) pointing at a newer release line is not a
   finding, and a tag that names a release line (`3.12-slim`, `alpine:3.23`, `node:24`)
   has no such comparison; only the build date applies to it. For any tag, also print
