@@ -5,8 +5,8 @@ Usage: python3 base_vulns.py <image>[:<tag>][@<digest>] [--platform linux/amd64]
 
 The image is never run: `docker create` and `docker export` stream its filesystem, from
 which this reads the OS package database (apk on Alpine, dpkg on Debian and Ubuntu,
-including distroless `status.d`) and the Python (`*.dist-info`, pip's vendored packages)
-and npm (`node_modules/*/package.json`) packages. It asks OSV.dev for each package by
+including distroless `status.d`) and the Python (`*.dist-info`, `*.egg-info`, pip's
+vendored packages) and npm (`node_modules/*/package.json`) packages. It asks OSV.dev for each package by
 ecosystem, name and version, OS packages under their source package (`openssl`, not
 `libssl3`), as the OSV schema requires, then fetches each advisory it gets back for the
 fixed version and severity. The report names its source and the query time, and lists
@@ -55,6 +55,10 @@ DPKG_STATUS_D = re.compile(r"var/lib/dpkg/status\.d/[^/]+")
 DPKG_INFO_LIST = re.compile(r"var/lib/dpkg/info/[^/]+\.list")
 DIST_INFO = re.compile(
     r"(?:^|/)(?:site|dist)-packages/(?:.+/)?[^/]+\.dist-info/METADATA$"
+)
+# setup.py-installed packages: an .egg-info directory with PKG-INFO, or one file
+EGG_INFO = re.compile(
+    r"(?:^|/)(?:site|dist)-packages/(?:.+/)?[^/]+\.egg-info(?:/PKG-INFO)?$"
 )
 PIP_VENDOR = re.compile(r"(?:^|/)(?:site|dist)-packages/pip/_vendor/vendor\.txt$")
 NPM_PACKAGE = re.compile(r"(?:^|/)node_modules/((?:@[^/]+/)?[^/@]+)/package\.json$")
@@ -232,6 +236,7 @@ def read_inventory(archive):
             or (DPKG_STATUS_D.fullmatch(path) and not path.endswith(".md5sums"))
             or DPKG_INFO_LIST.fullmatch(path)
             or DIST_INFO.search(path)
+            or EGG_INFO.search(path)
             or PIP_VENDOR.search(path)
             or NPM_PACKAGE.search(path)
         )
@@ -259,7 +264,7 @@ def read_inventory(archive):
             owned |= {
                 line.strip().lstrip("/") for line in text.splitlines() if line.strip()
             }
-        elif DIST_INFO.search(path):
+        elif DIST_INFO.search(path) or EGG_INFO.search(path):
             package = parse_metadata(text)
             if package:
                 language.append((path, ("PyPI",) + package))
@@ -422,8 +427,15 @@ def version_key(version, ecosystem=None):
     and pre-release markers come before the end. npm versions are semver."""
     if ecosystem == "npm":
         return _semver_key(version)
-    pre_release = PYPI_PRE_RELEASE if ecosystem == "PyPI" else PRE_RELEASE
-    epoch, sep, rest = version.partition(":")
+    if ecosystem == "PyPI":
+        pre_release = PYPI_PRE_RELEASE
+    elif ecosystem and ecosystem.startswith(("Debian", "Ubuntu")):
+        # dpkg puts only `~` before the release; `1.0rc1` comes after `1.0`
+        pre_release = {}
+    else:
+        pre_release = PRE_RELEASE
+    # PEP 440 writes the epoch as `1!2.0`, dpkg as `1:2.0`
+    epoch, sep, rest = version.partition("!" if ecosystem == "PyPI" else ":")
     if not (sep and epoch.isdigit()):
         epoch, rest = "0", version
     upstream, _, revision = rest.rpartition("-")
@@ -597,7 +609,8 @@ def not_covered(inventory, missing=0):
         "downloads."
     )
     gaps.append(
-        "Language packages other than Python (dist-info, pip's vendored packages) and npm "
+        "Language packages other than Python (dist-info, egg-info, pip's vendored "
+        "packages) and npm "
         "are not read."
     )
     gaps.append(

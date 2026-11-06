@@ -372,6 +372,19 @@ class InventoryTest(unittest.TestCase):
         gaps = base_vulns.not_covered(inventory)
         self.assertTrue(any("too large" in g for g in gaps))
 
+    def test_reads_egg_info_packages(self):
+        site = "usr/local/lib/python3.9/site-packages"
+        inventory = inventory_of(
+            {
+                f"{site}/foo-1.0-py3.9.egg-info/PKG-INFO": "Metadata-Version: 1.1\nName: foo\nVersion: 1.0\n",
+                f"{site}/bar-2.1-py3.9.egg-info": "Metadata-Version: 1.1\nName: bar\nVersion: 2.1\n",
+            }
+        )
+        self.assertEqual(
+            inventory.language_packages,
+            [("PyPI", "bar", "2.1"), ("PyPI", "foo", "1.0")],
+        )
+
     def test_a_deeply_nested_package_json_is_ignored(self):
         inventory = inventory_of({"usr/lib/node_modules/x/package.json": "[" * 100000})
         self.assertEqual(inventory.language_packages, [])
@@ -563,6 +576,23 @@ class RecordTest(unittest.TestCase):
         self.assertEqual(
             base_vulns.fixed_versions(record, "npm", "x", "5.0.0-next.3"), ["5.0.0"]
         )
+
+    def test_dpkg_treats_only_the_tilde_as_before_the_release(self):
+        key = base_vulns.version_key
+        self.assertGreater(key("1.9.0rc1-1", "Debian:12"), key("1.9.0-1", "Debian:12"))
+        self.assertLess(key("1.9.0~rc1-1", "Debian:12"), key("1.9.0-1", "Debian:12"))
+        self.assertGreater(
+            key("1.9.0rc1-1", "Ubuntu:24.04:LTS"), key("1.9.0-1", "Ubuntu:24.04:LTS")
+        )
+        # apk keeps its pre-release suffixes
+        self.assertLess(
+            key("1.2_rc1-r0", "Alpine:v3.24"), key("1.2-r0", "Alpine:v3.24")
+        )
+
+    def test_pypi_epochs(self):
+        key = base_vulns.version_key
+        self.assertGreater(key("1!1.0", "PyPI"), key("2.0", "PyPI"))
+        self.assertEqual(key("0!2.0", "PyPI"), key("2.0", "PyPI"))
 
     def test_pypi_trailing_zero_segments_are_equal(self):
         key = base_vulns.version_key
@@ -983,6 +1013,26 @@ class RequestTest(unittest.TestCase):
             urls, ["https://api.osv.dev/v1/vulns/x%2F..%2F..%2Fv1%2Fquerybatch"]
         )
 
+    def test_an_advisory_that_is_not_an_object_is_refused(self):
+        with (
+            mock.patch.object(base_vulns, "_request", lambda *a, **k: ["x"]),
+            self.assertRaises(base_vulns.CheckError),
+        ):
+            base_vulns.osv_get("GHSA-1")
+
+    def test_a_body_that_is_not_json_is_not_retried(self):
+        calls = []
+
+        def urlopen(request, timeout):
+            calls.append(1)
+            return io.BytesIO(b"<html>not json</html>")
+
+        with self.assertRaises(base_vulns.CheckError):
+            base_vulns._request(
+                "https://api.osv.dev/v1/vulns/X", None, urlopen, lambda s: None
+            )
+        self.assertEqual(len(calls), 1)
+
     def test_a_missing_advisory_is_none_when_allowed(self):
         def urlopen(request, timeout):
             raise base_vulns.urllib.error.HTTPError(
@@ -1184,6 +1234,11 @@ class MainTest(unittest.TestCase):
         self.assertEqual(code, base_vulns.EXIT_ERROR)
         self.assertIn("Could not check", err)
         self.assertNotIn("Traceback", err)
+
+    def test_bad_arguments_exit_two(self):
+        code, _, err = self.run_main(["--format", "xml"], None, None)
+        self.assertEqual(code, base_vulns.EXIT_USAGE)
+        self.assertIn("usage", err)
 
     def test_nothing_to_check_fails(self):
         def export(image, platform):
