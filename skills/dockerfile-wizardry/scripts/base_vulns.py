@@ -42,6 +42,10 @@ FETCH_WORKERS = 8
 # a package database or metadata file larger than this is not read (a large Debian
 # dpkg status file is a few MB)
 MAX_FILE_BYTES = 64 * 1024 * 1024
+# metadata files a package file may be a hard link to, kept while the tar streams by
+LINKABLE_NAMES = ("METADATA", "PKG-INFO", "package.json", "vendor.txt")
+MAX_KEPT_FILE = 1024 * 1024
+MAX_KEPT_TOTAL = 256 * 1024 * 1024
 
 EXIT_ERROR = 1
 EXIT_USAGE = 2
@@ -66,10 +70,10 @@ RELEASE = re.compile(r"(\d+)\.(\d+)(?:\.\d+)?")
 # The image is untrusted and an agent reads this script's output, so a package name or
 # version from its files is used only if it looks like one: no spaces, pipes, quotes or
 # newlines that could break the table or carry instructions.
-# (a leading dot is apk's virtual package, `.python-rundeps`)
+# (a leading dot is apk's virtual package, `.python-rundeps`; `!` is a PEP 440 epoch)
 # (used with fullmatch: `$` would also accept a trailing newline)
-SAFE_TOKEN = re.compile(r"[A-Za-z0-9@.][A-Za-z0-9._+~:@/-]{0,127}")
-UNSAFE_TEXT = re.compile(r"[^A-Za-z0-9._+~:@/ ()-]")
+SAFE_TOKEN = re.compile(r"[A-Za-z0-9@.][A-Za-z0-9._+~:@/!-]{0,127}")
+UNSAFE_TEXT = re.compile(r"[^A-Za-z0-9._+~:@/! ()-]")
 
 
 def clean(text, limit=80):
@@ -100,6 +104,8 @@ class Inventory:
         self.os_owned = 0
         # package files left unread because they were larger than MAX_FILE_BYTES
         self.oversized = 0
+        # package files written as hard links to a file that was not kept
+        self.unread_links = 0
 
 
 def parse_os_release(text):
@@ -215,6 +221,10 @@ def parse_pip_vendor(text):
     return packages
 
 
+def _member_path(name):
+    return re.sub(r"^(?:\./|/)+", "", name)
+
+
 def read_inventory(archive):
     """Read an Inventory from an open tarfile of the image's filesystem, in one pass."""
     inventory = Inventory()
@@ -225,9 +235,13 @@ def read_inventory(archive):
     owned = set()
     dpkg_lists = False
     dpkg_status_d = []
+    # A tar stream writes a file once and later copies as hard links to it (uv links
+    # installed packages to its cache), and the target's bytes cannot be read again,
+    # so keep small files that a package file can link to
+    kept, kept_bytes = {}, 0
     for member in archive:
-        path = re.sub(r"^(?:\./|/)+", "", member.name)
-        if not member.isfile():
+        path = _member_path(member.name)
+        if not (member.isfile() or member.islnk()):
             continue
         wanted = (
             path in OS_RELEASE_PATHS
@@ -240,13 +254,34 @@ def read_inventory(archive):
             or PIP_VENDOR.search(path)
             or NPM_PACKAGE.search(path)
         )
-        if not wanted:
-            continue
-        # the image is untrusted: a file this large is no package metadata
-        if member.size > MAX_FILE_BYTES:
-            inventory.oversized += 1
-            continue
-        text = archive.extractfile(member).read().decode("utf-8", "replace")
+        name = path.rsplit("/", 1)[-1]
+        linkable = name in LINKABLE_NAMES or name.endswith(".egg-info")
+        if member.islnk():
+            if not wanted:
+                continue
+            data = kept.get(_member_path(member.linkname))
+            if data is None:
+                inventory.unread_links += 1
+                continue
+        else:
+            if not (wanted or linkable):
+                continue
+            # the image is untrusted: a file this large is no package metadata
+            if member.size > MAX_FILE_BYTES:
+                if wanted:
+                    inventory.oversized += 1
+                continue
+            data = archive.extractfile(member).read()
+            if (
+                linkable
+                and len(data) <= MAX_KEPT_FILE
+                and kept_bytes + len(data) <= MAX_KEPT_TOTAL
+            ):
+                kept[path] = data
+                kept_bytes += len(data)
+            if not wanted:
+                continue
+        text = data.decode("utf-8", "replace")
         if path in OS_RELEASE_PATHS:
             os_release[path] = text
         elif path in APK_DB_PATHS:
@@ -578,6 +613,11 @@ def not_covered(inventory, missing=0):
         gaps.append(
             f"{inventory.oversized} package files were too large to read and were "
             "skipped; look at them by hand."
+        )
+    if inventory.unread_links:
+        gaps.append(
+            f"{inventory.unread_links} package files are hard links to a file this "
+            "script did not keep, so they were not read; look at them by hand."
         )
     if inventory.os_owned:
         gaps.append(

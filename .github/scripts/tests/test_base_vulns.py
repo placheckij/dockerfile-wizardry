@@ -56,8 +56,10 @@ Source: bash (5.2.15-2)
 """
 
 
-def tar_bytes(files, symlinks=None):
-    """A tar archive holding `files` ({path: text}) and `symlinks` ({path: target})."""
+def tar_bytes(files, symlinks=None, hardlinks=None):
+    """A tar archive holding `files` ({path: text}), then `symlinks` and `hardlinks`
+    ({path: target}); hard links come after the files, as `docker export` writes
+    them after their target."""
     buffer = io.BytesIO()
     with tarfile.open(fileobj=buffer, mode="w") as archive:
         for path, text in (symlinks or {}).items():
@@ -70,12 +72,19 @@ def tar_bytes(files, symlinks=None):
             info = tarfile.TarInfo(path)
             info.size = len(data)
             archive.addfile(info, io.BytesIO(data))
+        for path, target in (hardlinks or {}).items():
+            info = tarfile.TarInfo(path)
+            info.type = tarfile.LNKTYPE
+            info.linkname = target
+            archive.addfile(info)
     buffer.seek(0)
     return buffer
 
 
-def inventory_of(files, symlinks=None):
-    with tarfile.open(fileobj=tar_bytes(files, symlinks), mode="r|") as archive:
+def inventory_of(files, symlinks=None, hardlinks=None):
+    with tarfile.open(
+        fileobj=tar_bytes(files, symlinks, hardlinks), mode="r|"
+    ) as archive:
         return base_vulns.read_inventory(archive)
 
 
@@ -371,6 +380,60 @@ class InventoryTest(unittest.TestCase):
         self.assertEqual(inventory.oversized, 1)
         gaps = base_vulns.not_covered(inventory)
         self.assertTrue(any("too large" in g for g in gaps))
+
+    def test_reads_a_package_file_written_as_a_hard_link(self):
+        site = "usr/local/lib/python3.12/site-packages"
+        inventory = inventory_of(
+            {"root/.cache/uv/archive-v0/abc/METADATA": "Name: flask\nVersion: 3.0.0\n"},
+            hardlinks={
+                f"{site}/flask-3.0.0.dist-info/METADATA": "root/.cache/uv/archive-v0/abc/METADATA"
+            },
+        )
+        self.assertEqual(inventory.language_packages, [("PyPI", "flask", "3.0.0")])
+
+    def test_a_hard_link_whose_target_was_not_kept_is_noted(self):
+        site = "usr/local/lib/python3.12/site-packages"
+        inventory = inventory_of(
+            {},
+            hardlinks={f"{site}/flask-3.0.0.dist-info/METADATA": "gone/METADATA"},
+        )
+        self.assertEqual(inventory.language_packages, [])
+        self.assertEqual(inventory.unread_links, 1)
+        gaps = base_vulns.not_covered(inventory)
+        self.assertTrue(any("hard link" in g for g in gaps))
+
+    def test_an_epoch_survives_into_the_report(self):
+        inventory = inventory_of(
+            {
+                "usr/lib/python3/site-packages/x-1!1.5.dist-info/METADATA": "Name: x\nVersion: 1!1.5\n"
+            }
+        )
+        self.assertEqual(inventory.language_packages, [("PyPI", "x", "1!1.5")])
+        record = {
+            "id": "GHSA-7",
+            "affected": [
+                {
+                    "package": {"name": "x", "ecosystem": "PyPI"},
+                    "ranges": [
+                        {
+                            "type": "ECOSYSTEM",
+                            "events": [{"introduced": "0"}, {"fixed": "1!2.0"}],
+                        }
+                    ],
+                }
+            ],
+        }
+        queries = base_vulns.build_queries(inventory)
+        report = base_vulns.make_report(
+            "img",
+            "linux/amd64",
+            inventory,
+            queries,
+            [["GHSA-7"]],
+            {"GHSA-7": record},
+            "t",
+        )
+        self.assertEqual(report["findings"][0]["fixed"], ["1!2.0"])
 
     def test_reads_egg_info_packages(self):
         site = "usr/local/lib/python3.9/site-packages"
