@@ -46,7 +46,10 @@ unless the workflow, build script or Compose file that builds this image names a
    and neither DW-SECRET-01 nor DW-BUILD-03, which keeps secrets out of the image too, is
    then listed as passing. For a secret you find, report the file, the line and what
    kind of secret it is, never its value: the report is often pasted into a pull request
-   or an issue.
+   or an issue. Keep the value out of your own tool output too, which ends up in the
+   conversation and its logs: have a search you write print only where it matched
+   (`grep -rlE '<pattern>' <dir>` for files, `grep -rnE '<pattern>' <dir> | cut -d: -f1,2`
+   for file and line), not the matched line.
    Also read the files that settle rules beyond the Dockerfile when they are in the
    repository, whether or not the user named them: CI workflows (`.github/workflows/`,
    `.gitlab-ci.yml` and the like) and build scripts for the CI pipeline rules listed under
