@@ -52,6 +52,7 @@ A sourced guide to writing Dockerfiles, with a worked example. The [rulebook](do
   - [Inspect the Build Layers](#inspect-the-build-layers)
   - [Measure the Impact](#measure-the-impact)
 - [🧰 Claude Code Skill](#-claude-code-skill)
+  - [Requirements](#requirements)
 - [💬 Support & Contact](#-support--contact)
 - [📄 License](#-license)
   - [Third-Party Components](#third-party-components)
@@ -456,6 +457,21 @@ If you use Claude Code, the [`dockerfile-wizardry` skill](skills/dockerfile-wiza
 or, from a shell, `claude plugin install dockerfile-wizardry --marketplace placheckij/dockerfile-wizardry`.
 
 Claude loads the skill when you ask it to write or review a Dockerfile, or you can run it yourself: `/dockerfile-wizardry:dockerfile-wizardry audit path/to/Dockerfile` when installed as a plugin, `/dockerfile-wizardry` when copied into a skills folder. `create` and a project directory write a new one.
+
+### Requirements
+
+The skill reads files and runs a few shell commands. It is used on macOS and Linux; Windows is not tested (WSL 2 is the closest fit). The commands assume a POSIX shell: they quote `--format` templates in single quotes and pipe through `awk`, `sort`, `uniq` and `tar`, so in PowerShell or cmd some of them fail as written.
+
+Each tool below is optional. Without one, the skill checks by reading the files and says in its report which checks did not run; it never installs anything without asking.
+
+| Tool | What the skill uses it for |
+| --- | --- |
+| Docker with Buildx 0.15 or later | Docker's [build checks](https://docs.docker.com/build/checks/) (`docker build --check`), digest and build-date lookups with `docker buildx imagetools inspect` (DW-BASE-01, DW-BASE-03), and, in audit mode, an optional build before and after the fixes |
+| Network access to the image registries | the digest and build-date lookups; a digest it cannot resolve is left as `# TODO: pin by digest`, never guessed |
+| [Hadolint](https://github.com/hadolint/hadolint) | linting; this repository's CI runs v2.15.1 |
+| git, with access to GitHub | resolving a GitHub Action's tag to its commit with `git ls-remote` (DW-SUPPLY-03) |
+
+For a multi-platform image, the lookups and builds cover one platform: the one you build for, or the host's.
 
 An installed plugin changes only when a new version is released. Unless you have turned on auto-update for the marketplace, fetch it with `/plugin marketplace update dockerfile-wizardry`. [CHANGELOG.md](CHANGELOG.md) lists what changed in each version and which rules to re-check.
 
