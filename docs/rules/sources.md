@@ -48,6 +48,7 @@ of date.
 - [docs.docker.com/reference/build-checks/json-args-recommended/](<https://docs.docker.com/reference/build-checks/json-args-recommended/>): [DW-HEALTH-05](health-and-signals.md#dw-health-05-use-exec-form-and-exec-in-wrapper-scripts-so-signals-reach-the-application)
 - [docs.docker.com/reference/build-checks/secrets-used-in-arg-or-env/](<https://docs.docker.com/reference/build-checks/secrets-used-in-arg-or-env/>): [DW-SECRET-01](secrets.md#dw-secret-01-never-pass-secrets-through-arg-env-or-copy-mount-them)
 - [docs.docker.com/reference/cli/docker/container/run/#init](<https://docs.docker.com/reference/cli/docker/container/run/#init>): [DW-HEALTH-04](health-and-signals.md#dw-health-04-run-a-minimal-init-as-pid-1)
+- [docs.docker.com/reference/cli/docker/scout/cves/](<https://docs.docker.com/reference/cli/docker/scout/cves/>): [DW-SUPPLY-05](supply-chain.md#dw-supply-05-scan-the-static-image-and-check-removed-files-are-really-gone)
 - [docs.docker.com/reference/dockerfile/](<https://docs.docker.com/reference/dockerfile/>)
   - [whole page](<https://docs.docker.com/reference/dockerfile/>): [DW-BUILD-05](build-and-cache.md#dw-build-05-keep-package-manager-downloads-in-a-cache-mount)
   - [#add](<https://docs.docker.com/reference/dockerfile/#add>): [DW-BUILD-03](build-and-cache.md#dw-build-03-copy-only-what-the-image-needs), [DW-DEPS-03](dependencies.md#dw-deps-03-verify-what-you-download-during-the-build), [trade-off 5](tradeoffs.md#5-add-or-copy)
@@ -94,6 +95,11 @@ of date.
 - [github.com/opencontainers/image-spec/blob/main/annotations.md#pre-defined-annotation-keys](<https://github.com/opencontainers/image-spec/blob/main/annotations.md#pre-defined-annotation-keys>): [DW-BASE-02](base-image.md#dw-base-02-label-the-image-with-metadata)
 - [github.com/sigstore/cosign/releases/tag/v3.1.3](<https://github.com/sigstore/cosign/releases/tag/v3.1.3>): [DW-SUPPLY-02](supply-chain.md#dw-supply-02-sign-published-images-and-verify-them-before-deploying)
 
+## google.github.io
+
+- [google.github.io/osv.dev/data/](<https://google.github.io/osv.dev/data/>): [DW-SUPPLY-05](supply-chain.md#dw-supply-05-scan-the-static-image-and-check-removed-files-are-really-gone)
+- [google.github.io/osv.dev/post-v1-querybatch/](<https://google.github.io/osv.dev/post-v1-querybatch/>): [DW-SUPPLY-05](supply-chain.md#dw-supply-05-scan-the-static-image-and-check-removed-files-are-really-gone)
+
 ## hynek.me
 
 - [hynek.me/articles/docker-signals/](<https://hynek.me/articles/docker-signals/>): [DW-HEALTH-05](health-and-signals.md#dw-health-05-use-exec-form-and-exec-in-wrapper-scripts-so-signals-reach-the-application)
@@ -108,6 +114,14 @@ of date.
 
 - [ncsc.gov.uk/collection/using-containerisation/building-container-images](<https://www.ncsc.gov.uk/collection/using-containerisation/building-container-images>): [DW-BUILD-10](build-and-cache.md#dw-build-10-leave-out-remote-management-and-package-management-tools), [DW-SECRET-01](secrets.md#dw-secret-01-never-pass-secrets-through-arg-env-or-copy-mount-them), [DW-SUPPLY-04](supply-chain.md#dw-supply-04-rebuild-and-replace-instead-of-patching-in-place-and-do-not-let-cache-hide-updates), [DW-SUPPLY-05](supply-chain.md#dw-supply-05-scan-the-static-image-and-check-removed-files-are-really-gone), [trade-off 3](tradeoffs.md#3-update-inside-the-image-or-rebuild-from-a-fresh-base), [trade-off 6](tradeoffs.md#6-which-base-image-default-slim-alpine-or-distroless)
 
+## oss.anchore.com
+
+- [oss.anchore.com/docs/capabilities/apk/](<https://oss.anchore.com/docs/capabilities/apk/>): [DW-SUPPLY-05](supply-chain.md#dw-supply-05-scan-the-static-image-and-check-removed-files-are-really-gone)
+
+## ossf.github.io
+
+- [ossf.github.io/osv-schema/](<https://ossf.github.io/osv-schema/>): [DW-SUPPLY-05](supply-chain.md#dw-supply-05-scan-the-static-image-and-check-removed-files-are-really-gone)
+
 ## pythonspeed.com
 
 - [pythonspeed.com/articles/alpine-docker-python/](<https://pythonspeed.com/articles/alpine-docker-python/>): [trade-off 6](tradeoffs.md#6-which-base-image-default-slim-alpine-or-distroless)
@@ -119,6 +133,7 @@ of date.
 ## trivy.dev
 
 - [trivy.dev/latest/docs/](<https://trivy.dev/latest/docs/>): [DW-SUPPLY-05](supply-chain.md#dw-supply-05-scan-the-static-image-and-check-removed-files-are-really-gone)
+- [trivy.dev/latest/docs/scanner/vulnerability/](<https://trivy.dev/latest/docs/scanner/vulnerability/>): [DW-SUPPLY-05](supply-chain.md#dw-supply-05-scan-the-static-image-and-check-removed-files-are-really-gone)
 
 ## wiki.alpinelinux.org
 

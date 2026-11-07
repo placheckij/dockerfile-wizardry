@@ -67,10 +67,11 @@ jobs:
       # The Python scripts in .github/scripts run with the runner's system python3, not the
       # project's Python 3.14. `ruff format` targets 3.14 and can emit syntax older Pythons
       # reject (e.g. `except A, B:`), so compile them with the interpreter that will run them.
-      - name: Check the workflow scripts compile with the runner's Python
+      # The skill's scripts run with the user's python3, so they get the same check.
+      - name: Check the workflow and skill scripts compile with the runner's Python
         run: |
           python3 --version
-          python3 -m py_compile .github/scripts/*.py
+          python3 -m py_compile .github/scripts/*.py skills/dockerfile-wizardry/scripts/*.py
 
       # The README's table of contents is generated; fail if a heading changed and it was not
       # regenerated (fix: python3 .github/scripts/readme_toc.py)
