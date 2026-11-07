@@ -471,7 +471,7 @@ Each tool below is optional. Without one, the skill checks by reading the files 
 | [Hadolint](https://github.com/hadolint/hadolint) | linting; this repository's CI runs v2.15.1 |
 | git, with access to GitHub | resolving a GitHub Action's tag to its commit with `git ls-remote` (DW-SUPPLY-03) |
 
-For a multi-platform image, the lookups and builds cover one platform: the one you build for, or the host's.
+For a multi-platform image, the digest it pins is the multi-platform index, which covers every platform. The build-date lookup and the before-and-after build cover one platform: the one you build for, or the host's.
 
 An installed plugin changes only when a new version is released. Unless you have turned on auto-update for the marketplace, fetch it with `/plugin marketplace update dockerfile-wizardry`. [CHANGELOG.md](CHANGELOG.md) lists what changed in each version and which rules to re-check.
 
