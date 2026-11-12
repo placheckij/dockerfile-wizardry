@@ -14,6 +14,10 @@ Each pull request that changes `skills/` or `.claude-plugin/` adds a line under 
 
 ## [Unreleased]
 
+### Changed
+
+- Audit mode keeps secret values out of what its secret searches and scanners print, not only out of the report (DW-SECRET-01, DW-BUILD-03): a search it writes for secrets in the copied files prints only the file, or the file and line, of each match, never the matched line, and a scanner runs with its redaction on. It still opens the copied files.
+
 ## [0.2.0] - 2026-11-06
 
 ### Added
