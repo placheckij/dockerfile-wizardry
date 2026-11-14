@@ -112,7 +112,7 @@ sources:
 
 strength: SHOULD
 
-last_verified: 2026-11-02
+last_verified: 2026-11-06
 
 statement:
   Scan the built image's contents for known vulnerabilities and misconfiguration without running it
@@ -131,12 +131,26 @@ why:
 how_to_check:
   A scanner such as Trivy covers known vulnerabilities, misconfiguration and secrets (this
   repository runs it in CI); its documentation does not describe malware detection, which the NCSC
-  guidance also asks for, so that needs a separate tool if you want it. To confirm removed files
-  are gone, inspect the contents of each layer as described in DW-BUILD-04.
+  guidance also asks for, so that needs a separate tool if you want it. Without a scanner,
+  OSV.dev answers for each package by ecosystem, name and version over a public API. Name OS
+  packages by their source package (`openssl`, not `libssl3`), as the OSV schema requires for
+  Alpine, Debian and Ubuntu; the image's package database records it. No one source sees
+  everything. Alpine's security database, which OSV.dev and Trivy read for Alpine, lists a
+  vulnerability only once a fix exists, so one without a fix does not show; Docker Scout
+  (`docker scout cves`, which can list unfixed ones on its own with `--only-unfixed`) reports
+  those too. Say which source each finding came from and what that source does not cover. To
+  confirm removed files are gone, inspect the contents of each layer as described in
+  DW-BUILD-04.
 
 sources:
 - https://www.ncsc.gov.uk/collection/using-containerisation/building-container-images
 - https://trivy.dev/latest/docs/
+- https://trivy.dev/latest/docs/scanner/vulnerability/
+- https://google.github.io/osv.dev/data/
+- https://google.github.io/osv.dev/post-v1-querybatch/
+- https://ossf.github.io/osv-schema/
+- https://oss.anchore.com/docs/capabilities/apk/
+- https://docs.docker.com/reference/cli/docker/scout/cves/
 
 ## DW-SUPPLY-06: Keep Docker Engine and BuildKit patched, and use only trusted frontends
 
