@@ -52,6 +52,7 @@ A sourced guide to writing Dockerfiles, with a worked example. The [rulebook](do
   - [Inspect the Build Layers](#inspect-the-build-layers)
   - [Measure the Impact](#measure-the-impact)
 - [🧰 Claude Code Skill](#-claude-code-skill)
+  - [Requirements](#requirements)
 - [💬 Support & Contact](#-support--contact)
 - [📄 License](#-license)
   - [Third-Party Components](#third-party-components)
@@ -92,13 +93,15 @@ The Dockerfile in this repository applies 14 of the practices, numbered as "spel
 
 ### ⚙️ Spell #1: Parameterized Builds, Pinned by Digest (CIS 4.2, 5.28)
 ```dockerfile
-ARG PYTHON_VERSION=3.14.10
+ARG PYTHON_VERSION=3.14
 ARG ALPINE_VERSION=3.24
-FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION}@sha256:eb2c6265... AS base
+FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION}@sha256:a18b20ad... AS base
 ```
 Use ARG for flexible, maintainable version management. The tag says what you intend; the `@sha256:` digest says exactly which bytes you get, so a republished or tampered tag can't change your build.
 
 **Pinning freezes the base image**, so patches stop arriving on their own. A weekly CI job compares the pinned digest with what the tag points to today and fails - with the new digest in the log - when the tag has moved. Bump the digest, rebuild, run the tests.
+
+**The tag names the release line** (`3.14`), not a patch (`3.14.10`). A patch tag is rebuilt only until the next patch ships; after that it never moves, so the weekly check would report the pin as current forever.
 
 **Source:** [CIS Docker Benchmark 4.2](https://www.cisecurity.org/benchmark/docker) - Ensure that containers use only trusted base images | [CIS Docker Benchmark 5.28](https://www.cisecurity.org/benchmark/docker) - Ensure that Docker commands always make use of the latest version of their image (its remediation calls for version pinning of base images) | [Dockerfile reference - Understand how ARG and FROM interact](https://docs.docker.com/reference/dockerfile/#understand-how-arg-and-from-interact) | [Docker Best Practices - Pin base image versions](https://docs.docker.com/build/building/best-practices/#pin-base-image-versions)
 
@@ -273,8 +276,8 @@ Example size and build time comparison for a Python application from this repo, 
 | Approach | Image Size | Build Time (no-cache) |
 |----------|-----------|----------------------|
 | Single-stage (python:3.14-slim) | 253 MB | 5s |
-| Single-stage (python:3.14.10-alpine3.24) | 157 MB | 5s |
-| Multi-stage, pruned and flattened (python:3.14.10-alpine3.24) | 81 MB | 10s |
+| Single-stage (python:3.14-alpine3.24) | 157 MB | 5s |
+| Multi-stage, pruned and flattened (python:3.14-alpine3.24) | 81 MB | 10s |
 
 Build times vary from run to run and with the machine, so compare the sizes, not the seconds.
 
@@ -456,6 +459,21 @@ If you use Claude Code, the [`dockerfile-wizardry` skill](skills/dockerfile-wiza
 or, from a shell, `claude plugin install dockerfile-wizardry --marketplace placheckij/dockerfile-wizardry`.
 
 Claude loads the skill when you ask it to write or review a Dockerfile, or you can run it yourself: `/dockerfile-wizardry:dockerfile-wizardry audit path/to/Dockerfile` when installed as a plugin, `/dockerfile-wizardry` when copied into a skills folder. `create` and a project directory write a new one.
+
+### Requirements
+
+The skill reads files and runs a few shell commands. It is used on macOS and Linux; Windows is not tested (WSL 2 is the closest fit). The commands assume a POSIX shell: they quote `--format` templates in single quotes and pipe through `awk`, `sort`, `uniq` and `tar`, so in PowerShell or cmd some of them fail as written.
+
+Each tool below is optional. Without one, the skill checks by reading the files and says in its report which checks did not run; it never installs anything without asking.
+
+| Tool | What the skill uses it for |
+| --- | --- |
+| Docker with Buildx 0.15 or later | Docker's [build checks](https://docs.docker.com/build/checks/) (`docker build --check`), digest and build-date lookups with `docker buildx imagetools inspect` (DW-BASE-01, DW-BASE-03), and, in audit mode, an optional build before and after the fixes |
+| Network access to the image registries | the digest and build-date lookups; a digest it cannot resolve is left as `# TODO: pin by digest`, never guessed |
+| [Hadolint](https://github.com/hadolint/hadolint) | linting; this repository's CI runs v2.15.1 |
+| git, with access to GitHub | resolving a GitHub Action's tag to its commit with `git ls-remote` (DW-SUPPLY-03) |
+
+For a multi-platform image, the digest it pins is the multi-platform index, which covers every platform. The build-date lookup and the before-and-after build cover one platform: the one you build for, or the host's.
 
 An installed plugin changes only when a new version is released. Unless you have turned on auto-update for the marketplace, fetch it with `/plugin marketplace update dockerfile-wizardry`. [CHANGELOG.md](CHANGELOG.md) lists what changed in each version and which rules to re-check.
 
