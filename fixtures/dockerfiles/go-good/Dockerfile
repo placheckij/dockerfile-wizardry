@@ -1,14 +1,13 @@
 # Good: a statically linked Go binary on distroless static, cross-compiled on the build
 # platform. Linted only, never built, so it has no application source next to it. The
 # digests were resolved with `docker buildx imagetools inspect` on 2026-11-03 and are not
-# refreshed (nothing builds this file, so nothing notices when the tags move).
-ARG GO_VERSION=1.26
-ARG DEBIAN_RELEASE=trixie
+# refreshed (nothing builds this file, so nothing notices when the tags move). The base
+# references are written out, so an update tool can change them (DW-BASE-01).
 
 # Hadolint asks every stage for a HEALTHCHECK, but a build stage never runs as a
 # container
 # hadolint ignore=DL3057
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-${DEBIAN_RELEASE}@sha256:a050dcceee6eb9bf110151662dfac7662f3bec40927c7dee48731e3d92083d42 AS build
+FROM --platform=$BUILDPLATFORM golang:1.26-trixie@sha256:a050dcceee6eb9bf110151662dfac7662f3bec40927c7dee48731e3d92083d42 AS build
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /src
