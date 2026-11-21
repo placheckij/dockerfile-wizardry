@@ -4,11 +4,14 @@ This file is generated from [docs/rules/](https://github.com/placheckij/dockerfi
 
 ## DW-BASE-01: Pin the base image by digest
 
-Strength: SHOULD. Last verified: 2026-11-02.
+Strength: SHOULD. Last verified: 2026-11-21.
 
-Reference the base image as `tag@sha256:<digest>`, and keep the version in `ARG`s so it is
-changed in one place. Keep the human-readable tag next to the digest so a reader can tell
-what the digest is.
+Reference the base image as `<image>:<tag>@sha256:<digest>`, written out in the `FROM`
+line. Keep the human-readable tag next to the digest so a reader can tell what the digest
+is. When several stages use the same base, repeat the reference in each `FROM`. Build the
+reference from an `ARG` only when the base must be overridable with `--build-arg`, and then
+put the whole reference in one `ARG`. Keep `FROM` literal when a tool in the repository
+reads it.
 
 Why: A tag can be republished, so the same Dockerfile can build on different bytes tomorrow. A digest
 names exactly one image. The cost is that pinning freezes the base: patches stop arriving on
@@ -17,15 +20,22 @@ with a CI job that fails when the tag has moved. A digest update and that CI job
 tag, so they miss a tag that is no longer rebuilt; only an update that also moves the tag to a
 newer version catches it, so pin a tag that is still rebuilt (DW-BASE-03). See the trade-offs
 on [tag or digest](https://github.com/placheckij/dockerfile-wizardry/blob/main/docs/rules/tradeoffs.md#1-tag-or-digest-for-the-base-image).
+An update tool can only propose what it can read. Dependabot does not substitute `ARG`s, so it
+skips a `FROM` built from them and never updates that pin. Renovate fills in `ARG` defaults;
+its documented case is one `ARG` holding the whole tag. Both update every `FROM` that names the
+same reference, so repeating it costs nothing at update time.
 
 How to check: Hadolint DL3006 (tag the image) and DL3007 (do not use `latest`) catch missing or floating
 tags; a missing digest is checked manually or by a CI job that compares the pinned digest with
-the tag's current one.
+the tag's current one. A `FROM` whose image contains `$` is checked manually: it fails unless
+the base must be overridable at build time and one `ARG` holds the whole reference.
 
 Sources:
 - https://www.cisecurity.org/benchmark/docker
 - https://docs.docker.com/build/building/best-practices/#pin-base-image-versions
 - https://docs.docker.com/reference/dockerfile/#understand-how-arg-and-from-interact
+- https://github.com/dependabot/dependabot-core/issues/2057
+- https://docs.renovatebot.com/modules/manager/dockerfile/
 
 ## DW-BASE-02: Label the image with metadata
 

@@ -400,8 +400,13 @@ reverse, so name it in the summary.
   behaviour. A date of 1970-01-01 or another
   fixed timestamp comes from a reproducible build and says nothing about rebuilds. If
   the lookups cannot run, say that DW-BASE-03 was not checked.
-- **Pin base images by digest** (DW-BASE-01): `FROM <image>:<tag>@sha256:<digest>`, with
-  the version in an `ARG`. Resolve the digest with
+- **Pin base images by digest** (DW-BASE-01): `FROM <image>:<tag>@sha256:<digest>`,
+  written out in the `FROM` line and repeated in each stage that uses that base, because
+  Dependabot cannot update a `FROM` built from `ARG`s. Use an `ARG` only when the user
+  needs to override the base with `--build-arg`; then put the whole reference in one `ARG`
+  and say that Dependabot will not update it. In audit mode, a `FROM` built from `ARG`s is
+  a DW-BASE-01 finding unless that override is needed, and its fix writes the reference
+  out; if a tool in the repository parses the `FROM` lines, keep them literal. Resolve the digest with
   `docker buildx imagetools inspect <image>:<tag>` and use the top-level `Digest:` it
   prints (the multi-platform index). Run the lookup in audit mode too, before proposing
   a pinned `FROM`. Never invent a digest, version or checksum. If the digest cannot be
