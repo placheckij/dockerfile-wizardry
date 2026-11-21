@@ -2,7 +2,7 @@
 # Linted only, never built, so it has no application source next to it. The digests were
 # resolved with `docker buildx imagetools inspect` on 2026-11-03 and are not refreshed
 # (nothing builds this file, so nothing notices when the tags move). Both stages write the
-# base reference out, so an update tool can change it (DW-BASE-01).
+# base reference out in FROM, as DW-BASE-01 asks.
 
 # Hadolint asks every stage for a HEALTHCHECK, but a build stage never runs as a
 # container; the runtime stage below has one

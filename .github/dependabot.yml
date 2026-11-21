@@ -6,9 +6,10 @@ updates:
     schedule:
       interval: "weekly"
 
-  # Base image tags and digests in the Dockerfiles. Dependabot skips a FROM built
-  # from ARGs, so the Dockerfiles write the reference out (DW-BASE-01). The weekly
-  # "Base Image Digest Is Current" CI job is a second check on the main Dockerfile.
+  # Base image tags and digests in the Dockerfiles at the repository root (not the
+  # fixtures). Dependabot skips a FROM built from ARGs, so they write the reference
+  # out (DW-BASE-01). The weekly "Base Image Digest Is Current" CI job is a second
+  # check on the main Dockerfile.
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
