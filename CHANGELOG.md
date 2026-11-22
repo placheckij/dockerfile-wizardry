@@ -14,6 +14,8 @@ Each pull request that changes `skills/` or `.claude-plugin/` adds a line under 
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-22
+
 ### Changed
 
 - DW-BASE-01 asks for the base image reference written out in `FROM` instead of a version kept in `ARG`s, because Dependabot skips a `FROM` built from `ARG`s and so never updates that pin (sources: dependabot-core#2057, Renovate's dockerfile manager docs). Several stages on the same base repeat the reference; an `ARG` holding the whole reference is left for a base that must be overridable with `--build-arg`. Audit mode reports a `FROM` built from `ARG`s under DW-BASE-01 and keeps `FROM` literal when a tool in the repository parses it. A Dockerfile that passed with its tag in `ARG`s now fails DW-BASE-01.
