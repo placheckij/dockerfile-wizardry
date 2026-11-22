@@ -1,6 +1,6 @@
 # Worked example: auditing `debian-apt-naive` with the skill
 
-Command, run from the repository root on 2026-11-03 with Claude Code 2.1.309 (`claude --version`); the model was `claude-opus-4-8`. The output below is the run's `result` field, unedited.
+Command, run from the repository root on 2026-11-22 with Claude Code 2.1.323 (`claude --version`); the model was `claude-opus-5-5`. The output below is the run's `result` field, unedited.
 
 ```sh
 claude -p --setting-sources project --plugin-dir . --no-session-persistence \
@@ -8,141 +8,137 @@ claude -p --setting-sources project --plugin-dir . --no-session-persistence \
   --tools Read Grep Glob Bash Skill \
   --allowedTools "Bash(docker *)" "Bash(hadolint *)" "Bash(command -v *)" "Bash(which *)" "Bash(grep *)" "Bash(head *)" "Bash(tail *)" "Bash(echo *)" "Bash(cd *)" "Bash(awk *)" "Bash(cat *)" "Bash(uv --version)" "Bash(ls *)" "Bash(diff *)" \
   --disallowedTools "Read(./fixtures/**/expected-findings.txt)" "Bash(*expected-findings*)" "Bash(docker push *)" "Bash(docker rm *)" "Bash(docker rmi *)" "Bash(docker image rm *)" "Bash(docker system *)" "Bash(docker volume *)" \
-  --output-format json \
+  --output-format stream-json --verbose \
   -- "Audit fixtures/dockerfiles/debian-apt-naive/Dockerfile with the dockerfile-wizardry skill. Report only; do not edit files."
 ```
 
-The tool list and permissions keep the run from changing files: there is no Edit or Write tool, Bash is limited to Docker (destructive subcommands denied), the linters, `diff` and a few read-only commands, and the fixture's `expected-findings.txt` is hidden so the audit cannot copy it. Anything else the run tries is denied, not asked. `Bash(diff *)` is new in this run, since SKILL.md now asks for hunks written by `diff -u`.
+The tool list and permissions keep the run from changing files: there is no Edit or Write tool, Bash is limited to Docker (destructive subcommands denied), the linters, `diff` and a few read-only commands, and the fixture's `expected-findings.txt` is hidden so the audit cannot copy it. Anything else the run tries is denied, not asked. `stream-json` records each tool call, so the review below can say which commands ran.
 
-The run loaded the user-level Claude Code configuration (CLAUDE.md and personal skills) in addition to this plugin.
+The run's init event lists this plugin, at version 0.2.0 plus the unreleased changes on `main`, and Claude Code's built-in plugins.
 
 ## Output
 
 # Audit: `fixtures/dockerfiles/debian-apt-naive/Dockerfile`
 
-Report only — no files were changed. There is no `.dockerignore` (neither a root one nor a `Dockerfile.dockerignore`), but nothing is `COPY`ed from the context, so it has no effect here. The image runs `curl --version` once and exits, so the server-shaped health rules matter less; I note that on each.
+The file breaks one must-fix rule (DW-USER-01) and seven should-fix rules. Nothing was edited.
 
-**Linters:** `hadolint` is not installed, so I checked its codes by reading and name them below. `docker build --check` ran and reported **no warnings** (the exec-form `ENTRYPOINT`/`CMD` satisfy `JSONArgsRecommended`, and there are no `ARG`/`ENV` secrets for `SecretsUsedInArgOrEnv`).
+Before you apply anything: this fixture is meant to be bad. CI runs `.github/scripts/check_fixtures.py` on it, and that script needs Hadolint and the build checks to report exactly the codes in `expected-findings.txt`. Applying these fixes would break that CI check unless the fixture's labels are changed too.
 
-## Findings
+**Linters.** I couldn't run Hadolint: it isn't installed and its Docker image isn't pulled locally. I checked those rules by reading the file, so every Hadolint code below says "would fire" and none of them was actually run. `docker build --check` did run and reported no warnings.
+
+**Base image.** `debian:trixie-slim` names its release line and was built on 2026-11-04, so it is still being rebuilt. Its current digest is `sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2`.
 
 | Rule | Line | Finding | Severity |
 |------|------|---------|----------|
-| DW-BASE-01 | 3 | `debian:trixie-slim` has a tag but no digest | should fix |
-| DW-BASE-02 | 3 | No `LABEL` metadata | should fix |
-| DW-DEPS-01 | 5 | Keeps recommended packages and apt lists; versions unpinned | decide |
-| DW-BUILD-04 | 5 | apt/dpkg kept, image not flattened | decide |
-| DW-BUILD-10 | 3,5 | slim base keeps apt and dpkg in the image that only runs curl | should fix |
-| DW-HEALTH-02 | — | No `HEALTHCHECK` | should fix |
-| DW-HEALTH-03 | — | No `STOPSIGNAL` | should fix |
-| DW-HEALTH-04 | 8 | No init as PID 1 | should fix |
-| DW-USER-01 | 7 | `USER root` is last, and by name not a numeric id | **must fix** |
-| DW-USER-02 | 7 | Runtime user (root) owns and can change everything it runs | should fix |
+| DW-BASE-01 | 3 | Base image is not pinned by digest | should fix |
+| DW-BASE-02 | – | No `LABEL`s, so no OCI metadata | should fix |
+| DW-BUILD-04 | – | Image is not pruned or flattened; the file keeps the full base (apt, dpkg, shell) | decide |
+| DW-BUILD-10 | 3 | The final image keeps `apt` and `dpkg` from the Debian base | should fix (no diff) |
+| DW-DEPS-01 | 5 | Recommended packages get installed: no `--no-install-recommends` (DL3015 would fire) | should fix |
+| DW-DEPS-01 | 5 | apt lists stay in the layer: no `rm -rf /var/lib/apt/lists/*` (DL3009 would fire) | should fix |
+| DW-DEPS-01 | 5 | Package versions are not pinned (DL3008 would fire) | decide |
+| DW-HEALTH-02 | – | No `HEALTHCHECK` (DL3057 would fire if enabled) | should fix |
+| DW-HEALTH-03 | – | No `STOPSIGNAL` | should fix |
+| DW-HEALTH-04 | 8 | No init: `curl` runs as PID 1 | should fix |
+| DW-USER-01 | 7 | `USER root`: the container runs as root (DL3002 would fire; DL3066 probably would too, since `root` is a name) | must fix |
+| DW-USER-02 | 7 | Because it runs as root, the process owns and can change the `curl` it runs | should fix |
 
-### DW-USER-01 — run as a non-root user (must fix), line 7
-`USER root` is the last `USER`, so the container runs as root; it is also a name, not a numeric id the host can resolve (hadolint DL3002, DL3066). Code execution inside then starts with root's privileges instead of an unprivileged user's (CIS 4.1, OWASP Rule 2).
-Source: https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-2-set-a-user
+## Why each one matters
 
-### DW-USER-02 — runtime user must not own what it runs (should fix), line 7
-As root, the process owns and can rewrite every file it runs. Switching to a numeric non-root user that owns nothing it runs is the build-time complement to a read-only runtime filesystem (OWASP Rule 8). There is no copied application directory here, so the single `USER` change below covers both DW-USER-01 and DW-USER-02.
-Source: https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-8-set-filesystem-and-volumes-to-read-only
+- **DW-BASE-01:** a tag can be republished, so the same file can build different bytes later. A digest names exactly one image. Pair the pin with Dependabot or Renovate and periodic rebuilds (DW-SUPPLY-04, trade-offs §1). Source: https://docs.docker.com/build/building/best-practices/#pin-base-image-versions
+- **DW-BASE-02:** labels let you trace an image back to its source and owner. I left out `org.opencontainers.image.version` because there's no version to use. Source: https://github.com/opencontainers/image-spec/blob/main/annotations.md#pre-defined-annotation-keys
+- **DW-BUILD-04, decide:** the file keeps everything.
+  - For pruning and flattening: deleted files are really gone and there are fewer tools to abuse.
+  - Against: it's harder to debug and the metadata has to be declared again.
+  - No diff unless you ask.
+- **DW-BUILD-10:** NCSC says a container shouldn't need package managers at runtime. Your options are a base without one (trade-offs §6) or pruning (DW-BUILD-04). It's your choice, so there's no diff. Source: https://www.ncsc.gov.uk/collection/using-containerisation/building-container-images
+- **DW-DEPS-01:** every extra package adds size and attack surface, and lists left behind stay in the layer for good. Source: https://docs.docker.com/build/building/best-practices/#run
+  - Pinning is the decide part (trade-offs §2, Pinning operating-system package versions).
+    - For: reproducible builds.
+    - Against: pinned versions disappear from the repository and you stop getting automatic fixes.
+  - The file doesn't pin, which matches the skill's default.
+  - Hadolint runs on this file in CI, so the diff adds `# hadolint ignore=DL3008` with its reason.
+- **DW-HEALTH-02 / 03 / 04:** without them, Docker can't report whether the application works, shutdown is left to the default signal, and there's no PID 1 to reap zombies and pass signals on.
+  - For a one-shot `curl --version` all three matter little, but they are still findings.
+  - Sources: https://docs.docker.com/reference/dockerfile/#healthcheck, https://docs.docker.com/reference/dockerfile/#stopsignal, https://github.com/krallin/tini
+  - The diff installs `tini` from apt, so the binary its entrypoint calls exists in the image.
+- **DW-USER-01:** if the process is compromised, the attacker starts as root. The diff creates user and group 10001 and switches to them by number. Source: https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-2-set-a-user
+- **DW-USER-02:** once the user is 10001, `/usr/bin/curl` stays owned by root and that user can't change it. Source: https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html#rule-8-set-filesystem-and-volumes-to-read-only
 
-### DW-BASE-01 — pin the base image by digest (should fix), line 3
-`FROM debian:trixie-slim` floats: the tag can be republished onto different bytes. I resolved the current digest with `docker buildx imagetools inspect debian:trixie-slim` → `sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4` (the multi-platform index). A digest freezes the base, so pair it with Dependabot/Renovate and periodic no-cache rebuilds (DW-SUPPLY-04, trade-offs §1).
-Source: https://docs.docker.com/build/building/best-practices/#pin-base-image-versions
+## Combined diff
 
-### DW-BASE-02 — label the image (should fix), line 3
-No `LABEL`s, so the image is not traceable to its source or owner. Add OCI keys (`org.opencontainers.image.*`).
-Source: https://github.com/opencontainers/image-spec/blob/main/annotations.md#pre-defined-annotation-keys
+One diff covers DW-BASE-01, DW-BASE-02, DW-DEPS-01 (recommends and lists), DW-HEALTH-02, DW-HEALTH-03, DW-HEALTH-04, DW-USER-01 and DW-USER-02. It's a single diff because all the changes are within three lines of each other.
 
-### DW-HEALTH-04 — minimal init as PID 1 (should fix), line 8
-`curl` runs as PID 1 with no init, so orphaned children can become zombies and signals may not be handled. Run it behind `tini` (which the diff also installs). Marginal for a one-shot command, but cheap.
-Source: https://github.com/krallin/tini
-
-### DW-HEALTH-03 — set the stop signal (should fix)
-No `STOPSIGNAL`; adding `STOPSIGNAL SIGTERM` makes the default explicit.
-Source: https://docs.docker.com/reference/dockerfile/#stopsignal
-
-### DW-HEALTH-02 — add a health check (should fix)
-No `HEALTHCHECK` (hadolint DL3057, off by default). This matters little for a one-shot `curl --version` that exits immediately — a health check is meant for a long-running process — but the rule is a SHOULD, so I report it and show a minimal one; consider dropping it if this stays a one-shot.
-Source: https://docs.docker.com/reference/dockerfile/#healthcheck
-
-### DW-BUILD-10 — leave out package-management tools (should fix), lines 3,5
-The slim base ships apt and dpkg, which the running container (just `curl`) does not need; fewer tools leave fewer for an attacker. On a distribution base this is met by a base without them or by pruning (DW-BUILD-04), which brings that rule's trade-off. The `--no-install-recommends` + list cleanup below shrink the surface but do not remove apt/dpkg themselves.
-Source: https://www.ncsc.gov.uk/collection/using-containerisation/building-container-images
-
-### DW-DEPS-01 — install only what you need, in one layer (decide)
-The `RUN` keeps recommended packages (hadolint DL3015) and leaves the apt lists in the layer (DL3009); versions are unpinned (DL3008). Two parts are clear improvements and are in the diff: `--no-install-recommends` and `rm -rf /var/lib/apt/lists/*` in the same layer. Pinning is the genuine trade-off (**decide**): Hadolint (DL3008) wants pinned versions for reproducibility, but a pin can vanish from a repo that keeps only current versions and blocks automatic security fixes. This repo's default is **not** to pin and to rely on a base-image digest check plus a weekly no-cache rebuild — so the diff leaves versions unpinned with a `# hadolint ignore=DL3008` and its reason. See trade-offs §2.
-Source: https://www.cisecurity.org/benchmark/docker
-
-### DW-BUILD-04 — prune then flatten (decide)
-A TRADE-OFF, not a fault: you could remove apt/dpkg (keeping the package database `/var/lib/dpkg` for scanners) and flatten into `scratch`. That hardens but breaks `docker exec ... sh` and anything running `ls`/`id`. Left to you; the diff does not do it. See trade-offs §6.
-Source: https://docs.docker.com/build/building/multi-stage/
-
-## Proposed diff (covers the fixes above)
-
-Because the file is nine lines and the fixes overlap, here is one diff that applies on its own; comments name the rule each line serves. It does not prune/flatten (DW-BUILD-04) or pin package versions (the DW-DEPS-01 decision). `tini` is installed in the same `RUN` that the init line depends on.
+I wrote the hunk header by hand because the command that generates it was denied, so check it before using `git apply`. The comment on lines 1–2 would also be out of date after the fix.
 
 ```diff
---- a/Dockerfile
-+++ b/Dockerfile
-@@ -1,9 +1,30 @@
--# Bad on purpose: an apt install that keeps recommended packages and the package lists,
--# and a container that runs as root. Linted only, never built.
+--- a/fixtures/dockerfiles/debian-apt-naive/Dockerfile
++++ b/fixtures/dockerfiles/debian-apt-naive/Dockerfile
+@@ -1,9 +1,22 @@
+ # Bad on purpose: an apt install that keeps recommended packages and the package lists,
+ # and a container that runs as root. Linted only, never built.
 -FROM debian:trixie-slim
-+# Runs curl once and exits. Built here only to show the hardened shape.
-+ARG DEBIAN_VERSION=trixie-slim
-+# DW-BASE-01: tag kept beside the digest so a reader can see what it is
-+FROM debian:${DEBIAN_VERSION}@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4
++FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2
  
 -RUN apt-get update && apt-get install -y curl ca-certificates
-+# DW-BASE-02: OCI metadata
 +LABEL org.opencontainers.image.source="https://github.com/placheckij/dockerfile-wizardry" \
-+      org.opencontainers.image.description="curl in a debian-slim image" \
++      org.opencontainers.image.description="curl on Debian trixie-slim" \
 +      org.opencontainers.image.licenses="MIT"
  
 -USER root
 -ENTRYPOINT ["curl"]
-+# DW-DEPS-01: drop recommended packages and remove the apt lists in the same layer.
-+# DW-HEALTH-04: tini is installed here so it can be the init below.
-+# Versions left unpinned (DL3008) on purpose; see trade-offs section 2.
++# Versions are not pinned: the base digest is updated and the image rebuilt instead (trade-offs §2)
 +# hadolint ignore=DL3008
 +RUN apt-get update \
-+    && apt-get install -y --no-install-recommends curl ca-certificates tini \
-+    && rm -rf /var/lib/apt/lists/*
++ && apt-get install -y --no-install-recommends curl ca-certificates tini \
++ && rm -rf /var/lib/apt/lists/*
 +
-+# DW-USER-01, DW-USER-02: run as a numeric non-root user that owns nothing it runs
-+USER 10001:10001
++RUN groupadd --system --gid 10001 app \
++ && useradd --system --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin app
 +
-+# DW-HEALTH-03: make the default explicit
-+STOPSIGNAL SIGTERM
-+
-+# DW-HEALTH-02: marginal for a one-shot command, kept to satisfy the rule
 +HEALTHCHECK CMD ["curl", "--version"]
-+
-+# DW-HEALTH-04, DW-HEALTH-05: exec form behind a minimal init
-+ENTRYPOINT ["tini", "--", "curl"]
++STOPSIGNAL SIGTERM
++USER 10001:10001
++ENTRYPOINT ["/usr/bin/tini", "--", "curl"]
  CMD ["--version"]
 ```
 
-## Rules that pass
-- **DW-HEALTH-05** — `ENTRYPOINT`/`CMD` are already exec (JSON array) form; no wrapper script.
+## Passing and not applicable
 
-## Rules that do not apply
-- **DW-BUILD-01** (no dependency manifest or application source), **DW-BUILD-02** (nothing is compiled; the installed packages are the runtime), **DW-BUILD-03** (no `COPY`/`ADD`), **DW-BUILD-05** (single final stage, no build stage to cache for — the layer concern is folded into DW-DEPS-01), **DW-BUILD-06** (no large context), **DW-BUILD-08/09** (no multi-platform or reproducibility need stated), **DW-DEPS-02** (no language tooling), **DW-DEPS-03** (no direct download; curl comes from apt), **DW-HEALTH-01** (one-shot command, no listening port), **DW-SECRET-01** (no secrets).
+- **Pass:**
+  - DW-BASE-03
+  - DW-HEALTH-05: `ENTRYPOINT` and `CMD` use exec form and there's no wrapper script.
+  - DW-SECRET-01: no `ARG`, `ENV` or `COPY`, and the build check found no warnings.
+- **Don't apply:**
+  - DW-BUILD-01, DW-BUILD-02, DW-BUILD-05: there are no manifests, nothing to compile and no build stage.
+  - DW-BUILD-03: no `COPY` or `ADD`.
+  - DW-BUILD-06: no source tree.
+  - DW-BUILD-08: single platform.
+  - DW-DEPS-02: no language tooling.
+  - DW-DEPS-03: nothing is downloaded directly.
+  - DW-HEALTH-01: `curl` doesn't listen on a port.
 
-## Would you like me to apply the diff?
-I can apply all of it, or only the must-fix (DW-USER-01/02). I'd re-run `docker build --check` afterward; hadolint isn't installed, so I'd offer to install it rather than do so unasked.
+## Summary
 
-## Limits — not checked
-- **Runtime settings** (`docker run`/Compose/Kubernetes flags) — none provided.
-- **Registry & publishing**: SBOM, provenance, signing (DW-SUPPLY-01/02).
-- **CI pipeline**: cache export (DW-BUILD-07), action pinning (DW-SUPPLY-03), scheduled rebuilds (DW-SUPPLY-04), image scanning (DW-SUPPLY-05), Engine/BuildKit versions (DW-SUPPLY-06) — no workflow files given.
-- **The built image**: whether removed files are gone from every layer (DW-BUILD-04/DW-SUPPLY-05) needs the image, not the Dockerfile.
-- **Human judgement**: the TRADE-OFF rules (DW-BUILD-04, DW-DEPS-01), which packages curl truly needs, and the `manual`-checked rules read by eye only.
-- `hadolint` was not run (not installed); its codes above were determined by reading.
+The Dockerfile **passes the listed checks** DW-BASE-03, DW-HEALTH-05 and DW-SECRET-01.
 
-**One must-fix remains open (DW-USER-01), so this Dockerfile does not pass the checks** — it fails DW-USER-01, and the should-fix findings (DW-BASE-01/02, DW-BUILD-10, DW-HEALTH-02/03/04, DW-USER-02) and the DW-DEPS-01 / DW-BUILD-04 decisions are still open. The rules were last verified on the dates shown with each rule; sources may have changed since.
+It **fails**:
+- DW-USER-01 (must fix)
+- DW-BASE-01, DW-BASE-02, DW-BUILD-10, DW-DEPS-01 (recommends, lists), DW-HEALTH-02, DW-HEALTH-03, DW-HEALTH-04, DW-USER-02 (should fix)
+
+Still to decide: DW-BUILD-04 and DW-DEPS-01 (pinning).
+
+Which rule ids should I apply? I'd also need to know whether `expected-findings.txt` should be updated with them or the fixture left bad on purpose. If you want, I can also build the image before and after the fixes and compare them; this needs network access to pull the base.
+
+## Not checked
+
+- **Hadolint:** not run, so its codes come from reading the file.
+- **Publishing (DW-SUPPLY-01, DW-SUPPLY-02):** the file says it is never built and no workflow pushes it, so it looks unpublished. Please confirm.
+- **CI rules (DW-BUILD-07, DW-SUPPLY-03 to DW-SUPPLY-06):** no workflow builds or scans this image. CI only lints it, and the Trivy config scan skips it.
+- **Reproducible builds (DW-BUILD-09):** you haven't said whether reproducible output matters.
+- **Built image:** whether removed files are gone from every layer needs the image, which wasn't built.
+- **Runtime settings:** not covered by the rulebook.
+- **Manual rules:** checked by reading only.
 
 ## Review
 
@@ -150,63 +146,62 @@ Reviewed by hand against `expected-findings.txt` (9 rules) and the rulebook.
 
 **Expected findings.** All nine are reported, each with the severity its strength gives:
 DW-USER-01 (must fix); DW-BASE-01, DW-BASE-02, DW-BUILD-10, DW-HEALTH-02, DW-HEALTH-03,
-DW-HEALTH-04 and DW-USER-02 (should fix); DW-DEPS-01 (decide). It also shows DW-BUILD-04
-as a decision. Since this run, SKILL.md says that only DW-DEPS-01's pinning part is a
-decision, so the recommended packages and kept apt lists would now be should fix; the run
-called those parts clear improvements and fixed them in the diff. For DW-HEALTH-02 and -04 it adds a note that they matter less for a
-one-shot command, as SKILL.md asks.
+DW-HEALTH-04 and DW-USER-02 (should fix). DW-DEPS-01 gets one row per part: the
+recommended packages and kept apt lists are should fix, and only version pinning is a
+decision, as SKILL.md now says. DW-BUILD-04 is shown as a decision. DW-BUILD-10 is
+reported at its severity without a diff, naming pruning or another base as the options,
+since only a trade-off can fix it. For the health rules it notes that they matter little
+for a one-shot command but are still findings.
+
+**DW-BASE-01.** The fix writes the base reference out in `FROM`
+(`debian:trixie-slim@sha256:...`), as the rule now asks. The previous recording built it
+from `ARG DEBIAN_VERSION`, which the rule now fails.
 
 **Rule ids.** Every id it cites exists in `references/rules.md` (checked by script).
 
 **Linters.** `docker build --check` ran and reported no warnings. Hadolint is not
-installed on this machine, so the run says so and names the Hadolint codes by reading,
-each under the rule that names it: DL3002 and DL3066 under DW-USER-01, DL3015, DL3009 and
-DL3008 under DW-DEPS-01, DL3057 under DW-HEALTH-02.
+installed on this machine, so the run says so and names the codes by reading, each under
+its rule. Pinned Hadolint v2.15.1 with `--info DL3057`, run afterwards on the fixture,
+reports exactly the codes it named: DL3057, DL3008, DL3015, DL3009, DL3066 and DL3002.
+The run hedged on DL3066 ("probably would"); it does fire.
 
 **Digests and versions.** The digest for `debian:trixie-slim`
-(`sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4`) matches
-`docker buildx imagetools inspect debian:trixie-slim` run afterwards. No package version
-or checksum is claimed.
+(`sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2`) matches
+`docker buildx imagetools inspect debian:trixie-slim` run afterwards, and the build date
+it read for DW-BASE-03 (2026-11-04) is what that command prints. No package version or
+checksum is claimed.
 
-**Trade-offs.** DW-DEPS-01 is shown as a decision, with both sides of trade-offs §2. Its
-parts that nobody contests (`--no-install-recommends`, removing the apt lists) are called
-clear improvements and go into the diff, and versions stay unpinned. The reason sits on
-the line above `# hadolint ignore=DL3008`, which sits directly above the `RUN`.
-DW-BUILD-04 is a decision and is not applied.
+**Trade-offs.** Versions stay unpinned, with the reason on the line above
+`# hadolint ignore=DL3008` and that line directly above the `RUN`. The ignore line is
+allowed because CI runs Hadolint on this file (`check_fixtures.py`), and the run cites
+that. DW-BUILD-04 is not applied.
 
-**Wording.** No "secure" claim. DW-HEALTH-05 is the only rule it lists as passing, and it
-does pass. The close names the open must-fix finding and says the file does not pass.
+**Wording.** No "secure" claim. It lists DW-BASE-03, DW-HEALTH-05 and DW-SECRET-01 as
+passing, and each does. The close names the open must-fix finding and says the file
+fails. It also warns that applying the fixes would break `check_fixtures.py`, since the
+fixture is bad on purpose.
 
-**The proposed diff.** One combined diff, as SKILL.md asks when fixes overlap. Run against
-a copy of the fixture outside the repository, `git apply --check -v` printed `Checking
-patch Dockerfile...` and exited 0, and `patch --dry-run -p1` also applies it. After the
-diff was applied, the result lints clean: pinned Hadolint v2.15.1 with `--info DL3057`
-reported nothing, and `docker buildx build --call check` gave "Check complete, no
-warnings found." The JSON does not record tool calls, so it does not show whether `diff`
-wrote the hunk; the run had no permission denials.
+**The proposed diff.** The run's `diff -u` call was denied: it was one compound command
+(`head -3 LICENSE; f=...; diff -u ... <<'EOF' ...; echo`) that this setup's permission
+rules did not match. The run then read `LICENSE` with Read, wrote the hunk by hand and
+said so. The headers now name the path the run was given, so the diff applies from the
+repository root: against a copy of the fixture at the same path, `git apply -v` printed
+`Applied patch fixtures/dockerfiles/debian-apt-naive/Dockerfile cleanly.` After the
+diff, the result lints clean: pinned Hadolint v2.15.1 with `--info DL3057` reported
+nothing, and `docker buildx build --call check` gave "Check complete, no warnings found."
 
 **What it missed or got wrong.**
-- The diff headers name `a/Dockerfile`, not the path the run was given
-  (`fixtures/dockerfiles/debian-apt-naive/Dockerfile`), so from the repository root,
-  where the run started, `git apply` tries the root `Dockerfile` and fails. It applies
-  only from inside the fixture directory, which is where it was checked above. SKILL.md's
-  `diff` recipe hard-coded `Dockerfile` at the time; it now takes the file's path.
-- It offers to apply "only the must-fix (DW-USER-01/02)", but DW-USER-02 is a SHOULD, and
-  its own table rates it should fix. DW-USER-01 is the only must-fix.
-- The diff sets `USER 10001:10001` without creating that user and group. That runs, but
-  DW-USER-01 asks for a dedicated user and group with those ids.
 - The `HEALTHCHECK` runs `curl --version`, which tests nothing. DW-HEALTH-02 asks for a
-  check that exercises the application. The run calls the check marginal and suggests
-  dropping it.
-- The `LABEL` values (this repository's URL, MIT) are guesses, and this time the run does
-  not call them placeholders.
-- Two comment lines carry two ids each (`DW-USER-01, DW-USER-02` and
-  `DW-HEALTH-04, DW-HEALTH-05`), where the skill asks for one id per line.
-- It calls the no-pin choice "this repo's default", with a weekly no-cache rebuild. That
-  describes the rulebook repository's own practice, which the rule text mentions, not
-  anything the audited project has set up.
+  check that exercises the application. The run says the health rules matter little
+  here but does not say that this check proves nothing.
+- The `description` label is its own wording, not taken from anywhere, and it is not
+  called a placeholder. The source URL and the MIT licence come from this repository,
+  where the fixture lives (it read `LICENSE`).
+- It wrote the hunk by hand instead of trying `diff -u` again as a plain command. The
+  hunk was right this time, but SKILL.md asks for `diff` to write it.
 
-**Earlier runs.** An earlier run marked DW-HEALTH-02 "does not apply" to a one-shot
-command, and in the previous committed run three of four diffs did not apply: two had
-hand-counted hunk lines, and one had no context after the change. SKILL.md now defines "does not apply" and asks for
-`diff -u` to write the hunks; this run's diff applies.
+**Earlier runs.** The previous recording (2026-11-03) pinned the base through an `ARG`,
+set `USER 10001:10001` without creating that user, offered DW-USER-02 as a must-fix, and
+named `a/Dockerfile` in its diff headers, so `git apply` failed from the repository
+root. This run creates the user and group, rates DW-USER-02 should fix, and its diff
+applies from the root.
