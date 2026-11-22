@@ -68,6 +68,7 @@ of date.
 ## docs.renovatebot.com
 
 - [docs.renovatebot.com/docker/](<https://docs.renovatebot.com/docker/>): [DW-SUPPLY-04](supply-chain.md#dw-supply-04-rebuild-and-replace-instead-of-patching-in-place-and-do-not-let-cache-hide-updates), [trade-off 1](tradeoffs.md#1-tag-or-digest-for-the-base-image)
+- [docs.renovatebot.com/modules/manager/dockerfile/](<https://docs.renovatebot.com/modules/manager/dockerfile/>): [DW-BASE-01](base-image.md#dw-base-01-pin-the-base-image-by-digest)
 
 ## docs.sigstore.dev
 
@@ -79,6 +80,7 @@ of date.
 - [github.com/GoogleContainerTools/distroless](<https://github.com/GoogleContainerTools/distroless>): [trade-off 6](tradeoffs.md#6-which-base-image-default-slim-alpine-or-distroless)
 - [github.com/advisories/GHSA-7236-3392-c5c6](<https://github.com/advisories/GHSA-7236-3392-c5c6>): [DW-SUPPLY-06](supply-chain.md#dw-supply-06-keep-docker-engine-and-buildkit-patched-and-use-only-trusted-frontends)
 - [github.com/aquasecurity/trivy/security/advisories/GHSA-69fq-xp46-6x23](<https://github.com/aquasecurity/trivy/security/advisories/GHSA-69fq-xp46-6x23>): [DW-SUPPLY-03](supply-chain.md#dw-supply-03-pin-github-actions-to-full-commit-shas)
+- [github.com/dependabot/dependabot-core/issues/2057](<https://github.com/dependabot/dependabot-core/issues/2057>): [DW-BASE-01](base-image.md#dw-base-01-pin-the-base-image-by-digest)
 - [github.com/docker-library/docs/blob/master/python/README.md](<https://github.com/docker-library/docs/blob/master/python/README.md>): [trade-off 6](tradeoffs.md#6-which-base-image-default-slim-alpine-or-distroless)
 - [github.com/docker-library/faq](<https://github.com/docker-library/faq>)
   - [#what-do-you-mean-by-supported](<https://github.com/docker-library/faq#what-do-you-mean-by-supported>): [DW-BASE-03](base-image.md#dw-base-03-build-on-a-tag-that-is-still-rebuilt)

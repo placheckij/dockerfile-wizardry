@@ -1,14 +1,13 @@
 # Good: a Python service whose dependencies are installed with uv in a build stage.
 # Linted only, never built, so it has no application source next to it. The digests were
 # resolved with `docker buildx imagetools inspect` on 2026-11-03 and are not refreshed
-# (nothing builds this file, so nothing notices when the tags move).
-ARG PYTHON_VERSION=3.14
-ARG DEBIAN_RELEASE=trixie
+# (nothing builds this file, so nothing notices when the tags move). Both stages write the
+# base reference out in FROM, as DW-BASE-01 asks.
 
 # Hadolint asks every stage for a HEALTHCHECK, but a build stage never runs as a
 # container; the runtime stage below has one
 # hadolint ignore=DL3057
-FROM python:${PYTHON_VERSION}-slim-${DEBIAN_RELEASE}@sha256:930e1abba7c4e8f96ed93e8012c35d174d7732752731bbd5e8e757d7ec6f3966 AS build
+FROM python:3.14-slim-trixie@sha256:930e1abba7c4e8f96ed93e8012c35d174d7732752731bbd5e8e757d7ec6f3966 AS build
 # uv is copied from its own image, pinned like the base
 COPY --from=ghcr.io/astral-sh/uv:0.13.6@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 /uv /usr/local/bin/uv
 # use the base image's Python, compile the installed dependencies to .pyc now (the runtime
@@ -24,7 +23,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     uv sync --locked --no-dev --no-install-project
 
-FROM python:${PYTHON_VERSION}-slim-${DEBIAN_RELEASE}@sha256:930e1abba7c4e8f96ed93e8012c35d174d7732752731bbd5e8e757d7ec6f3966 AS runtime
+FROM python:3.14-slim-trixie@sha256:930e1abba7c4e8f96ed93e8012c35d174d7732752731bbd5e8e757d7ec6f3966 AS runtime
 # example values: this fixture stands for an imaginary service, not a published image
 LABEL org.opencontainers.image.title="example-python-service" \
       org.opencontainers.image.description="Example Python web service" \

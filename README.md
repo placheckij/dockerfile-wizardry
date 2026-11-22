@@ -23,7 +23,7 @@ A sourced guide to writing Dockerfiles, with a worked example. The [rulebook](do
 - [🧭 Start Here](#-start-here)
 - [📜 The Rulebook](#-the-rulebook)
 - [🔐 The Fourteen Security Spells](#-the-fourteen-security-spells)
-  - [⚙️ Spell #1: Parameterized Builds, Pinned by Digest (CIS 4.2, 5.28)](#%EF%B8%8F-spell-1-parameterized-builds-pinned-by-digest-cis-42-528)
+  - [⚙️ Spell #1: Base Image Pinned by Digest (CIS 4.2, 5.28)](#%EF%B8%8F-spell-1-base-image-pinned-by-digest-cis-42-528)
   - [🏷️ Spell #2: Metadata Labels](#%EF%B8%8F-spell-2-metadata-labels)
   - [🛡️ Spell #3: Minimal Packages (CIS 4.3, 4.6)](#%EF%B8%8F-spell-3-minimal-packages-cis-43-46)
   - [👥 Spell #4: Non-Root User (CIS 4.1)](#-spell-4-non-root-user-cis-41)
@@ -91,19 +91,19 @@ A Claude Code skill that applies these rules is described [near the end](#-claud
 
 The Dockerfile in this repository applies 14 of the practices, numbered as "spells" in its comments. CIS control numbers refer to the **CIS Docker Benchmark v1.9.0** (the numbering changed between versions, so older articles may differ); a monthly CI job warns when a newer version or an updated OWASP cheat sheet appears.
 
-### ⚙️ Spell #1: Parameterized Builds, Pinned by Digest (CIS 4.2, 5.28)
+### ⚙️ Spell #1: Base Image Pinned by Digest (CIS 4.2, 5.28)
 ```dockerfile
-ARG PYTHON_VERSION=3.14
-ARG ALPINE_VERSION=3.24
-FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION}@sha256:a18b20ad... AS base
+FROM python:3.14-alpine3.24@sha256:a18b20ad... AS base
 ```
-Use ARG for flexible, maintainable version management. The tag says what you intend; the `@sha256:` digest says exactly which bytes you get, so a republished or tampered tag can't change your build.
+The tag says what you intend; the `@sha256:` digest says exactly which bytes you get, so a republished or tampered tag can't change your build.
 
-**Pinning freezes the base image**, so patches stop arriving on their own. A weekly CI job compares the pinned digest with what the tag points to today and fails - with the new digest in the log - when the tag has moved. Bump the digest, rebuild, run the tests.
+**Write the reference out in `FROM`.** Dependabot does not substitute `ARG`s, so it skips a `FROM` built from them ([dependabot-core#2057](https://github.com/dependabot/dependabot-core/issues/2057)); written out, it gets pull requests for new digests and tags. When several stages share the base, repeat the reference: Dependabot and Renovate update every copy.
+
+**Pinning freezes the base image**, so patches stop arriving on their own. Dependabot proposes the new digest, and a weekly CI job also compares the pinned digest with what the tag points to today and fails - with the new digest in the log - when the tag has moved. Bump the digest, rebuild, run the tests.
 
 **The tag names the release line** (`3.14`), not a patch (`3.14.10`). A patch tag is rebuilt only until the next patch ships; after that it never moves, so the weekly check would report the pin as current forever.
 
-**Source:** [CIS Docker Benchmark 4.2](https://www.cisecurity.org/benchmark/docker) - Ensure that containers use only trusted base images | [CIS Docker Benchmark 5.28](https://www.cisecurity.org/benchmark/docker) - Ensure that Docker commands always make use of the latest version of their image (its remediation calls for version pinning of base images) | [Dockerfile reference - Understand how ARG and FROM interact](https://docs.docker.com/reference/dockerfile/#understand-how-arg-and-from-interact) | [Docker Best Practices - Pin base image versions](https://docs.docker.com/build/building/best-practices/#pin-base-image-versions)
+**Source:** [CIS Docker Benchmark 4.2](https://www.cisecurity.org/benchmark/docker) - Ensure that containers use only trusted base images | [CIS Docker Benchmark 5.28](https://www.cisecurity.org/benchmark/docker) - Ensure that Docker commands always make use of the latest version of their image (its remediation calls for version pinning of base images) | [Docker Best Practices - Pin base image versions](https://docs.docker.com/build/building/best-practices/#pin-base-image-versions)
 
 ### 🏷️ Spell #2: Metadata Labels
 ```dockerfile

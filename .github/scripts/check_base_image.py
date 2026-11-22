@@ -17,7 +17,6 @@ from pathlib import Path
 
 DOCKERFILE = Path(__file__).resolve().parents[2] / "Dockerfile"
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
-ARG_RE = re.compile(r"^ARG\s+([A-Z_]+)=(\S+)\s*$", re.MULTILINE)
 FROM_RE = re.compile(
     r"^FROM\s+(\S+?)@(sha256:[0-9a-f]{64})\s+AS\s+base\s*$", re.MULTILINE
 )
@@ -38,13 +37,11 @@ def pinned_reference():
             "no 'FROM <image>@sha256:<digest> AS base' line found in the Dockerfile"
         )
     image, digest = match.groups()
-    args = dict(ARG_RE.findall(text))
-    # Substitute ${NAME} with the ARG default; anything left over is unresolvable.
-    image = re.sub(
-        r"\$\{([A-Z_]+)\}", lambda m: args.get(m.group(1), m.group(0)), image
-    )
-    if "${" in image or not re.fullmatch(r"[a-z0-9./_-]+:[A-Za-z0-9._-]+", image):
-        raise CheckError(f"cannot resolve the base image reference: {image!r}")
+    # The reference is written out (DW-BASE-01): Dependabot cannot update one built from ARGs.
+    if not re.fullmatch(r"[a-z0-9./_-]+:[A-Za-z0-9._-]+", image):
+        raise CheckError(
+            f"the base image reference must be written out as <image>:<tag>: {image!r}"
+        )
     return image, digest
 
 

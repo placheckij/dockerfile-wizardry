@@ -1,14 +1,13 @@
 # Good: a Node.js service with production dependencies installed in a build stage.
 # Linted only, never built, so it has no application source next to it. The digest was
 # resolved with `docker buildx imagetools inspect` on 2026-11-03 and is not refreshed
-# (nothing builds this file, so nothing notices when the tag moves).
-ARG NODE_VERSION=24
-ARG NODE_VARIANT=slim
+# (nothing builds this file, so nothing notices when the tag moves). Both stages write the
+# base reference out in FROM, as DW-BASE-01 asks.
 
 # Hadolint asks every stage for a HEALTHCHECK, but a build stage never runs as a
 # container; the runtime stage below has one
 # hadolint ignore=DL3057
-FROM node:${NODE_VERSION}-${NODE_VARIANT}@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS build
+FROM node:24-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS build
 WORKDIR /app
 # dependencies first, from the lockfile only; npm's download cache stays in the mount
 RUN --mount=type=cache,target=/root/.npm \
@@ -16,7 +15,7 @@ RUN --mount=type=cache,target=/root/.npm \
     --mount=type=bind,source=package-lock.json,target=package-lock.json \
     npm ci --omit=dev
 
-FROM node:${NODE_VERSION}-${NODE_VARIANT}@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS runtime
+FROM node:24-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS runtime
 # example values: this fixture stands for an imaginary service, not a published image
 LABEL org.opencontainers.image.title="example-node-service" \
       org.opencontainers.image.description="Example Node.js web service" \
